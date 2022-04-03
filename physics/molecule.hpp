@@ -17,11 +17,11 @@
 
 namespace physics
 {
-	enum class atom_type : unsigned char { HW, OW, N };
+	enum class atom_type : unsigned char { HT, OT, HF, OF, N };
 
 	constexpr std::size_t max_bonds = 4;
 
-	constexpr unsigned char atom_number[] = {1, 8};
+	constexpr unsigned char atom_number[] = {1, 8, 1, 8};
 
 	template <std::floating_point T>
 	constexpr T kC = 332.06371330062682040436798930743L; // Coulomb constant in AKMA units
@@ -36,33 +36,30 @@ namespace physics
 	constexpr T DW25 = 0.01123940014569822971609058164065L; // water self-diffusion constant in AKMA units at 25 °C
 
 	template <std::floating_point T>
-	constexpr T atom_mass[] = {1.008L, 15.9994L};
-
-	/*template <std::floating_point T>
-	std::map<const std::pair<atom_type, atom_type>, const std::pair<T, T>> bond_params = { { {atom_type::HW, atom_type::OW}, {450, 0.9572L} } }; // k, r0
+	constexpr T atom_mass[] = {1.008L, 15.9994L, 1.008L, 15.9994L};
 
 	template <std::floating_point T>
-	std::map<const std::tuple<atom_type, atom_type, atom_type>, const std::pair<T, T>> angle_params =
-		{ { {atom_type::HW, atom_type::OW, atom_type::HW}, {55, math::deg2rad(104.52L)} } }; // k, theta0
+	std::map<const std::pair<atom_type, atom_type>, const std::pair<T, T>> bond_params = // k, r0
+	{
+		{ {atom_type::HT, atom_type::OT}, {450, 0.9572L} },
+		{ {atom_type::HF, atom_type::OF}, {358.50860420650095602294455066922L, 1.027L} }
+	};
 
 	template <std::floating_point T>
-	std::pair<T, T> LJ_params[][int(atom_type::N)] = { { {0.046L, 0.4L}, {0.0836L, 1.7753L} },
-													   { {0.0836L, 1.7753L}, {0.1521L, 3.1507L} } }; // epsilon, sigma*/
+	std::map<const std::tuple<atom_type, atom_type, atom_type>, const std::pair<T, T>> angle_params = // k, theta0 // 383 kJ/mol
+	{
+		{ {atom_type::HT, atom_type::OT, atom_type::HT}, {55, math::deg2rad(104.52L)} },
+		{ {atom_type::HF, atom_type::OF, atom_type::HF}, {45.769598470363288718929254302103L, math::deg2rad(114.70L)} }
+	};
 
-	template <std::floating_point T>
-	std::map<const std::pair<atom_type, atom_type>, const std::pair<T, T>> bond_params = { { {atom_type::HW, atom_type::OW}, {358.50860420650095602294455066922L, 1.027L} } }; // k, r0 // 3000 kJ / mol A^2
-
-	template <std::floating_point T>
-	std::map<const std::tuple<atom_type, atom_type, atom_type>, const std::pair<T, T>> angle_params =
-		{ { {atom_type::HW, atom_type::OW, atom_type::HW}, {45.769598470363288718929254302103L, math::deg2rad(114.70L)} } }; // k, theta0 // 383 kJ/mol
-
-	template <std::floating_point T>
-	std::pair<T, T> LJ_params[][int(atom_type::N)] = { { {0, 0}, {0.0836L, 1.7753L} },
-													   { {0.0836L, 1.7753L}, {0.18936998087954110898661567877629L, 3.1776L} } }; // epsilon, sigma
-
-	template <std::floating_point T>
-	std::pair<T, T> LJ_params2[][int(atom_type::N)] = { { {0, 0}, {0, 0} },
-														{ {0, 0}, {0.18936998087954110898661567877629L, 3.1776L} } }; // epsilon, sigma
+	template <std::floating_point T> // epsilon, sigma
+	std::pair<T, T> LJ_params[][int(atom_type::N)] =
+	{
+		{ {0.046L, 0.4L}, {0.0836L, 1.7753L}, {0, 0}, {0, 0} }, // HT
+		{ {0.0836L, 1.7753L}, {0.1521L, 3.1507L}, {0, 0}, {0, 0} }, // OT
+		{ {0, 0}, {0, 0}, {0, 0}, {0.0836L, 1.7753L} }, // HF
+		{ {0, 0}, {0, 0}, {0.0836L, 1.7753L}, {0.18936998087954110898661567877629L, 3.1776L} } // OF
+	};
 
 	template <std::floating_point T>
 	struct molecule
@@ -80,7 +77,7 @@ namespace physics
 	{
 		.x = { {-0.75695032726366116174L, 0.58588227661829493656L}, {0}, {0.75695032726366116174L, 0.58588227661829493656L} },
 			// oxygen at the origin
-		.id = {atom_type::HW, atom_type::OW, atom_type::HW},
+		.id = {atom_type::HT, atom_type::OT, atom_type::HT},
 		.part_q = {0.417L, -0.834L, 0.417L},
 		.bonds = { {1}, {0, 2}, {1} },
 		.impropers = {}, // no impropers
@@ -92,7 +89,7 @@ namespace physics
 	{
 		.x = { {-0.75695032726366116174L, 0.58588227661829493656L}, {0}, {0.75695032726366116174L, 0.58588227661829493656L} },
 			// oxygen at the origin
-		.id = {atom_type::HW, atom_type::OW, atom_type::HW},
+		.id = {atom_type::HF, atom_type::OF, atom_type::HF},
 		.part_q = {0.4225L, -0.8450L, 0.4225L},
 		.bonds = { {1}, {0, 2}, {1} },
 		.impropers = {}, // no impropers
