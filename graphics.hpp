@@ -116,7 +116,7 @@ class graphics
 			return glfwWindowShouldClose(window) || glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
 		}
 
-		void cycle(float *atomPosType, int n_atoms)
+		void draw(float *atomPosType, int n_atoms)
 		{
 			glfwPollEvents();
 

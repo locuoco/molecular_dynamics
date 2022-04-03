@@ -53,7 +53,7 @@ int main(const int, const char**)
 			atomPosType[i*4+3] = physics::atom_number[int(molsys.id[i])];
 		}
 
-		window.cycle(atomPosType, molsys.n);
+		window.draw(atomPosType, molsys.n);
 	}
 
 	return 0;
