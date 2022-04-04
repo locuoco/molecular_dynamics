@@ -1,5 +1,5 @@
 // VERTEX SHADER
-#version 410 core
+#version 330 core
 
 // Input vertex, same code will be called for each vertex
 layout(location = 0) in vec3 pos;

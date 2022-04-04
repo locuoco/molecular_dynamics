@@ -1,5 +1,5 @@
 // FRAGMENT SHADER
-#version 410 core
+#version 330 core
 
 // Input from vertex shader (interpolated)
 in vec3 fragPos;

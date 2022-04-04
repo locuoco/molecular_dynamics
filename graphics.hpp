@@ -53,8 +53,8 @@ class graphics
 				throw;
 			}
 			//glfwWindowHint(GLFW_SAMPLES, 4); // for multisampling
-			glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-			glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+			glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+			glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 			glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 			glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 			glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
@@ -226,15 +226,18 @@ class graphics
 
 			glUseProgram(progFXAAID);
 
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, texScene);
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, texBlueNoise);
+			glUniform1i(sceneID, 0);
+			glUniform1i(blueNoiseID, 1);
 
 			glUniform3f(rgbMaxID, (1 << (vidmode -> redBits - 2)) - 1,
 								  (1 << (vidmode -> greenBits - 2)) - 1,
 								  (1 << (vidmode -> blueBits - 2)) - 1); // (1 << (vidmode -> redBits - 2)) - 1
 			glUniform1ui(frameID, frame);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, texScene);
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, texBlueNoise);
 
 			renderQuad();
 
@@ -289,7 +292,7 @@ class graphics
 		Font *font;
 		GLuint progID, progFXAAID; // programs
 		GLuint mvID, projID, normalMatID, lightPosID, gammaID; // uniforms of progID
-		GLuint rgbMaxID, frameID; // uniforms of progFXAAID
+		GLuint rgbMaxID, frameID, sceneID, blueNoiseID; // uniforms of progFXAAID
 		GLuint fb; // framebuffers
 		GLuint texScene, texBlueNoise; // textures
 		GLuint va, rb; // vertex arrays and render buffers
@@ -421,6 +424,8 @@ class graphics
 
 			rgbMaxID = glGetUniformLocation(progFXAAID, "rgbMax");
 			frameID = glGetUniformLocation(progFXAAID, "frame");
+			sceneID = glGetUniformLocation(progFXAAID, "screenTex");
+			blueNoiseID = glGetUniformLocation(progFXAAID, "blueNoiseTex");
 
 			return 0;
 		}
