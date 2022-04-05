@@ -21,9 +21,19 @@ References:
 
 ## The code
 The code makes use of C++ templates and concepts (thus it requires C++20) and is organised in many header files, that can be included from a single compilation unit. It is organised in the following way:
-* TODO
-* TODO
-* not yet
+* `physics`: directory which contains part of code relevant to the resolution of the physical/numerical problem.
+  * `fmm.hpp`: fast multipole method for fast calculation of long-range forces (not implemented yet).
+  * `integrator.hpp`: classes and concepts for integration of classical hamiltonian dynamical systems.
+  * `molecule.hpp`: classes, methods and other utilites for managing molecular systems (for now, you have only water molecules, also the dihedral potential part must be added).
+  * `physics.hpp`: mainly a header file that includes everything.
+  * `point.hpp`: classes, aliases and data structures for use in generic dynamical systems.
+* `shaders`: directory which contains shaders for the rendering of impostors (for fast rendering of spheres), post-processing filters (fast approximate anti-aliasing, blue noise dithering) and text.
+* `controls.hpp`: includes a function to manage keyboard and mouse controls.
+* `Font.hpp`: class for drawing text on the window.
+* `graphics.hpp`: class that manages the graphics used in this specific program.
+* `math.hpp`: some math helper functions.
+* `shader.hpp`: some functions to load shaders from file.
+* `main.cpp`: it just contains the main loop and some basic initialization of the system (it can be ignored or modified).
 
 ## Dependencies
 
@@ -40,8 +50,12 @@ These dependencies are required only for these header files:
 
 ## Compilation
 
-To compile the program, simply do:
+To compile the program, simply do (with MinGW):
 
     g++ main.cpp -o mold -std=c++20 -I <includes> -L <libs> -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -O3
 
-Where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files. The executable will be called `mold`.
+On Linux, the library names could be different:
+
+    g++ main.cpp -o mold -std=c++20 -I <includes> -L <libs> -lopengl -lglu -lglew -lglfw3 -lfreetype -Wall -Wextra -pedantic -O3
+
+where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files (if required). The executable will be called `mold`.
