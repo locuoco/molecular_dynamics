@@ -117,8 +117,8 @@ namespace physics
 					point3<T> r = x[i] - x[j];
 					T d = norm(r);
 					r = (par.first * (d - par.second) / d) * r;
-					a[i] -= r;
-					a[j] += r;
+					f[i] -= r;
+					f[j] += r;
 				}
 		}
 
@@ -160,9 +160,9 @@ namespace physics
 						rik /= dik;
 						rik = (get<2>(par) * (dik - get<3>(par))) * rik;
 						*/
-						a[i] += (rkj - rijt) * Kanglesinden; // - rik
-						a[j] += (rijt + rkjt - rij - rkj) * Kanglesinden;
-						a[k] += (rij - rkjt) * Kanglesinden; // + rik
+						f[i] += (rkj - rijt) * Kanglesinden; // - rik
+						f[j] += (rijt + rkjt - rij - rkj) * Kanglesinden;
+						f[k] += (rij - rkjt) * Kanglesinden; // + rik
 					}
 				}
 		}
@@ -238,14 +238,14 @@ namespace physics
 						T s = par.second * par.second * r2_;
 						s = s * s * s;
 						r = ((par.first * s * (s - 1) + kC<T> * part_q[i] * part_q[j] * d_) * r2_) * r;
-						a[i] += r;
-						a[j] -= r;
+						f[i] += r;
+						f[j] -= r;
 					}
 		}
 
 		void elastic_confining(point3<T> k)
 		{
-			a -= k * x;
+			f -= k * x;
 		}
 
 		void diff_box_confining(T steepness)
@@ -254,18 +254,18 @@ namespace physics
 			for (std::size_t i = 0; i < n; ++i)
 			{
 				if (x[i][0] > hside)
-					a[i][0] -= steepness;
+					f[i][0] -= steepness;
 				if (x[i][1] > hside)
-					a[i][1] -= steepness;
+					f[i][1] -= steepness;
 				if (x[i][2] > hside)
-					a[i][2] -= steepness;
+					f[i][2] -= steepness;
 
 				if (x[i][0] < -hside)
-					a[i][0] += steepness;
+					f[i][0] += steepness;
 				if (x[i][1] < -hside)
-					a[i][1] += steepness;
+					f[i][1] += steepness;
 				if (x[i][2] < -hside)
-					a[i][2] += steepness;
+					f[i][2] += steepness;
 			}
 		}
 
@@ -273,13 +273,15 @@ namespace physics
 		{
 			T two_kin = 0;
 			for (std::size_t i = 0; i < n; ++i)
-				two_kin += atom_mass<T>[ int(id[i]) ] * dot(v[i], v[i]);
+				two_kin += atom_mass<T>[ int(id[i]) ] * dot(p[i], p[i]);
 			return two_kin / (3*n*kB<T>);
 		}
 
 		public:
 
-		state<T, 3> x, v, a; // position, velocity, acceleration
+		using scalar_type = T;
+
+		state<T, 3> x, p, f; // position, velocity, acceleration
 		state<T, 3> noise;
 		std::valarray<T> gamma;
 		std::vector<atom_type> id; // identity of the atom
@@ -313,23 +315,23 @@ namespace physics
 
 			if (n + mol.n > max_atoms)
 				throw("Error: Exceeded maximum number of atoms");
-			state<T, 3> x_tmp = x, v_tmp = v, a_tmp = a;
+			state<T, 3> x_tmp = x, p_tmp = p, f_tmp = f;
 			x.resize(n + mol.n);
-			v.resize(n + mol.n);
-			a.resize(n + mol.n);
+			p.resize(n + mol.n);
+			f.resize(n + mol.n);
 			noise.resize(n + mol.n);
 			gamma.resize(n + mol.n);
 			for (size_t i = 0; i < n; ++i)
 				x[i] = x_tmp[i];
 			for (size_t i = 0; i < n; ++i)
-				v[i] = v_tmp[i];
+				p[i] = p_tmp[i];
 			for (size_t i = 0; i < n; ++i)
-				a[i] = a_tmp[i];
+				f[i] = f_tmp[i];
 
 			for (size_t i = 0; i < mol.n; ++i)
 				x[n + i] = mol.x[i] + pos;
 			for (size_t i = 0; i < mol.n; ++i)
-				v[n + i] = 0;
+				p[n + i] = 0;
 			for (size_t i = 0; i < mol.n; ++i)
 				id.push_back(mol.id[i]);
 			for (size_t i = 0; i < mol.n; ++i)
@@ -361,28 +363,37 @@ namespace physics
 			{
 				T measured_temp = calculate_temperature();
 				if (measured_temp > 0)
-					v *= sqrt(temperature / measured_temp);
+					p *= sqrt(temperature / measured_temp);
 			}
 		}
 
-		void accel()
+		const auto& force(bool eval = true)
 		{
 			using std::size_t;
 
-			a = 0;
+			if (eval)
+			{
+				f = 0;
 
-			force_bonds();
-			force_angles();
-			
-			a *= 2;
-			// the 2 factor is due to the fact that the K constant parameters are two times the relative elastic constants
+				force_bonds();
+				force_angles();
+				
+				f *= 2;
+				// the 2 factor is due to the fact that the K constant parameters are two times the relative elastic constants
 
-			force_nonbonded();
+				force_nonbonded();
 
-			diff_box_confining(10);
+				diff_box_confining(10);
 
-			for (size_t i = 0; i < n; ++i)
-				a[i] /= atom_mass<T>[ int(id[i]) ];
+				for (size_t i = 0; i < n; ++i)
+					f[i] /= atom_mass<T>[ int(id[i]) ];
+			}
+			return f;
+		}
+
+		const auto& vel(bool = true)
+		{
+			return p;
 		}
 
 		void rand()

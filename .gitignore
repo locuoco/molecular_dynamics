@@ -1,3 +1,11 @@
-*.dll
+# Temporary files
 *.bak
+
+# Windows dynamic-link libraries
+*.dll
+
+# Windows executables
 *.exe
+
+# Reference
+ref/

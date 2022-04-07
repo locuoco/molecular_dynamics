@@ -10,47 +10,10 @@
 
 namespace physics
 {
-	template <typename T>
-	struct physical_system_base
-	{
-		virtual void accel() = 0;
-	};
-
-	template <typename S, typename T>
-	concept physical_system = std::is_base_of_v<physical_system_base<T>, S>;
-
-	template <typename S, typename T>
-	concept having_coordinates = physical_system<S, T>
-		&& requires(S& s, T dt)
-		{
-			s.x += s.v * dt;
-			s.v += s.a * dt;
-			s.t += dt;
-			s.accel();
-		};
-
-	template <typename S, typename T>
-	concept having_coordinates_damped = having_coordinates<S, T>
-		&& requires(S& s, T dt, std::size_t i)
-		{
-			{s.gamma[i]} -> std::convertible_to<T>;
-			s.v[i] = s.v[i] * dt;
-			i < s.n;
-		};
-
-	template <typename S, typename T>
-	concept having_coordinates_stochastic = having_coordinates_damped<S, T>
-		&& requires(S& s, T dt, std::size_t i)
-		{
-			{s.D} -> std::convertible_to<T>;
-			s.v[i] = s.v[i] * dt + s.noise[i] * dt;
-			s.rand();
-		};
-
 	struct integrator_base {};
 
 	struct symplectic_integrator_base : integrator_base {};
-	// Assumption: H = T(p) + V(x) = p^2/2m + V(x), with a = -(1/m) grad V(x) and v = p/m
+	// Assumption: H = T(p) + V(x), with f = -grad V(x) and v = grad T(p)
 	// Furthermore, H is explicitly independent on time
 	// unless stated otherwise
 
@@ -66,6 +29,39 @@ namespace physics
 	concept stochastic_integrator = std::is_base_of_v<stochastic_integrator_base, Integ>;
 
 	template <typename T>
+	struct physical_system_base {};
+
+	template <typename S, typename T>
+	concept physical_system = std::is_base_of_v<physical_system_base<T>, S>;
+
+	template <typename S, typename T>
+	concept having_coordinates = physical_system<S, T>
+		&& requires(S& s, T dt)
+		{
+			s.x += s.vel() * dt;
+			s.p += s.force() * dt;
+			s.t += dt;
+		};
+
+	template <typename S, typename T>
+	concept having_coordinates_damped = having_coordinates<S, T>
+		&& requires(S& s, T dt, std::size_t i)
+		{
+			{s.gamma[i]} -> std::convertible_to<T>;
+			s.p[i] = s.p[i] * dt;
+			i < s.n;
+		};
+
+	template <typename S, typename T>
+	concept having_coordinates_stochastic = having_coordinates_damped<S, T>
+		&& requires(S& s, T dt, std::size_t i)
+		{
+			{s.D} -> std::convertible_to<T>;
+			s.p[i] = s.p[i] * dt + s.noise[i] * dt;
+			s.rand();
+		};
+
+	template <typename T>
 	struct symplectic_euler : symplectic_integrator_base
 	// Symplectic Euler method (1st order, 1 stage)
 	// It is equivalent to leapfrog for long-term simulations, despite being lower order
@@ -73,9 +69,8 @@ namespace physics
 		template <having_coordinates<T> S>
 		void step(S& s, T dt) const
 		{
-			s.accel();
-			s.v += s.a * dt;
-			s.x += s.v * dt;
+			s.p += s.force() * dt;
+			s.x += s.vel() * dt;
 
 			s.t += dt;
 		}
@@ -88,10 +83,9 @@ namespace physics
 		template <having_coordinates<T> S>
 		void step(S& s, T dt) const
 		{
-			s.x += s.v * (dt/2);
-			s.accel();
-			s.v += s.a * dt;
-			s.x += s.v * (dt/2);
+			s.x += s.vel(false) * (dt/2);
+			s.p += s.force() * dt;
+			s.x += s.vel() * (dt/2);
 
 			s.t += dt;
 		}
@@ -100,14 +94,11 @@ namespace physics
 	template <typename T>
 	struct stochastic_leapfrog : symplectic_integrator_base, stochastic_integrator_base
 	// stochastic leapfrog (2nd order?, 1 stage)
-	// dp	= f dt - gamma p dt + sigma dw
-	// dv	= a dt - gamma v dt + (sigma/m) dw
-	//		= a dt + (-chi v dt + sigma dw) / m
-	// with a = f/m, v = p/m,
+	// dp = f dt - gamma p dt + sigma dw
+	// with:
 	// 		gamma = k T / m D [related to diffusion coefficient],
 	// 		sigma = sqrt(2 gamma m k T) = k T sqrt(2 / D) [fluctuation-dissipation theorem],
 	//		dw : Wiener process differential
-	//		chi = m * gamma = k T / D  ===>   sigma = chi * sqrt(2 D)
 	// H = H0(x, p) + H1(p) xi(t) <- stochastic hamiltonian (xi : gaussian process)
 /*
 	ALLEN, TILDESLEY
@@ -122,21 +113,19 @@ namespace physics
 			using std::exp;
 			using std::sqrt;
 
-			s.v += s.a * (dt/2);
-			s.x += s.v * (dt/2);
+			s.p += s.force(false) * (dt/2);
+			s.x += s.vel() * (dt/2);
 			s.rand();
 			if (s.D == 0) // gamma -> inf
-				s.v = s.noise; // s.noise = sqrt(k T / m) * gaussian noise
+				s.p = s.noise; // s.noise = sqrt(m k T) * gaussian noise
 			else
 				for (std::size_t i = 0; i < s.n; ++i)
-					s.v[i] = exp(-s.gamma[i] * dt) * s.v[i] + sqrt(1 - exp(-2 * s.gamma[i] * dt)) * s.noise[i];
-				// v = exp(-gamma dt) v + sqrt((1 - exp(-2 gamma dt)) k T / m) g
-				// expanding the exp (gamma small): v += -gamma v dt + sqrt(2 gamma k T dt / m) g
-				//									v += -(chi v dt + sigma sqrt(dt) g) / m
+					s.p[i] = exp(-s.gamma[i] * dt) * s.p[i] + sqrt(1 - exp(-2 * s.gamma[i] * dt)) * s.noise[i];
+				// p = exp(-gamma dt) p + sqrt((1 - exp(-2 gamma dt)) m k T) g
+				// expanding the exp (gamma small): p += -gamma p dt + sqrt(2 gamma m k T dt) g
 				// g: gaussian noise with mean = 0, std.dev = 1
-			s.x += s.v * (dt/2);
-			s.accel();
-			s.v += s.a * (dt/2);
+			s.x += s.vel() * (dt/2);
+			s.p += s.force() * (dt/2);
 
 			s.t += dt;
 		}
@@ -145,22 +134,19 @@ namespace physics
 	template <typename T>
 	struct damped_leapfrog : integrator_base
 	// damped integrator (2nd order?, 1 stage)
-	// dx = dp/m, dp = f dt - gamma p dt
-	//			  dv = a dt - gamma v dt
-	// with a = f/m, v = p/m,
+	// dp = f dt - gamma p dt
 	{
 		template <having_coordinates_damped<T> S>
 		void step(S& s, T dt) const
 		{
 			using std::exp;
 
-			s.v += s.a * (dt/2);
-			s.x += s.v * (dt/2);
+			s.p += s.force(false) * (dt/2);
+			s.x += s.vel() * (dt/2);
 			for (std::size_t i = 0; i < s.n; ++i)
-				s.v *= exp(-s.gamma[i] * dt);
-			s.x += s.v * (dt/2);
-			s.accel();
-			s.v += s.a * (dt/2);
+				s.p[i] *= exp(-s.gamma[i] * dt);
+			s.x += s.vel() * (dt/2);
+			s.p += s.force() * (dt/2);
 
 			s.t += dt;
 		}
@@ -177,19 +163,15 @@ namespace physics
 		template <having_coordinates<T> S>
 		void step(S& s, T dt) const
 		{
-			s.x += s.v * (xi * dt);
-			s.accel();
-			s.v += s.a * ((1 - 2*lambda) * dt/2);
-			s.x += s.v * (chi * dt);
-			s.accel();
-			s.v += s.a * (lambda * dt);
-			s.x += s.v * ((1 - 2*(chi + xi)) * dt);
-			s.accel();
-			s.v += s.a * (lambda * dt);
-			s.x += s.v * (chi * dt);
-			s.accel();
-			s.v += s.a * ((1 - 2*lambda) * dt/2);
-			s.x += s.v * (xi * dt);
+			s.x += s.vel(false) * (xi * dt);
+			s.p += s.accel() * ((1 - 2*lambda) * dt/2);
+			s.x += s.vel() * (chi * dt);
+			s.p += s.accel() * (lambda * dt);
+			s.x += s.vel() * ((1 - 2*(chi + xi)) * dt);
+			s.p += s.accel() * (lambda * dt);
+			s.x += s.vel() * (chi * dt);
+			s.p += s.accel() * ((1 - 2*lambda) * dt/2);
+			s.x += s.vel() * (xi * dt);
 
 			s.t += dt;
 		}
@@ -528,49 +510,47 @@ namespace physics
 			using std::size_t;
 
 			prev_x = s.x;
-			prev_v = s.v;
+			prev_p = s.p;
 			prev_t = s.t;
 
-			kx[0] = s.v;
-			s.accel();
-			kv[0] = s.a;
+			kx[0] = s.vel();
+			kp[0] = s.force();
 			for (size_t i = 1; i < Stages; ++i)
 			{
 				s.x = 0;
-				s.v = 0;
+				s.p = 0;
 				// sum smaller contributes (in dt) first to minimize rounding errors
 				for (size_t j = 0; j < i; ++j)
 				{
 					T mult = pars[(i-1)*Stages + j+1] * dt;
 					s.x += kx[j] * mult;
-					s.v += kv[j] * mult;
+					s.p += kp[j] * mult;
 				}
 				s.x += prev_x;
-				s.v += prev_v;
+				s.p += prev_p;
 				s.t = prev_t + pars[(i-1)*Stages] * dt;
 
-				kx[i] = s.v;
-				s.accel();
-				kv[i] = s.a;
+				kx[i] = s.vel();
+				kp[i] = s.force();
 			}
 
 			s.x = 0;
-			s.v = 0;
+			s.p = 0;
 			for (size_t i = 0; i < Stages; ++i)
 			{
 				T mult = pars[(Stages-1)*Stages + i] * dt;
 				s.x += kx[i] * mult;
-				s.v += kv[i] * mult;
+				s.p += kp[i] * mult;
 			}
 			s.x += prev_x;
-			s.v += prev_v;
+			s.p += prev_p;
 			s.t = prev_t + dt;
 		}
 
 		private:
 
 			const std::array<T, Stages*Stages> pars;
-			std::valarray<T> kx[Stages], kv[Stages], prev_x, prev_v;
+			std::valarray<T> kx[Stages], kp[Stages], prev_x, prev_p;
 			T prev_t;
 	};
 
@@ -711,6 +691,9 @@ namespace physics
 
 	// RUNGE-KUTTA-NYSTROM SCHEMES
 
+	// H = p^2/2m + V(q)
+	// only quadratic kinetic energy!
+
 	template <typename T, std::size_t Stages>
 	struct runge_kutta_nystrom_base : runge_kutta_base, symplectic_integrator_base
 	{
@@ -723,10 +706,10 @@ namespace physics
 			using std::size_t;
 
 			prev_x = s.x;
-			prev_v = s.v;
+			prev_v = s.vel();
+			prev_p = s.p;
 
-			s.accel();
-			k[0] = s.a;
+			k[0] = s.force();
 			for (size_t i = 1; i < Stages; ++i)
 			{
 				s.x = 0;
@@ -736,27 +719,26 @@ namespace physics
 				s.x += prev_v * (pars[(i-1)*(Stages+1)] * dt);
 				s.x += prev_x;
 
-				s.accel();
-				k[i] = s.a;
+				k[i] = s.force();
 			}
 
 			s.x = 0;
-			s.v = 0;
+			s.p = 0;
 			for (size_t i = 0; i < Stages; ++i)
 			{
 				s.x += k[i] * (pars[(Stages-1)*Stages + i] * dt * dt);
-				s.v += k[i] * (pars[Stages*Stages + i] * dt);
+				s.p += k[i] * (pars[Stages*Stages + i] * dt);
 			}
 			s.x += prev_v * dt;
 			s.x += prev_x;
-			s.v += prev_v;
+			s.p += prev_p;
 			s.t += dt;
 		}
 
 		private:
 
 			const std::array<T, (Stages+1)*Stages> pars;
-			std::valarray<T> k[Stages], prev_x, prev_v;
+			std::valarray<T> k[Stages], prev_x, prev_v, prev_p;
 	};
 
 } // namespace physics
