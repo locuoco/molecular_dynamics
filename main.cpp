@@ -14,16 +14,16 @@ g++ main.cpp -o pmd -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\Use
 int main(const int, const char**)
 {
 	graphics window;
-	
+
 	//test();
-	
+
 	int side = 6, hside = side/2;
 	double volume = (side*side*side*18)/0.55; // 0.55 = density of ice in AKMA units
-	
+
 	double dist = std::cbrt(volume)/side;
 	std::cout << "dist = " << dist << std::endl;
-	
-	physics::molecular_system<double, physics::suzuki8<double>> molsys(dist*side, 252, physics::DW5<double>);
+
+	physics::molecular_system<double, physics::suzuki8<double, physics::state<double, 3>>> molsys(dist*side, 252, physics::DW5<double>);
 
 	physics::molecule pert_water = physics::water_fba_eps<double>;
 	for (unsigned int i = 0; i < pert_water.n; ++i)

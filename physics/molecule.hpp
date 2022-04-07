@@ -96,8 +96,8 @@ namespace physics
 		.n = 3
 	};
 
-	template <std::floating_point T, integrator Integ = leapfrog<T>>
-	class molecular_system : public physical_system_base<T>
+	template <std::floating_point T, integrator<T, state<T, 3>> Integ = leapfrog<T, state<T, 3>>>
+	class molecular_system : public physical_system_base<T, state<T, 3>>
 	{
 		void force_bonds()
 		{
@@ -367,7 +367,7 @@ namespace physics
 			}
 		}
 
-		const auto& force(bool eval = true)
+		const state<T, 3>& force(bool eval = true)
 		{
 			using std::size_t;
 
@@ -391,7 +391,7 @@ namespace physics
 			return f;
 		}
 
-		const auto& vel(bool = true)
+		const state<T, 3>& vel(bool = true)
 		{
 			return p;
 		}

@@ -10,32 +10,39 @@
 
 namespace physics
 {
+	template <typename T, typename State>
 	struct integrator_base {};
 
-	struct symplectic_integrator_base : integrator_base {};
+	template <typename T, typename State>
+	struct symplectic_integrator_base : integrator_base<T, State> {};
 	// Assumption: H = T(p) + V(x), with f = -grad V(x) and v = grad T(p)
 	// Furthermore, H is explicitly independent on time
 	// unless stated otherwise
 
-	struct stochastic_integrator_base : integrator_base {};
+	template <typename T, typename State>
+	struct stochastic_integrator_base : integrator_base<T, State> {};
 
-	template <typename Integ>
-	concept integrator = std::is_base_of_v<integrator_base, Integ>;
+	template <typename Integ, typename T, typename State>
+	concept integrator = std::is_base_of_v<integrator_base<T, State>, Integ>;
 
-	template <typename Integ>
-	concept symplectic_integrator = std::is_base_of_v<symplectic_integrator_base, Integ>;
+	template <typename Integ, typename T, typename State>
+	concept symplectic_integrator = std::is_base_of_v<symplectic_integrator_base<T, State>, Integ>;
 
-	template <typename Integ>
-	concept stochastic_integrator = std::is_base_of_v<stochastic_integrator_base, Integ>;
+	template <typename Integ, typename T, typename State>
+	concept stochastic_integrator = std::is_base_of_v<stochastic_integrator_base<T, State>, Integ>;
 
-	template <typename T>
-	struct physical_system_base {};
+	template <typename T, typename State>
+	struct physical_system_base
+	{
+		virtual const State& force(bool = true) = 0;
+		virtual const State& vel(bool = true) = 0;
+	};
 
-	template <typename S, typename T>
-	concept physical_system = std::is_base_of_v<physical_system_base<T>, S>;
+	template <typename S, typename T, typename State>
+	concept physical_system = std::is_base_of_v<physical_system_base<T, State>, S>;
 
-	template <typename S, typename T>
-	concept having_coordinates = physical_system<S, T>
+	template <typename S, typename T, typename State>
+	concept having_coordinates = physical_system<S, T, State>
 		&& requires(S& s, T dt)
 		{
 			s.x += s.vel() * dt;
@@ -43,8 +50,8 @@ namespace physics
 			s.t += dt;
 		};
 
-	template <typename S, typename T>
-	concept having_coordinates_damped = having_coordinates<S, T>
+	template <typename S, typename T, typename State>
+	concept having_coordinates_damped = having_coordinates<S, T, State>
 		&& requires(S& s, T dt, std::size_t i)
 		{
 			{s.gamma[i]} -> std::convertible_to<T>;
@@ -52,8 +59,8 @@ namespace physics
 			i < s.n;
 		};
 
-	template <typename S, typename T>
-	concept having_coordinates_stochastic = having_coordinates_damped<S, T>
+	template <typename S, typename T, typename State>
+	concept having_coordinates_stochastic = having_coordinates_damped<S, T, State>
 		&& requires(S& s, T dt, std::size_t i)
 		{
 			{s.D} -> std::convertible_to<T>;
@@ -61,12 +68,12 @@ namespace physics
 			s.rand();
 		};
 
-	template <typename T>
-	struct symplectic_euler : symplectic_integrator_base
+	template <typename T, typename State>
+	struct symplectic_euler : symplectic_integrator_base<T, State>
 	// Symplectic Euler method (1st order, 1 stage)
 	// It is equivalent to leapfrog for long-term simulations, despite being lower order
 	{
-		template <having_coordinates<T> S>
+		template <having_coordinates<T, State> S>
 		void step(S& s, T dt) const
 		{
 			s.p += s.force() * dt;
@@ -76,11 +83,11 @@ namespace physics
 		}
 	};
 
-	template <typename T>
-	struct leapfrog : symplectic_integrator_base
+	template <typename T, typename State>
+	struct leapfrog : symplectic_integrator_base<T, State>
 	// Leapfrog method (2nd order, 1 stage)
 	{
-		template <having_coordinates<T> S>
+		template <having_coordinates<T, State> S>
 		void step(S& s, T dt) const
 		{
 			s.x += s.vel(false) * (dt/2);
@@ -91,8 +98,8 @@ namespace physics
 		}
 	};
 
-	template <typename T>
-	struct stochastic_leapfrog : symplectic_integrator_base, stochastic_integrator_base
+	template <typename T, typename State>
+	struct stochastic_leapfrog : symplectic_integrator_base<T, State>, stochastic_integrator_base<T, State>
 	// stochastic leapfrog (2nd order?, 1 stage)
 	// dp = f dt - gamma p dt + sigma dw
 	// with:
@@ -107,7 +114,7 @@ namespace physics
 	P. 383-389
 */
 	{
-		template <having_coordinates_stochastic<T> S>
+		template <having_coordinates_stochastic<T, State> S>
 		void step(S& s, T dt) const
 		{
 			using std::exp;
@@ -131,12 +138,12 @@ namespace physics
 		}
 	};
 
-	template <typename T>
-	struct damped_leapfrog : integrator_base
+	template <typename T, typename State>
+	struct damped_leapfrog : integrator_base<T, State>
 	// damped integrator (2nd order?, 1 stage)
 	// dp = f dt - gamma p dt
 	{
-		template <having_coordinates_damped<T> S>
+		template <having_coordinates_damped<T, State> S>
 		void step(S& s, T dt) const
 		{
 			using std::exp;
@@ -152,15 +159,15 @@ namespace physics
 		}
 	};
 
-	template <typename T>
-	struct pefrl : symplectic_integrator_base
+	template <typename T, typename State>
+	struct pefrl : symplectic_integrator_base<T, State>
 	// Position-extended Forest-Ruth-like (4th order, 4 stages)
 	// OMELYAN, MRYGLOD, FOLK
 	// OPTIMIZED FOREST-RUTH- AND SUZUKI-LIKE ALGORITHMS FOR INTEGRATION
 	// OF MOTION IN MANY-BODY SYSTEMS
 	// 2008
 	{
-		template <having_coordinates<T> S>
+		template <having_coordinates<T, State> S>
 		void step(S& s, T dt) const
 		{
 			s.x += s.vel(false) * (xi * dt);
@@ -201,13 +208,13 @@ namespace physics
 	P. 156-158
 */
 
-	template <typename T, symplectic_integrator Integ, std::size_t Stages>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ, std::size_t Stages>
 	struct composition_scheme_base : Integ
 	{
 		template <typename ... Ts>
 		composition_scheme_base(Ts ... pars) : d{T(pars)...} {}
 
-		template <having_coordinates<T> S>
+		template <having_coordinates<T, State> S>
 		void step(S& s, T dt) const
 		{
 			for (size_t i = 0; i < Stages; ++i)
@@ -219,16 +226,16 @@ namespace physics
 			const std::array<T, (Stages+1)/2> d;
 	};
 
-	template <typename Integ, typename T, typename Integ2, std::size_t Stages>
-	concept composition_scheme = std::is_base_of_v<composition_scheme_base<T, Integ2, Stages>, Integ>;
+	template <typename Integ, typename T, typename State, typename Integ2, std::size_t Stages>
+	concept composition_scheme = std::is_base_of_v<composition_scheme_base<T, State, Integ2, Stages>, Integ>;
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct forest_ruth : composition_scheme_base<T, Integ, 3>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct forest_ruth : composition_scheme_base<T, State, Integ, 3>
 	// Forest-Ruth method (4th order, 3 stages)
 	// independently obtained by Yoshida
 	{
 		forest_ruth()
-			: composition_scheme_base<T, Integ, 3>
+			: composition_scheme_base<T, State, Integ, 3>
 			{
 				1.3512071919596576340476878089715L, // 1 / (2 - cbrt(2))
 				-1.7024143839193152680953756179429L // -cbrt(2) / (2 - cbrt(2))
@@ -236,12 +243,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct suzuki4 : composition_scheme_base<T, Integ, 5>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct suzuki4 : composition_scheme_base<T, State, Integ, 5>
 	// Suzuki method (4th order, 5 stages)
 	{
 		suzuki4()
-			: composition_scheme_base<T, Integ, 5>
+			: composition_scheme_base<T, State, Integ, 5>
 			{
 				0.41449077179437573714235406286076L, // 1 / (4 - cbrt(4))
 				0.41449077179437573714235406286076L, // 1 / (4 - cbrt(4))
@@ -250,12 +257,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct kahan_li4a : composition_scheme_base<T, Integ, 5>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct kahan_li4a : composition_scheme_base<T, State, Integ, 5>
 	// Kahan-Li method (4th order, 5 stages)
 	{
 		kahan_li4a()
-			: composition_scheme_base<T, Integ, 5>
+			: composition_scheme_base<T, State, Integ, 5>
 			{
 				0.78867513459481288225457439025098L, // (3 + sqrt(3)) / 6
 				0.21132486540518711774542560974902L, // (3 - sqrt(3)) / 6
@@ -264,12 +271,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct kahan_li4b : composition_scheme_base<T, Integ, 5>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct kahan_li4b : composition_scheme_base<T, State, Integ, 5>
 	// Kahan-Li method (4th order, 5 stages)
 	{
 		kahan_li4b()
-			: composition_scheme_base<T, Integ, 5>
+			: composition_scheme_base<T, State, Integ, 5>
 			{
 				0.21132486540518711774542560974902L, // (3 - sqrt(3)) / 6
 				0.78867513459481288225457439025098L, // (3 + sqrt(3)) / 6
@@ -278,12 +285,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct yoshida6 : composition_scheme_base<T, Integ, 7>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct yoshida6 : composition_scheme_base<T, State, Integ, 7>
 	// Yoshida method (6th order, 7 stages)
 	{
 		yoshida6()
-			: composition_scheme_base<T, Integ, 7>
+			: composition_scheme_base<T, State, Integ, 7>
 			{
 				0.78451361047755726382L,
 				0.23557321335935813368L,
@@ -293,12 +300,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct kahan_li6a : composition_scheme_base<T, Integ, 9>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct kahan_li6a : composition_scheme_base<T, State, Integ, 9>
 	// Kahan-Li method (6th order, 9 stages)
 	{
 		kahan_li6a()
-			: composition_scheme_base<T, Integ, 9>
+			: composition_scheme_base<T, State, Integ, 9>
 			{
 				0.39216144400731413928L,
 				0.33259913678935943860L,
@@ -309,12 +316,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct kahan_li6b : composition_scheme_base<T, Integ, 9>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct kahan_li6b : composition_scheme_base<T, State, Integ, 9>
 	// Kahan-Li method (6th order, 9 stages)
 	{
 		kahan_li6b()
-			: composition_scheme_base<T, Integ, 9>
+			: composition_scheme_base<T, State, Integ, 9>
 			{
 				0.39103020330868478817L,
 				0.33403728961113601749L,
@@ -325,12 +332,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct suzuki8 : composition_scheme_base<T, Integ, 15>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct suzuki8 : composition_scheme_base<T, State, Integ, 15>
 	// Suzuki method (8th order, 15 stages)
 	{
 		suzuki8()
-			: composition_scheme_base<T, Integ, 15>
+			: composition_scheme_base<T, State, Integ, 15>
 			{
 				0.74167036435061295344822780L,
 				-0.40910082580003159399730010L,
@@ -344,12 +351,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct kahan_li8a : composition_scheme_base<T, Integ, 17>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct kahan_li8a : composition_scheme_base<T, State, Integ, 17>
 	// Kahan-Li method (8th order, 17 stages)
 	{
 		kahan_li8a()
-			: composition_scheme_base<T, Integ, 17>
+			: composition_scheme_base<T, State, Integ, 17>
 			{
 				0.13020248308889008088L,
 				0.56116298177510838456L,
@@ -364,12 +371,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct kahan_li8b : composition_scheme_base<T, Integ, 17>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct kahan_li8b : composition_scheme_base<T, State, Integ, 17>
 	// Kahan-Li method (8th order, 17 stages)
 	{
 		kahan_li8b()
-			: composition_scheme_base<T, Integ, 17>
+			: composition_scheme_base<T, State, Integ, 17>
 			{
 				0.12713692773487857916L,
 				0.56170253798880269972L,
@@ -384,12 +391,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct kahan_li10a : composition_scheme_base<T, Integ, 31>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct kahan_li10a : composition_scheme_base<T, State, Integ, 31>
 	// Kahan-Li method (10th order, 31 stages)
 	{
 		kahan_li10a()
-			: composition_scheme_base<T, Integ, 31>
+			: composition_scheme_base<T, State, Integ, 31>
 			{
 				-0.48159895600253002870L,
 				0.0036303931544595926879L,
@@ -411,12 +418,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct kahan_li10b : composition_scheme_base<T, Integ, 31>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct kahan_li10b : composition_scheme_base<T, State, Integ, 31>
 	// Kahan-Li method (10th order, 31 stages)
 	{
 		kahan_li10b()
-			: composition_scheme_base<T, Integ, 31>
+			: composition_scheme_base<T, State, Integ, 31>
 			{
 				0.27338476926228452782L,
 				0.44587846502560283997L,
@@ -438,12 +445,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct kahan_li10c : composition_scheme_base<T, Integ, 33>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct kahan_li10c : composition_scheme_base<T, State, Integ, 33>
 	// Kahan-Li method (10th order, 33 stages)
 	{
 		kahan_li10c()
-			: composition_scheme_base<T, Integ, 33>
+			: composition_scheme_base<T, State, Integ, 33>
 			{
 				0.070428877682658066880L,
 				0.87415651735353949041L,
@@ -466,12 +473,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, symplectic_integrator Integ = leapfrog<T>>
-	struct kahan_li10d : composition_scheme_base<T, Integ, 33>
+	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
+	struct kahan_li10d : composition_scheme_base<T, State, Integ, 33>
 	// Kahan-Li method (10th order, 33 stages)
 	{
 		kahan_li10d()
-			: composition_scheme_base<T, Integ, 33>
+			: composition_scheme_base<T, State, Integ, 33>
 			{
 				0.12282427644721572094L,
 				0.77644680890696440342L,
@@ -496,15 +503,16 @@ namespace physics
 
 	// RUNGE-KUTTA SCHEMES
 
+	template <typename T, typename State>
 	struct runge_kutta_base {};
 
-	template <typename T, std::size_t Stages>
-	struct explicit_runge_kutta_base : runge_kutta_base
+	template <typename T, typename State, std::size_t Stages>
+	struct explicit_runge_kutta_base : runge_kutta_base<T, State>
 	{
 		template <typename ... Ts>
 		explicit_runge_kutta_base(Ts ... pars) : pars{T(pars)...} {}
 
-		template <having_coordinates<T> S>
+		template <having_coordinates<T, State> S>
 		void step(S& s, T dt) const
 		{
 			using std::size_t;
@@ -550,25 +558,25 @@ namespace physics
 		private:
 
 			const std::array<T, Stages*Stages> pars;
-			std::valarray<T> kx[Stages], kp[Stages], prev_x, prev_p;
+			State kx[Stages], kp[Stages], prev_x, prev_p;
 			T prev_t;
 	};
 
-	template <typename T>
-	struct euler : explicit_runge_kutta_base<T, 1>
+	template <typename T, typename State>
+	struct euler : explicit_runge_kutta_base<T, State, 1>
 	// Euler method (1st order, 1 stage)
 	{
 		euler()
-			: explicit_runge_kutta_base<T, 1>{1}
+			: explicit_runge_kutta_base<T, State, 1>{1}
 		{}
 	};
 
-	template <typename T>
-	struct rk2 : explicit_runge_kutta_base<T, 2>
+	template <typename T, typename State>
+	struct rk2 : explicit_runge_kutta_base<T, State, 2>
 	// Parametrized Runge-Kutta 2 method (2nd order, 2 stages)
 	{
 		rk2(long double a)
-			: explicit_runge_kutta_base<T, 2>
+			: explicit_runge_kutta_base<T, State, 2>
 			{
 				a, a,
 				1 - 1/(2*a), 1/(2*a)
@@ -576,36 +584,36 @@ namespace physics
 		{}
 	};
 
-	template <typename T>
-	struct midpoint : rk2<T>
+	template <typename T, typename State>
+	struct midpoint : rk2<T, State>
 	// Midpoint method (2nd order, 2 stages)
 	{
-		midpoint() : rk2<T>(.5L)
+		midpoint() : rk2<T, State>(.5L)
 		{}
 	};
 
-	template <typename T>
-	struct heun2 : rk2<T>
+	template <typename T, typename State>
+	struct heun2 : rk2<T, State>
 	// Heun method (2nd order, 2 stages)
 	{
-		heun2() : rk2<T>(1)
+		heun2() : rk2<T, State>(1)
 		{}
 	};
 
-	template <typename T>
-	struct ralston2 : rk2<T>
+	template <typename T, typename State>
+	struct ralston2 : rk2<T, State>
 	// Ralston method (2nd order, 2 stages)
 	{
-		ralston2() : rk2<T>(2/3.L)
+		ralston2() : rk2<T, State>(2/3.L)
 		{}
 	};
 
-	template <typename T>
-	struct rk4 : explicit_runge_kutta_base<T, 4>
+	template <typename T, typename State>
+	struct rk4 : explicit_runge_kutta_base<T, State, 4>
 	// Classical Runge-Kutta 4 method (4th order, 4 stages)
 	{
 		rk4()
-			: explicit_runge_kutta_base<T, 4>
+			: explicit_runge_kutta_base<T, State, 4>
 			{
 				.5L, .5L, 0, 0,
 				.5L, 0, .5L, 0,
@@ -615,12 +623,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T>
-	struct rk4_38 : explicit_runge_kutta_base<T, 4>
+	template <typename T, typename State>
+	struct rk4_38 : explicit_runge_kutta_base<T, State, 4>
 	// 3/8-rule Runge-Kutta 4 method (4th order, 4 stages)
 	{
 		rk4_38()
-			: explicit_runge_kutta_base<T, 4>
+			: explicit_runge_kutta_base<T, State, 4>
 			{
 				1/3.L, 1/3.L, 0, 0,
 				2/3.L, -1/3.L, 1, 0,
@@ -630,12 +638,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T>
-	struct ralston4 : explicit_runge_kutta_base<T, 4>
+	template <typename T, typename State>
+	struct ralston4 : explicit_runge_kutta_base<T, State, 4>
 	// Ralston method (4th order, 4 stages)
 	{
 		ralston4()
-			: explicit_runge_kutta_base<T, 4>
+			: explicit_runge_kutta_base<T, State, 4>
 			{
 				.4L, .4L, 0, 0,
 				.45573725L, .29697761L, .15875964L, 0,
@@ -645,12 +653,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T>
-	struct butcher6 : explicit_runge_kutta_base<T, 7>
+	template <typename T, typename State>
+	struct butcher6 : explicit_runge_kutta_base<T, State, 7>
 	// Butcher method (6th order, 7 stages)
 	{
 		butcher6()
-			: explicit_runge_kutta_base<T, 7>
+			: explicit_runge_kutta_base<T, State, 7>
 			{
 				1/3.L, 1/3.L, 0, 0, 0, 0, 0,
 				2/3.L, 0, 2/3.L, 0, 0, 0, 0,
@@ -663,12 +671,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T>
-	struct verner8 : explicit_runge_kutta_base<T, 11>
+	template <typename T, typename State>
+	struct verner8 : explicit_runge_kutta_base<T, State, 11>
 	// Verner method (8th order, 11 stages)
 	{
 		verner8()
-			: explicit_runge_kutta_base<T, 11>
+			: explicit_runge_kutta_base<T, State, 11>
 			{
 				.5L, .5L, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 				.5L, .25L, .25L, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -694,13 +702,13 @@ namespace physics
 	// H = p^2/2m + V(q)
 	// only quadratic kinetic energy!
 
-	template <typename T, std::size_t Stages>
-	struct runge_kutta_nystrom_base : runge_kutta_base, symplectic_integrator_base
+	template <typename T, typename State, std::size_t Stages>
+	struct runge_kutta_nystrom_base : runge_kutta_base<T, State>, symplectic_integrator_base<T, State>
 	{
 		template <typename ... Ts>
 		runge_kutta_nystrom_base(Ts ... pars) : pars{T(pars)...} {}
 
-		template <having_coordinates<T> S>
+		template <having_coordinates<T, State> S>
 		void step(S& s, T dt) const
 		{
 			using std::size_t;
@@ -738,7 +746,7 @@ namespace physics
 		private:
 
 			const std::array<T, (Stages+1)*Stages> pars;
-			std::valarray<T> k[Stages], prev_x, prev_v, prev_p;
+			State k[Stages], prev_x, prev_v, prev_p;
 	};
 
 } // namespace physics
