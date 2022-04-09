@@ -1,11 +1,6 @@
 #ifndef PHYSICS_MOLECULE_H
 #define PHYSICS_MOLECULE_H
 
-#include "../math.hpp" // deg2rad
-
-#include "point.hpp"
-#include "integrator.hpp"
-
 #include <concepts> // floating_point
 #include <valarray>
 #include <vector>
@@ -14,6 +9,11 @@
 #include <algorithm> // min, max, ranges::generate
 #include <cmath> // sqrt, atan2, pow
 #include <random> // mt19937_64, normal_distribution
+
+#include "../math.hpp" // deg2rad
+
+#include "point.hpp"
+#include "integrator.hpp"
 
 namespace physics
 {
@@ -96,9 +96,12 @@ namespace physics
 		.n = 3
 	};
 
-	template <std::floating_point T, integrator<T, state<T, 3>> Integ = leapfrog<T, state<T, 3>>>
+	template <std::floating_point T, template <typename, typename> typename IntegT = leapfrog>
+	requires integrator<IntegT<T, state<T, 3>>, T, state<T, 3>>
 	class molecular_system : public physical_system_base<T, state<T, 3>>
 	{
+		using Integ = IntegT<T, state<T, 3>>;
+
 		void force_bonds()
 		{
 			using std::size_t;

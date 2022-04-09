@@ -23,7 +23,7 @@ int main(const int, const char**)
 	double dist = std::cbrt(volume)/side;
 	std::cout << "dist = " << dist << std::endl;
 
-	physics::molecular_system<double, physics::suzuki8<double, physics::state<double, 3>>> molsys(dist*side, 252, physics::DW5<double>);
+	physics::molecular_system<double, physics::suzuki8> molsys(dist*side, 252, physics::DW5<double>);
 
 	physics::molecule pert_water = physics::water_fba_eps<double>;
 	for (unsigned int i = 0; i < pert_water.n; ++i)

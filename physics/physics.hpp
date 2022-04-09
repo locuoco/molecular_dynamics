@@ -1,13 +1,13 @@
 #ifndef PHYSICS_PHYSICS_H
 #define PHYSICS_PHYSICS_H
 
-#include "point.hpp"
-#include "integrator.hpp"
-#include "molecule.hpp"
-
 #include <chrono> // steady_clock, duration_cast, microseconds
 #include <random> // mt19937_64, uniform_real_distribution
 #include <algorithm> // generate
+
+#include "point.hpp"
+#include "integrator.hpp"
+#include "molecule.hpp"
 
 inline void test()
 {

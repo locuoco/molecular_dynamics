@@ -1,12 +1,12 @@
 #ifndef PHYSICS_INTEGRATOR_H
 #define PHYSICS_INTEGRATOR_H
 
-#include "point.hpp"
-
 #include <concepts> // convertible_to
 #include <valarray>
 #include <type_traits> // is_base_of
 #include <cmath> // exp, sqrt
+
+#include "point.hpp"
 
 namespace physics
 {
@@ -71,7 +71,7 @@ namespace physics
 	template <typename T, typename State>
 	struct symplectic_euler : symplectic_integrator_base<T, State>
 	// Symplectic Euler method (1st order, 1 stage)
-	// It is equivalent to leapfrog for long-term simulations, despite being lower order
+	// It is equivalent to leapfrog after correcting the initial conditions
 	{
 		template <having_coordinates<T, State> S>
 		void step(S& s, T dt) const
