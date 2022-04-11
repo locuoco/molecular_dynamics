@@ -39,12 +39,15 @@ int main(const int, const char**)
 		for (int j = 0; j <= side; ++j)
 			molsys.add_molecule(physics::water_tip3p<double>, {(i-hside)*dist, (j-hside)*dist, 0});*/
 
+	for (int i = 0; i < 100; ++i)
+		molsys.step(1e-3, true);
+
 	float *atomPosType = new float[molsys.max_atoms * 4];
 	// x, y, z, type
 	while (!window.should_close())
 	{
 		for (int i = 0; i < 1; ++i)
-			molsys.step(1e-3, true);
+			molsys.step(1e-3);
 		for (int i = 0; i < (int)molsys.n; ++i)
 		{
 			atomPosType[i*4+0] = molsys.x[i][0];
