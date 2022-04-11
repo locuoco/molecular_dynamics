@@ -18,26 +18,26 @@ int main(const int, const char**)
 	//test();
 
 	int side = 6, hside = side/2;
-	double volume = (side*side*side*18)/0.55; // 0.55 = density of ice in AKMA units
-
-	double dist = std::cbrt(volume)/side;
+	//double volume = (side*side*side*18)/0.55; // 0.55 = density of ice in AKMA units
+	//double dist = std::cbrt(volume)/side;
+	double dist = 5, temperature = 1000;
 	std::cout << "dist = " << dist << std::endl;
 
-	physics::molecular_system<double, physics::suzuki8> molsys(dist*side, 252, physics::DW5<double>);
+	physics::molecular_system<double, physics::leapfrog> molsys(dist*side*2, temperature, physics::DW5<double>);
 
-	physics::molecule pert_water = physics::water_fba_eps<double>;
+	physics::molecule pert_water = physics::water_tip3p<double>;
 	for (unsigned int i = 0; i < pert_water.n; ++i)
 		pert_water.x[i][1] = -pert_water.x[i][1];
 
 	for (int i = 0; i <= side; ++i)
 		for (int j = 0; j <= side; ++j)
 			for (int k = 0; k <= side; ++k)
-				molsys.add_molecule(physics::water_fba_eps<double>, {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist});
+				molsys.add_molecule(physics::water_tip3p<double>, {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist});
 
 	/*int side = 10, hside = side/2;
 	for (int i = 0; i <= side; ++i)
 		for (int j = 0; j <= side; ++j)
-			molsys.add_molecule(physics::water_fba_eps<double>, {(i-hside)*dist, (j-hside)*dist, 0});*/
+			molsys.add_molecule(physics::water_tip3p<double>, {(i-hside)*dist, (j-hside)*dist, 0});*/
 
 	float *atomPosType = new float[molsys.max_atoms * 4];
 	// x, y, z, type

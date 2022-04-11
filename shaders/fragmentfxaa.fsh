@@ -20,7 +20,7 @@ uniform float maxSpan = 8;
 // Output (screen)
 out vec4 color;
 
-vec3 bluenoisedither(vec3 col)
+vec3 dither(vec3 col)
 {
 	const float goldenRatioReciproc = 0.61803398875;
 	vec3 blueNoise = texture(blueNoiseTex, gl_FragCoord.xy / textureSize(blueNoiseTex, 0)).rgb;
@@ -28,16 +28,11 @@ vec3 bluenoisedither(vec3 col)
 	return floor(col*rgbMax + blueNoise)/rgbMax;
 }
 
-vec3 dither(vec3 col)
-{
-	return bluenoisedither(col);
-}
-
-void main()
+vec3 fxaa()
 {
 	vec3 rgbM = texture(screenTex, texCoord).rgb;
 
-	vec2 texelStep = 1./textureSize(screenTex, 0);
+	vec2 texelStep = 1.f/textureSize(screenTex, 0); // textureSize() returns an ivec2!
 
 	// Sampling neighbour texels. Offsets are adapted to OpenGL texture coordinates. 
 	vec2 texCoordTrans = texCoord - 0.5f * texelStep;
@@ -45,6 +40,16 @@ void main()
 	vec3 rgbSE = textureLodOffset(screenTex, texCoordTrans, 0, ivec2(1, 0)).rgb;
 	vec3 rgbNW = textureLodOffset(screenTex, texCoordTrans, 0, ivec2(0, 1)).rgb;
 	vec3 rgbNE = textureLodOffset(screenTex, texCoordTrans, 0, ivec2(1, 1)).rgb;
+
+	// Gather minimum and maximum.
+	vec3 rgbMin = min(rgbM, min(min(rgbNW, rgbNE), min(rgbSW, rgbSE)));
+	vec3 rgbMax = max(rgbM, max(max(rgbNW, rgbNE), max(rgbSW, rgbSE)));
+	vec3 rgbThreshold =  max(vec3(absThreshold), rgbMax * relThreshold);
+
+	// If contrast is lower than a maximum threshold ...
+	if ( all(lessThanEqual(rgbMax - rgbMin, rgbThreshold)) )
+		// ... do no AA and return.
+		return rgbM;
 
 	// see http://en.wikipedia.org/wiki/Grayscale
 	const vec3 toLuma = vec3(0.299f, 0.587f, 0.114f);
@@ -56,46 +61,52 @@ void main()
 	float lumaSE = dot(rgbSE, toLuma);
 	float lumaM = dot(rgbM, toLuma);
 
-	// Gather minimum and maximum luma.
 	float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
 	float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
-	float lumaThreshold = max(absThreshold, lumaMax * relThreshold);
-
-	// If contrast is lower than a maximum threshold ...
-	if (lumaMax - lumaMin <= lumaThreshold)
-	{
-		// ... do no AA and return.
-		color = vec4(dither(rgbM), 1);
-		
-		return;
-	}
 
 	// Sampling is done perpendicularly wrt the gradient (along the edge)
-	vec2 samplingDirection;	
-	samplingDirection.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
-	samplingDirection.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
+	mat2x3 rgbSamplingDir;
+	rgbSamplingDir[0] = -((rgbNW + rgbNE) - (rgbSW + rgbSE));
+	rgbSamplingDir[1] =  ((rgbNW + rgbSW) - (rgbNE + rgbSE));
 
 	// Sampling step distance depends on the luma: The brighter the sampled texels, the smaller the final sampling step direction.
 	// This results, that brighter areas are less blurred/more sharper than dark areas.  
 	float samplingDirectionReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * 0.25f * mulReduce, minReduce);
 
 	// Factor for norming the sampling direction plus adding the brightness influence. 
-	float minSamplingDirectionFactor = 1 / (min(abs(samplingDirection.x), abs(samplingDirection.y)) + samplingDirectionReduce);
+	vec3 minSamplingDirFactor = 1 / (min(abs(rgbSamplingDir[0]), abs(rgbSamplingDir[1])) + samplingDirectionReduce);
 
 	// Calculate final sampling direction vector by reducing, clamping to a range and finally adapting to the texture size. 
-	samplingDirection = clamp(samplingDirection * minSamplingDirectionFactor, vec2(-maxSpan), vec2(maxSpan)) * texelStep;
-	
+	for (int i = 0; i < 2; ++i)
+		rgbSamplingDir[i] = clamp(rgbSamplingDir[i] * minSamplingDirFactor, vec3(-maxSpan), vec3(maxSpan));
+
+	vec2 samplingDir = vec2(rgbSamplingDir[0].r, rgbSamplingDir[1].r);
+	vec2 samplingDir2 = vec2(rgbSamplingDir[0].g, rgbSamplingDir[1].g);
+	float samplingLen = dot(samplingDir, samplingDir);
+	float samplingLen2 = dot(samplingDir2, samplingDir2);
+	if (samplingLen < samplingLen2)
+	{
+		samplingDir = samplingDir2;
+		samplingLen = samplingLen2;
+	}
+	samplingDir2 = vec2(rgbSamplingDir[0].b, rgbSamplingDir[1].b);
+	samplingLen2 = dot(samplingDir2, samplingDir2);
+	if (samplingLen < samplingLen2)
+		samplingDir = samplingDir2;
+
+	samplingDir *= texelStep;
+
 	// Inner samples on the tab.
-	vec3 rgbSampleNeg = textureLod(screenTex, texCoord + samplingDirection * (1/3.f - .5f), 0).rgb;
-	vec3 rgbSamplePos = textureLod(screenTex, texCoord + samplingDirection * (2/3.f - .5f), 0).rgb;
+	vec3 rgbSampleNeg = textureLod(screenTex, texCoord + samplingDir * (1/3.f - .5f), 0).rgb;
+	vec3 rgbSamplePos = textureLod(screenTex, texCoord + samplingDir * (2/3.f - .5f), 0).rgb;
 
 	vec3 rgbTwoTab = (rgbSamplePos + rgbSampleNeg) * 0.5f;  
 
 	// Outer samples on the tab.
-	vec3 rgbSampleNegOuter = textureLod(screenTex, texCoord - samplingDirection * (0/3.f - .5f), 0).rgb;
-	vec3 rgbSamplePosOuter = textureLod(screenTex, texCoord - samplingDirection * (3/3.f - .5f), 0).rgb;
+	rgbSampleNeg = textureLod(screenTex, texCoord + samplingDir * (0/3.f - .5f), 0).rgb;
+	rgbSamplePos = textureLod(screenTex, texCoord + samplingDir * (3/3.f - .5f), 0).rgb;
 	
-	vec3 rgbFourTab = (rgbSamplePosOuter + rgbSampleNegOuter) * 0.25f + rgbTwoTab * 0.5f;   
+	vec3 rgbFourTab = (rgbSamplePos + rgbSampleNeg) * 0.25f + rgbTwoTab * 0.5f;   
 	
 	// Calculate luma for checking against the minimum and maximum value.
 	float lumaFourTab = dot(rgbFourTab, toLuma);
@@ -103,10 +114,15 @@ void main()
 	// Are outer samples of the tab beyond the edge ... 
 	if (lumaFourTab < lumaMin || lumaFourTab > lumaMax)
 		// ... yes, so use only two samples.
-		color = vec4(dither(rgbTwoTab), 1.0f); 
+		return rgbTwoTab; 
 	else
 		// ... no, so use four samples. 
-		color = vec4(dither(rgbFourTab), 1.0f);
+		return rgbFourTab;
+}
+
+void main()
+{
+	color = vec4(dither(fxaa()), 1);
 }
 
 // see FXAA

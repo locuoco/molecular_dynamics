@@ -56,7 +56,7 @@ void main()
 			fragSize = 1.;
 			break;
 	}
-	fragSize *= 0.5;
+	//fragSize *= 0.5;
 	float boxScal = fragSize*max(1., 1 / (.1 + .1*length(fragCenter)));
 	vec3 zAxis = normalize(-fragCenter);
 	vec3 xAxis = normalize(cross(vec3(0, 1, 0), zAxis));
