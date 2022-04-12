@@ -98,7 +98,7 @@ It is possible to change the floating point type and the numerical integrator to
 ```c++
     physics::molecular_system<long double, physics::pefrl> my_system;
 ```
-By default, the floating point type is `float` (32-bit floating point) and the integrator is `physics::leapfrog`. Some currently available numerical integrators are:
+By default, the floating point type is `double` (64-bit floating point) and the integrator is `physics::leapfrog`. Some currently available numerical integrators are:
 
 * `physics::symplectic_euler`: Symplectic Euler method (1st order, 1 stage)
 * `physics::leapfrog`: Leapfrog method (2nd order, 1 stage)
