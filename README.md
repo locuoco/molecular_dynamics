@@ -68,36 +68,36 @@ where `<includes>` and `<libs>` are the paths for installed libraries header fil
 ## Basic usage
 
 To create a molecular system use the following:
-
+```c++
     #include "physics/physics.hpp"
     
     int main()
     {
         physics::molecular_system my_system;
     }
-
+```
 To add a molecule to the system, use the method `add_molecule`:
-
+```c++
     my_system.add_molecule(molecule);
-
+```
 Currently available molecules are:
 
 * `physics::water_tip3p<>`: Water molecule, using a flexible TIP3P model
 * `physics::water_fba_eps<>`: Water molecule, using a modified FPA/&epsilon; model
 
 To set the coordinates of the molecule:
-
+```c++
     my_system.add_molecule(water_tip3p<>, {1, 2, 3});
-
+```
 where the coordinates are given in angstrom.
 To advance the system by one step, do:
-
+```c++
     my_system.step();
-
+```
 It is possible to change the floating point type and the numerical integrator to be used for the simulation:
-
+```c++
     physics::molecular_system<long double, physics::pefrl> my_system;
-
+```
 By default, the floating point type is `float` (32-bit floating point) and the integrator is `physics::leapfrog`. Some currently available numerical integrators are:
 
 * `physics::symplectic_euler`: Symplectic Euler method (1st order, 1 stage)
@@ -118,23 +118,24 @@ By default, the floating point type is `float` (32-bit floating point) and the i
   * `physics::verner8`: Verner method (8th order, 11 stages)
 
 It is possible to set a custom time step (in picoseconds) by adding a parameter to the `step` method:
-
+```c++
     my_system.step(5e-4);
-
+```
 The biggest value for the time step so that leapfrog integration is stable is `1e-3` (1 femtosecond, as set by default). This value corresponds more or less to the vibration period of O–H bonds.
 
 To create a window, simply do:
-
+```c++
     graphics my_window;
-
+```
 To draw a frame of our system inside it, call the method:
-
+```c++
     my_window.draw(my_system);
-
+```
 If we want to simulate the system until the window is closed:
-
+```c++
     while (!my_window.should_close())
     {
         my_system.step();
         my_window.draw(my_system);
     }
+```
