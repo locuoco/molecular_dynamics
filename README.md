@@ -52,6 +52,7 @@ These dependencies are required only for these header files:
 * `graphics.hpp`
 * `Font.hpp` (included in `graphics.hpp`)
 * `shader.hpp` (included in `graphics.hpp`)
+* `controls.hpp` (included in `graphics.hpp`)
 
 ## Compilation
 

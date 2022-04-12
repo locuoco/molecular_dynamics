@@ -1,3 +1,19 @@
+//  Text/Font manager, based on Joey de Vries' code
+//  Copyright (C) 2018-2022 Alessandro Lo Cuoco (alessandro.locuoco@gmail.com)
+
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 #ifndef FONT_H
 #define FONT_H
 
@@ -11,7 +27,7 @@
 #include <utility> // pair
 
 #include <GL/glew.h>
-#include <ft2build.h> // Compila con -lfreetype
+#include <ft2build.h> // Compile with -lfreetype
 #include FT_FREETYPE_H
 
 #include <glm/vec2.hpp>
@@ -168,9 +184,9 @@ class Font
 		Font(const Font&) = delete;
 		Font& operator=(const Font&) = delete;
 
-		Font(Font&& font)
-			: characters(std::move(font.characters)), precCol(font.precCol), w(font.w), h(font.h), vb(font.vb), transf(font.transf), col(font.col),
-			  prog(font.prog), init(font.init)
+		Font(Font&& font) :
+			characters(std::move(font.characters)), precCol(font.precCol), w(font.w), h(font.h), vb(font.vb), transf(font.transf), col(font.col),
+			prog(font.prog), init(font.init)
 		{
 			font.vb = 0;
 			font.transf = 0;
@@ -249,12 +265,14 @@ class Font
 
 			glEnableVertexAttribArray(0);
 			glBindBuffer(GL_ARRAY_BUFFER, vb);
-			glVertexAttribPointer(0,
-								  4,
-								  GL_FLOAT,
-								  GL_FALSE,
-								  0,
-								  (void*)0);
+			glVertexAttribPointer(
+				0,
+				4,
+				GL_FLOAT,
+				GL_FALSE,
+				0,
+				(void*)0
+			);
 			TEST("Font::Begin()");
 		}
 
@@ -328,16 +346,15 @@ class Font
 
 						GLfloat vertices[24] =
 						{
-							xpos,	yh,		0.f, 0.f,
-							xpos,	ypos,	0.f, 1.f,
-							xl, 	ypos,	1.f, 1.f,
-							xpos,	yh,		0.f, 0.f,
-							xl,		ypos,	1.f, 1.f,
-							xl,		yh,		1.f, 0.f,
+							xpos, yh,   0.f, 0.f,
+							xpos, ypos, 0.f, 1.f,
+							xl,   ypos, 1.f, 1.f,
+							xpos, yh,   0.f, 0.f,
+							xl,   ypos, 1.f, 1.f,
+							xl,   yh,   1.f, 0.f,
 						};
 
 						glBindTexture(GL_TEXTURE_2D, ch.ID);
-						//glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
 						glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
 
 						glDrawArrays(GL_TRIANGLES, 0, 6);
