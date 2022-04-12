@@ -87,7 +87,7 @@ Currently available molecules are:
 
 To set the coordinates of the molecule:
 ```c++
-    my_system.add_molecule(water_tip3p<>, {1, 2, 3});
+    my_system.add_molecule(physics::water_tip3p<>, {1, 2, 3});
 ```
 where the coordinates are given in angstrom.
 To advance the system by one step, do:
