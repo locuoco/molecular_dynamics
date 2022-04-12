@@ -51,6 +51,7 @@ The graphics part has some dependencies on public libraries that enable the usag
 These dependencies are required only for these header files:
 * `graphics.hpp`
 * `Font.hpp` (included in `graphics.hpp`)
+* `shader.hpp` (included in `graphics.hpp`)
 
 ## Compilation
 
