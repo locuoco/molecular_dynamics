@@ -1,6 +1,7 @@
 
 
 #include <iostream>
+#include <vector>
 
 /*
 
@@ -23,40 +24,31 @@ int main(const int, const char**)
 	double dist = 5, temperature = 1000;
 	std::cout << "dist = " << dist << std::endl;
 
-	physics::molecular_system<double, physics::leapfrog> molsys(dist*side*2, temperature, physics::DW5<double>);
+	physics::molecular_system<double, physics::leapfrog> molsys(dist*side*2, temperature, physics::DW5<>);
 
-	physics::molecule pert_water = physics::water_tip3p<double>;
+	physics::molecule pert_water = physics::water_tip3p<>;
 	for (unsigned int i = 0; i < pert_water.n; ++i)
 		pert_water.x[i][1] = -pert_water.x[i][1];
 
 	for (int i = 0; i <= side; ++i)
 		for (int j = 0; j <= side; ++j)
 			for (int k = 0; k <= side; ++k)
-				molsys.add_molecule(physics::water_tip3p<double>, {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist});
+				molsys.add_molecule(physics::water_tip3p<>, {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist});
 
 	/*int side = 10, hside = side/2;
 	for (int i = 0; i <= side; ++i)
 		for (int j = 0; j <= side; ++j)
-			molsys.add_molecule(physics::water_tip3p<double>, {(i-hside)*dist, (j-hside)*dist, 0});*/
+			molsys.add_molecule(physics::water_tip3p<>, {(i-hside)*dist, (j-hside)*dist, 0});*/
 
 	for (int i = 0; i < 100; ++i)
 		molsys.step(1e-3, true);
 
-	float *atomPosType = new float[molsys.max_atoms * 4];
-	// x, y, z, type
 	while (!window.should_close())
 	{
 		for (int i = 0; i < 1; ++i)
 			molsys.step(1e-3);
-		for (int i = 0; i < (int)molsys.n; ++i)
-		{
-			atomPosType[i*4+0] = molsys.x[i][0];
-			atomPosType[i*4+1] = molsys.x[i][1];
-			atomPosType[i*4+2] = molsys.x[i][2];
-			atomPosType[i*4+3] = physics::atom_number[int(molsys.id[i])];
-		}
 
-		window.draw(atomPosType, molsys.n);
+		window.draw(molsys);
 	}
 
 	return 0;

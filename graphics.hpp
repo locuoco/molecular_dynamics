@@ -116,8 +116,19 @@ class graphics
 			return glfwWindowShouldClose(window) || glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
 		}
 
-		void draw(float *atomPosType, int n_atoms)
+		template <typename MolSys>
+		void draw(const MolSys& molsys)
 		{
+			atomPosType.resize(4*molsys.n);
+
+			for (unsigned i = 0; i < molsys.n; ++i)
+			{
+				atomPosType[i*4+0] = molsys.x[i][0];
+				atomPosType[i*4+1] = molsys.x[i][1];
+				atomPosType[i*4+2] = molsys.x[i][2];
+				atomPosType[i*4+3] = physics::atom_number[int(molsys.id[i])];
+			}
+
 			glfwPollEvents();
 
 			glBindFramebuffer(GL_FRAMEBUFFER, fb);
@@ -179,12 +190,12 @@ class graphics
 				nullptr		// array buffer offset
 			);
 
-			if (n_atoms > 0)
+			if (molsys.n > 0)
 			{
 				glEnableVertexAttribArray(10);
 				glBindBuffer(GL_ARRAY_BUFFER, pb_inst);
 				glBufferData(GL_ARRAY_BUFFER, physics::molecular_system<float>::max_atoms*4*sizeof(float), nullptr, GL_STREAM_DRAW);
-				glBufferSubData(GL_ARRAY_BUFFER, 0, n_atoms*4*sizeof(float), atomPosType);
+				glBufferSubData(GL_ARRAY_BUFFER, 0, molsys.n*4*sizeof(float), atomPosType.data());
 				glVertexAttribPointer(
 					10,			// location id in vertex shader
 					4,			// size
@@ -204,7 +215,7 @@ class graphics
 					GL_TRIANGLE_STRIP,	// type of primitive
 					0,					// offset
 					mesh_size/3,		// number of vertices
-					n_atoms
+					molsys.n
 				);
 			}
 
@@ -308,6 +319,7 @@ class graphics
 		double lastTime, dt;
 		unsigned int frame;
 		int FPS;
+		std::vector<float> atomPosType;
 
 		static void DbgMessage(GLenum, GLenum, GLuint, GLenum, GLsizei, const GLchar *message, const void*)
 		{

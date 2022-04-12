@@ -63,3 +63,77 @@ On Linux, the library names could be different:
     g++ main.cpp -o mold -std=c++20 -I <includes> -L <libs> -lopengl -lglu -lglew -lglfw3 -lfreetype -Wall -Wextra -pedantic -O3
 
 where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files (if required). The executable will be called `mold`.
+
+## Basic usage
+
+To create a molecular system use the following:
+
+    #include "physics/physics.hpp"
+    
+    int main()
+    {
+        physics::molecular_system my_system;
+    }
+
+To add a molecule to the system, use the method `add_molecule`:
+
+    my_system.add_molecule(molecule);
+
+Currently available molecules are:
+
+* `physics::water_tip3p<>`: Water molecule, using a flexible TIP3P model
+* `physics::water_fba_eps<>`: Water molecule, using a modified FPA/&epsilon; model
+
+To set the coordinates of the molecule:
+
+    my_system.add_molecule(water_tip3p<>, {1, 2, 3});
+
+where the coordinates are given in angstrom.
+To advance the system by one step, do:
+
+    my_system.step();
+
+It is possible to change the floating point type and the numerical integrator to be used for the simulation:
+
+    physics::molecular_system<long double, physics::pefrl> my_system;
+
+By default, the floating point type is `float` (32-bit floating point) and the integrator is `physics::leapfrog`. Some currently available numerical integrators are:
+
+* `physics::symplectic_euler`: Symplectic Euler method (1st order, 1 stage)
+* `physics::leapfrog`: Leapfrog method (2nd order, 1 stage)
+* `physics::stochastic_leapfrog`: Stochastic "leapfrog" method (1 stage)
+* `physics::damped_leapfrog`: Damped "leapfrog" method (1 stage)
+* `physics::pefrl`: Position-extended Forest-Ruth-like method (4th order, 4 stages)
+* Composition schemes:
+  * `physics::forest_ruth`: Forest-Ruth method (4th order, 3 stages)
+  * `physics::suzuki4`: Suzuki method (4th order, 5 stages)
+  * `physics::yoshida6`: Yoshida method (6th order, 8 stages)
+  * `physics::suzuki8`: Suzuki method (8th order, 15 stages)
+  * `physics::kahan_li10a`: Kahan-Li method (10th order, 31 stages)
+* Explicit Runge-Kutta schemes:
+  * `physics::ralston2`: Ralston method (2th order, 2 stages)
+  * `physics::ralston4`: Ralston method (4th order, 4 stages)
+  * `physics::butcher6`: Butcher method (6th order, 7 stages)
+  * `physics::verner8`: Verner method (8th order, 11 stages)
+
+It is possible to set a custom time step (in picoseconds) by adding a parameter to the `step` method:
+
+    my_system.step(5e-4);
+
+The biggest value for the time step so that leapfrog integration is stable is `1e-3` (1 femtosecond, as set by default). This value corresponds more or less to the vibration period of O–H bonds.
+
+To create a window, simply do:
+
+    graphics my_window;
+
+To draw a frame of our system inside it, call the method:
+
+    my_window.draw(my_system);
+
+If we want to simulate the system until the window is closed:
+
+    while (!my_window.should_close())
+    {
+        my_system.step();
+        my_window.draw(my_system);
+    }

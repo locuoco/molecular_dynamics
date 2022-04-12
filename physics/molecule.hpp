@@ -29,10 +29,10 @@ namespace physics
 	template <std::floating_point T>
 	constexpr T kB = 0.00198720425864083173996175908222L; // Boltzmann constant in AKMA units
 
-	template <std::floating_point T>
+	template <std::floating_point T = double>
 	constexpr T DW5 = 0.00616480364668354400695529510607L; // water self-diffusion constant in AKMA units at 5 °C
 
-	template <std::floating_point T>
+	template <std::floating_point T = double>
 	constexpr T DW25 = 0.01123940014569822971609058164065L; // water self-diffusion constant in AKMA units at 25 °C
 
 	template <std::floating_point T>
@@ -61,7 +61,7 @@ namespace physics
 		{ {0, 0}, {0, 0}, {0.0836L, 1.7753L}, {0.18936998087954110898661567877629L, 3.1776L} } // OF
 	};
 
-	template <std::floating_point T>
+	template <std::floating_point T = double>
 	struct molecule
 	{
 		state<T, 3> x; // position
@@ -72,7 +72,7 @@ namespace physics
 		unsigned int n; // number of atoms in the molecule
 	};
 
-	template <std::floating_point T>
+	template <std::floating_point T = double>
 	const molecule<T> water_tip3p // TIP3P model
 	{
 		.x = { {-0.75695032726366116174L, 0.58588227661829493656L}, {0}, {0.75695032726366116174L, 0.58588227661829493656L} },
@@ -84,7 +84,7 @@ namespace physics
 		.n = 3
 	};
 
-	template <std::floating_point T>
+	template <std::floating_point T = double>
 	const molecule<T> water_fba_eps // FBA/eps model
 	{
 		.x = { {-0.75695032726366116174L, 0.58588227661829493656L}, {0}, {0.75695032726366116174L, 0.58588227661829493656L} },
@@ -96,7 +96,7 @@ namespace physics
 		.n = 3
 	};
 
-	template <std::floating_point T, template <typename, typename> typename IntegT = leapfrog>
+	template <std::floating_point T = double, template <typename, typename> typename IntegT = leapfrog>
 	requires integrator<IntegT<T, state<T, 3>>, T, state<T, 3>>
 	class molecular_system : public physical_system_base<T, state<T, 3>>
 	{
@@ -300,7 +300,7 @@ namespace physics
 
 		static const std::size_t max_atoms = 2'000'000;
 
-		molecular_system(T side = 40, T temp = 298.15, T D = DW25<T>, Integ integ = Integ())
+		molecular_system(T side = 100, T temp = 298.15, T D = DW25<T>, Integ integ = Integ())
 			: n(0), integ(integ), mersenne_twister(0), n_dist(0, 1), side(side), temperature(temp), D(D), t(0)
 		{
 			using std::size_t;
