@@ -35,32 +35,32 @@ int main(const int, const char**)
 	int side = 6, hside = side/2;
 	//double volume = (side*side*side*18)/0.55; // 0.55 = density of ice in AKMA units
 	//double dist = std::cbrt(volume)/side;
-	double dist = 5, temperature = 1000;
+	double dist = 3.2, temperature = 220;
 	std::cout << "dist = " << dist << std::endl;
 
-	physics::molecular_system<double, physics::leapfrog> molsys(dist*side*2, temperature, physics::DW5<>);
+	physics::molecular_system<double, physics::leapfrog> molsys(dist*side, temperature, physics::DW5<>);
 
-	physics::molecule pert_water = physics::water_tip3p<>;
+	/*physics::molecule pert_water = physics::water_tip3p_lr<>;
 	for (unsigned int i = 0; i < pert_water.n; ++i)
-		pert_water.x[i][1] = -pert_water.x[i][1];
+		pert_water.x[i][1] = -pert_water.x[i][1];*/
 
 	for (int i = 0; i <= side; ++i)
 		for (int j = 0; j <= side; ++j)
 			for (int k = 0; k <= side; ++k)
-				molsys.add_molecule(physics::water_tip3p<>, {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist});
+				molsys.add_molecule(physics::water_fba_eps<>, {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist});
 
 	/*int side = 10, hside = side/2;
 	for (int i = 0; i <= side; ++i)
 		for (int j = 0; j <= side; ++j)
-			molsys.add_molecule(physics::water_tip3p<>, {(i-hside)*dist, (j-hside)*dist, 0});*/
+			molsys.add_molecule(physics::water_tip3p_lr<>, {(i-hside)*dist, (j-hside)*dist, 0});*/
 
-	for (int i = 0; i < 100; ++i)
-		molsys.step(1e-3, true);
+	//for (int i = 0; i < 100; ++i)
+	//	molsys.step(1e-3, true);
 
 	while (!window.should_close())
 	{
 		for (int i = 0; i < 1; ++i)
-			molsys.step(1e-3);
+			molsys.step(2e-3, true);
 
 		window.draw(molsys);
 	}

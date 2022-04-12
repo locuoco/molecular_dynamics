@@ -83,8 +83,9 @@ To add a molecule to the system, use the method `add_molecule`:
 ```
 Currently available molecules are:
 
-* `physics::water_tip3p<>`: Water molecule, using a flexible TIP3P model
-* `physics::water_fba_eps<>`: Water molecule, using a modified FBA/&epsilon; model
+* `physics::water_tip3p<>`: Water molecule, using a flexible TIP3P model with O–H and H–H Lennard-Jones parameters
+* `physics::water_tip3p_lr<>`: Water molecule, using a flexible TIP3P model optimized for long-range interactions
+* `physics::water_fba_eps<>`: Water molecule, using the FBA/&epsilon; model
 
 To set the coordinates of the molecule:
 ```c++
@@ -122,7 +123,7 @@ It is possible to set a custom time step (in picoseconds) by adding a parameter 
 ```c++
     my_system.step(5e-4);
 ```
-The biggest value for the time step so that leapfrog integration is stable is `1e-3` (1 femtosecond, as set by default). This value corresponds more or less to the vibration period of O–H bonds.
+The biggest value for the time step so that leapfrog integration is stable is `2e-3` (2 femtoseconds, 1 is the default). This value corresponds more or less to the vibration period of O–H bonds.
 
 To create a window, simply do:
 ```c++

@@ -33,11 +33,11 @@
 
 namespace physics
 {
-	enum class atom_type : unsigned char { HT, OT, HF, OF, N };
+	enum class atom_type : unsigned char { HT, OT, HTL, OTL, HF, OF, N };
 
-	constexpr std::size_t max_bonds = 4;
+	constexpr std::size_t max_bonds = 6;
 
-	constexpr unsigned char atom_number[] = {1, 8, 1, 8};
+	constexpr unsigned char atom_number[] = {1, 8, 1, 8, 1, 8};
 
 	template <std::floating_point T>
 	constexpr T kC = 332.06371330062682040436798930743L; // Coulomb constant in AKMA units
@@ -52,12 +52,13 @@ namespace physics
 	constexpr T DW25 = 0.01123940014569822971609058164065L; // water self-diffusion constant in AKMA units at 25 °C
 
 	template <std::floating_point T>
-	constexpr T atom_mass[] = {1.008L, 15.9994L, 1.008L, 15.9994L};
+	constexpr T atom_mass[] = {1.008L, 15.9994L, 1.008L, 15.9994L, 1.008L, 15.9994L};
 
 	template <std::floating_point T>
 	std::map<const std::pair<atom_type, atom_type>, const std::pair<T, T>> bond_params = // k, r0
 	{
 		{ {atom_type::HT, atom_type::OT}, {450, 0.9572L} },
+		{ {atom_type::HTL, atom_type::OTL}, {450, 0.9572L} },
 		{ {atom_type::HF, atom_type::OF}, {358.50860420650095602294455066922L, 1.027L} }
 	};
 
@@ -65,16 +66,19 @@ namespace physics
 	std::map<const std::tuple<atom_type, atom_type, atom_type>, const std::pair<T, T>> angle_params = // k, theta0 // 383 kJ/mol
 	{
 		{ {atom_type::HT, atom_type::OT, atom_type::HT}, {55, math::deg2rad(104.52L)} },
+		{ {atom_type::HTL, atom_type::OTL, atom_type::HTL}, {55, math::deg2rad(104.52L)} },
 		{ {atom_type::HF, atom_type::OF, atom_type::HF}, {45.769598470363288718929254302103L, math::deg2rad(114.70L)} }
 	};
 
 	template <std::floating_point T> // epsilon, sigma
 	std::pair<T, T> LJ_params[][int(atom_type::N)] =
 	{
-		{ {0.046L, 0.4L}, {0.0836L, 1.7753L}, {0, 0}, {0, 0} }, // HT
-		{ {0.0836L, 1.7753L}, {0.1521L, 3.1507L}, {0, 0}, {0, 0} }, // OT
-		{ {0, 0}, {0, 0}, {0, 0}, {0.0836L, 1.7753L} }, // HF
-		{ {0, 0}, {0, 0}, {0.0836L, 1.7753L}, {0.18936998087954110898661567877629L, 3.1776L} } // OF
+		{ {0.046L, 0.4L}, {0.0836L, 1.7753L}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // HT
+		{ {0.0836L, 1.7753L}, {0.1521L, 3.1507L}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // OT
+		{ {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // HTL
+		{ {0, 0}, {0, 0}, {0, 0}, {0.102L, 3.188L}, {0, 0}, {0, 0} }, // OTL
+		{ {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // HF
+		{ {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0.18936998087954110898661567877629L, 3.1776L} } // OF
 	};
 
 	template <std::floating_point T = double>
@@ -95,6 +99,18 @@ namespace physics
 			// oxygen at the origin
 		.id = {atom_type::HT, atom_type::OT, atom_type::HT},
 		.part_q = {0.417L, -0.834L, 0.417L},
+		.bonds = { {1}, {0, 2}, {1} },
+		.impropers = {}, // no impropers
+		.n = 3
+	};
+
+	template <std::floating_point T = double>
+	const molecule<T> water_tip3p_lr // TIP3P model long-range
+	{
+		.x = { {-0.75695032726366116174L, 0.58588227661829493656L}, {0}, {0.75695032726366116174L, 0.58588227661829493656L} },
+			// oxygen at the origin
+		.id = {atom_type::HTL, atom_type::OTL, atom_type::HTL},
+		.part_q = {0.415L, -0.830L, 0.415L},
 		.bonds = { {1}, {0, 2}, {1} },
 		.impropers = {}, // no impropers
 		.n = 3
@@ -255,8 +271,8 @@ namespace physics
 						T r2_ = 1/dot(r, r);
 						T d_ = sqrt(r2_);
 						T s = par.second * par.second * r2_;
-						s = s * s * s;
-						r = ((par.first * s * (s - 1) + kC<T> * part_q[i] * part_q[j] * d_) * r2_) * r;
+						s = s * s * s * 2;
+						r = ((12 * par.first * s * (s - 1) + kC<T> * part_q[i] * part_q[j] * d_) * r2_) * r;
 						f[i] += r;
 						f[j] -= r;
 					}
@@ -288,7 +304,7 @@ namespace physics
 			}
 		}
 
-		T calculate_temperature()
+		T calculate_temperature() const
 		{
 			T two_kin = 0;
 			for (std::size_t i = 0; i < n; ++i)
@@ -318,15 +334,7 @@ namespace physics
 
 		molecular_system(T side = 100, T temp = 298.15, T D = DW25<T>, Integ integ = Integ())
 			: n(0), integ(integ), mersenne_twister(0), n_dist(0, 1), side(side), temperature(temp), D(D), t(0)
-		{
-			using std::size_t;
-			for (size_t i = 0; i < size_t(atom_type::N); ++i)
-				for (size_t j = 0; j < size_t(atom_type::N); ++j)
-				{
-					LJ_params<T>[i][j].first *= 12;
-					LJ_params<T>[i][j].second *= std::pow(.5L, 1.L/6);
-				}
-		}
+		{}
 
 		void add_molecule(const molecule<T>& mol, const point3<T>& pos = 0)
 		{
