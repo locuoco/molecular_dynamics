@@ -83,7 +83,7 @@ To add a molecule to the system, use the method `add_molecule`:
 Currently available molecules are:
 
 * `physics::water_tip3p<>`: Water molecule, using a flexible TIP3P model
-* `physics::water_fba_eps<>`: Water molecule, using a modified FPA/&epsilon; model
+* `physics::water_fba_eps<>`: Water molecule, using a modified FBA/&epsilon; model
 
 To set the coordinates of the molecule:
 ```c++
