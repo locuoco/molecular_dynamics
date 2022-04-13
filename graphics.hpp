@@ -290,6 +290,10 @@ class graphics
 				std::string("FoV: ") + std::to_string(controls::FoV) + "\ngamma: " + std::to_string(controls::gamma),
 				w-160*xscale, 36*yscale, 0.5f*xscale
 			);
+			font -> Draw(
+				std::string("Temperature: ") + std::to_string(molsys.temperature),
+				w-160*xscale, h-36*yscale, 0.5f*xscale
+			);
 			font -> End();
 			
 			glfwSwapBuffers(window);
