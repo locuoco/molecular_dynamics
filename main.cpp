@@ -39,7 +39,11 @@ int main(const int, const char**)
 	double init_temp = 1000, end_temp = 220;
 	std::cout << "dist = " << dist << std::endl;
 
-	physics::molecular_system<double, physics::leapfrog> molsys(dist*side, init_temp, physics::DW5<>);
+	physics::molecular_system<double, physics::forest_ruth, physics::leapfrog> molsys(
+		dist*side,
+		init_temp,
+		physics::DW5<>
+	);
 
 	/*physics::molecule pert_water = physics::water_tip3p_lr<>;
 	for (unsigned int i = 0; i < pert_water.n; ++i)

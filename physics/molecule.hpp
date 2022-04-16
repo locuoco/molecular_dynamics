@@ -128,11 +128,15 @@ namespace physics
 		.n = 3
 	};
 
-	template <std::floating_point T = double, template <typename, typename> typename IntegT = leapfrog>
-	requires integrator<IntegT<T, state<T, 3>>, T, state<T, 3>>
+	template <
+		std::floating_point T = double,
+		template <typename, typename, template <typename...> typename...> typename IntegT = leapfrog,
+		template <typename...> typename ... TPars
+	>
+	requires integrator<IntegT<T, state<T, 3>, TPars...>, T, state<T, 3>>
 	class molecular_system : public physical_system_base<T, state<T, 3>>
 	{
-		using Integ = IntegT<T, state<T, 3>>;
+		using Integ = IntegT<T, state<T, 3>, TPars...>;
 
 		void force_bonds()
 		{

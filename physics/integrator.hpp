@@ -224,8 +224,9 @@ namespace physics
 	P. 156-158
 */
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ, std::size_t Stages>
-	struct composition_scheme_base : Integ
+	template <typename T, typename State, template <typename, typename> typename IntegT, std::size_t Stages>
+	requires symplectic_integrator<IntegT<T, State>, T, State>
+	struct composition_scheme_base : IntegT<T, State>
 	{
 		template <typename ... Ts>
 		composition_scheme_base(Ts ... pars) : d{T(pars)...} {}
@@ -234,7 +235,7 @@ namespace physics
 		void step(S& s, T dt) const
 		{
 			for (size_t i = 0; i < Stages; ++i)
-				Integ::step(s, d[std::min(i, Stages-i-1)] * dt);
+				IntegT<T, State>::step(s, d[std::min(i, Stages-i-1)] * dt);
 		}
 
 		private:
@@ -242,16 +243,16 @@ namespace physics
 			const std::array<T, (Stages+1)/2> d;
 	};
 
-	template <typename Integ, typename T, typename State, typename Integ2, std::size_t Stages>
-	concept composition_scheme = std::is_base_of_v<composition_scheme_base<T, State, Integ2, Stages>, Integ>;
+	template <typename Integ, typename T, typename State, template <typename, typename> typename IntegT, std::size_t Stages>
+	concept composition_scheme = std::is_base_of_v<composition_scheme_base<T, State, IntegT, Stages>, Integ>;
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct forest_ruth : composition_scheme_base<T, State, Integ, 3>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct forest_ruth : composition_scheme_base<T, State, IntegT, 3>
 	// Forest-Ruth method (4th order, 3 stages)
 	// independently obtained by Yoshida
 	{
 		forest_ruth()
-			: composition_scheme_base<T, State, Integ, 3>
+			: composition_scheme_base<T, State, IntegT, 3>
 			{
 				1.3512071919596576340476878089715L, // 1 / (2 - cbrt(2))
 				-1.7024143839193152680953756179429L // -cbrt(2) / (2 - cbrt(2))
@@ -259,12 +260,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct suzuki4 : composition_scheme_base<T, State, Integ, 5>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct suzuki4 : composition_scheme_base<T, State, IntegT, 5>
 	// Suzuki method (4th order, 5 stages)
 	{
 		suzuki4()
-			: composition_scheme_base<T, State, Integ, 5>
+			: composition_scheme_base<T, State, IntegT, 5>
 			{
 				0.41449077179437573714235406286076L, // 1 / (4 - cbrt(4))
 				0.41449077179437573714235406286076L, // 1 / (4 - cbrt(4))
@@ -273,12 +274,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct kahan_li4a : composition_scheme_base<T, State, Integ, 5>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct kahan_li4a : composition_scheme_base<T, State, IntegT, 5>
 	// Kahan-Li method (4th order, 5 stages)
 	{
 		kahan_li4a()
-			: composition_scheme_base<T, State, Integ, 5>
+			: composition_scheme_base<T, State, IntegT, 5>
 			{
 				0.78867513459481288225457439025098L, // (3 + sqrt(3)) / 6
 				0.21132486540518711774542560974902L, // (3 - sqrt(3)) / 6
@@ -287,12 +288,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct kahan_li4b : composition_scheme_base<T, State, Integ, 5>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct kahan_li4b : composition_scheme_base<T, State, IntegT, 5>
 	// Kahan-Li method (4th order, 5 stages)
 	{
 		kahan_li4b()
-			: composition_scheme_base<T, State, Integ, 5>
+			: composition_scheme_base<T, State, IntegT, 5>
 			{
 				0.21132486540518711774542560974902L, // (3 - sqrt(3)) / 6
 				0.78867513459481288225457439025098L, // (3 + sqrt(3)) / 6
@@ -301,12 +302,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct yoshida6 : composition_scheme_base<T, State, Integ, 7>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct yoshida6 : composition_scheme_base<T, State, IntegT, 7>
 	// Yoshida method (6th order, 7 stages)
 	{
 		yoshida6()
-			: composition_scheme_base<T, State, Integ, 7>
+			: composition_scheme_base<T, State, IntegT, 7>
 			{
 				0.78451361047755726382L,
 				0.23557321335935813368L,
@@ -316,12 +317,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct kahan_li6a : composition_scheme_base<T, State, Integ, 9>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct kahan_li6a : composition_scheme_base<T, State, IntegT, 9>
 	// Kahan-Li method (6th order, 9 stages)
 	{
 		kahan_li6a()
-			: composition_scheme_base<T, State, Integ, 9>
+			: composition_scheme_base<T, State, IntegT, 9>
 			{
 				0.39216144400731413928L,
 				0.33259913678935943860L,
@@ -332,12 +333,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct kahan_li6b : composition_scheme_base<T, State, Integ, 9>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct kahan_li6b : composition_scheme_base<T, State, IntegT, 9>
 	// Kahan-Li method (6th order, 9 stages)
 	{
 		kahan_li6b()
-			: composition_scheme_base<T, State, Integ, 9>
+			: composition_scheme_base<T, State, IntegT, 9>
 			{
 				0.39103020330868478817L,
 				0.33403728961113601749L,
@@ -348,12 +349,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct suzuki8 : composition_scheme_base<T, State, Integ, 15>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct suzuki8 : composition_scheme_base<T, State, IntegT, 15>
 	// Suzuki method (8th order, 15 stages)
 	{
 		suzuki8()
-			: composition_scheme_base<T, State, Integ, 15>
+			: composition_scheme_base<T, State, IntegT, 15>
 			{
 				0.74167036435061295344822780L,
 				-0.40910082580003159399730010L,
@@ -367,12 +368,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct kahan_li8a : composition_scheme_base<T, State, Integ, 17>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct kahan_li8a : composition_scheme_base<T, State, IntegT, 17>
 	// Kahan-Li method (8th order, 17 stages)
 	{
 		kahan_li8a()
-			: composition_scheme_base<T, State, Integ, 17>
+			: composition_scheme_base<T, State, IntegT, 17>
 			{
 				0.13020248308889008088L,
 				0.56116298177510838456L,
@@ -387,12 +388,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct kahan_li8b : composition_scheme_base<T, State, Integ, 17>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct kahan_li8b : composition_scheme_base<T, State, IntegT, 17>
 	// Kahan-Li method (8th order, 17 stages)
 	{
 		kahan_li8b()
-			: composition_scheme_base<T, State, Integ, 17>
+			: composition_scheme_base<T, State, IntegT, 17>
 			{
 				0.12713692773487857916L,
 				0.56170253798880269972L,
@@ -407,12 +408,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct kahan_li10a : composition_scheme_base<T, State, Integ, 31>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct kahan_li10a : composition_scheme_base<T, State, IntegT, 31>
 	// Kahan-Li method (10th order, 31 stages)
 	{
 		kahan_li10a()
-			: composition_scheme_base<T, State, Integ, 31>
+			: composition_scheme_base<T, State, IntegT, 31>
 			{
 				-0.48159895600253002870L,
 				0.0036303931544595926879L,
@@ -434,12 +435,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct kahan_li10b : composition_scheme_base<T, State, Integ, 31>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct kahan_li10b : composition_scheme_base<T, State, IntegT, 31>
 	// Kahan-Li method (10th order, 31 stages)
 	{
 		kahan_li10b()
-			: composition_scheme_base<T, State, Integ, 31>
+			: composition_scheme_base<T, State, IntegT, 31>
 			{
 				0.27338476926228452782L,
 				0.44587846502560283997L,
@@ -461,12 +462,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct kahan_li10c : composition_scheme_base<T, State, Integ, 33>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct kahan_li10c : composition_scheme_base<T, State, IntegT, 33>
 	// Kahan-Li method (10th order, 33 stages)
 	{
 		kahan_li10c()
-			: composition_scheme_base<T, State, Integ, 33>
+			: composition_scheme_base<T, State, IntegT, 33>
 			{
 				0.070428877682658066880L,
 				0.87415651735353949041L,
@@ -489,12 +490,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State, symplectic_integrator<T, State> Integ = leapfrog<T, State>>
-	struct kahan_li10d : composition_scheme_base<T, State, Integ, 33>
+	template <typename T, typename State, template <typename, typename> typename IntegT = leapfrog>
+	struct kahan_li10d : composition_scheme_base<T, State, IntegT, 33>
 	// Kahan-Li method (10th order, 33 stages)
 	{
 		kahan_li10d()
-			: composition_scheme_base<T, State, Integ, 33>
+			: composition_scheme_base<T, State, IntegT, 33>
 			{
 				0.12282427644721572094L,
 				0.77644680890696440342L,
