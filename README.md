@@ -70,12 +70,12 @@ where `<includes>` and `<libs>` are the paths for installed libraries header fil
 
 To create a molecular system use the following:
 ```c++
-    #include "physics/physics.hpp"
-    
-    int main()
-    {
-        physics::molecular_system my_system;
-    }
+#include "physics/physics.hpp"
+
+int main()
+{
+    physics::molecular_system my_system;
+}
 ```
 To add a molecule to the system, use the method `add_molecule`:
 ```c++
@@ -107,7 +107,7 @@ By default, the floating point type is `double` (64-bit floating point) and the 
 * `physics::stochastic_leapfrog`: Stochastic "leapfrog" method (1 stage)
 * `physics::damped_leapfrog`: Damped "leapfrog" method (1 stage)
 * `physics::pefrl`: Position-extended Forest-Ruth-like method (4th order, 4 stages)
-* Composition schemes:
+* Composition schemes (symplectic):
   * `physics::forest_ruth`: Forest-Ruth method (4th order, 3 stages)
   * `physics::suzuki4`: Suzuki method (4th order, 5 stages)
   * `physics::yoshida6`: Yoshida method (6th order, 8 stages)
@@ -127,7 +127,15 @@ The biggest value for the time step so that leapfrog integration is stable is `2
 
 To create a window, simply do:
 ```c++
+#include "graphics.hpp"
+
+int main()
+{
     graphics my_window;
+
+    while (!my_window.should_close())
+    {}
+}
 ```
 To draw a frame of our system inside it, call the method:
 ```c++
