@@ -106,6 +106,7 @@ By default, the floating point type is `double` (64-bit floating point) and the 
 * `physics::leapfrog`: Leapfrog method (2nd order, 1 stage)
 * `physics::stochastic_leapfrog`: Stochastic "leapfrog" method (1 stage)
 * `physics::damped_leapfrog`: Damped "leapfrog" method (1 stage)
+* `physics::isokinetic_leapfrog`: Isokinetic "leapfrog" method (1 stage)
 * `physics::pefrl`: Position-extended Forest-Ruth-like method (4th order, 4 stages)
 * Composition schemes (symplectic):
   * `physics::forest_ruth`: Forest-Ruth method (4th order, 3 stages)
