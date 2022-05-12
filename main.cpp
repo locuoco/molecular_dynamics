@@ -33,13 +33,14 @@ int main(const int, const char**)
 	//test();
 
 	int side = 6, hside = side/2;
+	int N = side*side*side;
 	//double volume = (side*side*side*18)/0.55; // 0.55 = density of ice in AKMA units
 	//double dist = std::cbrt(volume)/side;
 	double dist = 12;
 	double init_temp = 1000, end_temp = 220;
-	std::cout << "dist = " << dist << std::endl;
+	std::cout << "N = " << N << ", dist = " << dist << std::endl;
 
-	physics::molecular_system<double, physics::forest_ruth, physics::leapfrog> molsys(
+	physics::molecular_system<double, physics::isokinetic_leapfrog> molsys(
 		dist*side,
 		init_temp,
 		physics::DW5<>
@@ -59,14 +60,14 @@ int main(const int, const char**)
 		for (int j = 0; j <= side; ++j)
 			molsys.add_molecule(physics::water_tip3p_lr<>, {(i-hside)*dist, (j-hside)*dist, 0});*/
 
-	for (int i = 0; i < 100; ++i)
-		molsys.step(1e-3);
+	//molsys.rescale_temperature = true;
 
 	while (!window.should_close())
 	{
-		molsys.temperature = end_temp + (molsys.temperature - end_temp) * 0.9998;
+		//molsys.temperature = end_temp + (molsys.temperature - end_temp) * 0.9999;
 		for (int i = 0; i < 2; ++i)
-			molsys.step(2e-3, true);
+			molsys.step(1e-3);
+		molsys.temperature = molsys.calculate_temperature();
 
 		window.draw(molsys);
 	}

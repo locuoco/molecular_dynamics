@@ -1,4 +1,4 @@
-# Temporary files
+# Temporary/backup files
 *.bak
 
 # Windows dynamic-link libraries
@@ -7,5 +7,5 @@
 # Windows executables
 *.exe
 
-# Reference
+# References
 ref/

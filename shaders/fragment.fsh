@@ -26,7 +26,7 @@ flat in float fragSize;
 // Values that stay constant for all pixels
 uniform mat4 Proj;
 uniform vec3 lightPos;
-uniform float ambient = 0.01;//0.001
+uniform float ambient = 0.01; //0.001
 uniform float specularStrength = 0.5;
 uniform float shininess = 32;
 uniform float gamma = 2.2 + 1./30;

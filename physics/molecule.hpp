@@ -35,7 +35,7 @@ namespace physics
 {
 	enum class atom_type : unsigned char { HT, OT, HTL, OTL, HF, OF, N };
 
-	constexpr std::size_t max_bonds = 6;
+	constexpr std::size_t max_bonds = 4; // max coordination number assumed
 
 	constexpr unsigned char atom_number[] = {1, 8, 1, 8, 1, 8};
 
@@ -87,7 +87,7 @@ namespace physics
 		state<T, 3> x; // position
 		std::vector<atom_type> id; // identity of the atom
 		std::vector<T> part_q; // partial charges
-		std::vector<fixed_list<max_bonds>> bonds; // as an adjacency list for each atom (max 4 bonds per atom)
+		std::vector<fixed_list<max_bonds>> bonds; // as an adjacency list for each atom
 		std::vector<std::array<unsigned int, 4>> impropers; // list of impropers in the molecule
 		unsigned int n; // number of atoms in the molecule
 	};
@@ -137,6 +137,173 @@ namespace physics
 	class molecular_system : public physical_system_base<T, state<T, 3>>
 	{
 		using Integ = IntegT<T, state<T, 3>, TPars...>;
+
+		std::normal_distribution<T> n_dist;
+
+		public:
+
+		using scalar_type = T;
+
+		state<T, 3> x, p, v, f; // position, momentum, velocity, force
+		state<T, 3> noise; // gaussian noise
+		std::valarray<T> m, gamma; // mass, damping factor
+		std::vector<T> part_q; // partial charges
+		std::vector<atom_type> id; // identity of the atom
+		std::vector<fixed_list<max_bonds>> bonds; // bonds as an adjacency list
+		std::vector<std::array<unsigned int, 4>> impropers; // list of impropers in the whole system
+		unsigned int n; // total number of atoms
+		Integ integ; // integrator
+		std::mt19937_64 mersenne_twister;
+		T side, temperature, D; // D = diffusion coefficient
+		T t; // time
+		bool rescale_temperature;
+
+		static const std::size_t max_atoms = 2'000'000;
+
+		molecular_system(T side = 100, T temp = 298.15, T D = DW25<T>, Integ integ = Integ())
+			: n_dist(0, 1), n(0), integ(integ), mersenne_twister(0), side(side), temperature(temp), D(D), t(0), rescale_temperature(false)
+		{}
+
+		void add_molecule(const molecule<T>& mol, const point3<T>& pos = 0)
+		{
+			using std::size_t;
+			using std::sqrt;
+
+			if (n + mol.n > max_atoms)
+				throw("Error: Exceeded maximum number of atoms");
+			state<T, 3> x_tmp = x, p_tmp = p, v_tmp = v, f_tmp = f;
+			x.resize(n + mol.n);
+			p.resize(n + mol.n);
+			v.resize(n + mol.n);
+			f.resize(n + mol.n);
+			m.resize(n + mol.n);
+			noise.resize(n + mol.n);
+			gamma.resize(n + mol.n);
+			for (size_t i = 0; i < n; ++i)
+				x[i] = x_tmp[i];
+			for (size_t i = 0; i < n; ++i)
+				p[i] = p_tmp[i];
+			for (size_t i = 0; i < n; ++i)
+				v[i] = v_tmp[i];
+			for (size_t i = 0; i < n; ++i)
+				f[i] = f_tmp[i];
+
+			for (size_t i = 0; i < mol.n; ++i)
+				x[n + i] = mol.x[i] + pos;
+			for (size_t i = 0; i < mol.n; ++i)
+				id.push_back(mol.id[i]);
+			for (size_t i = 0; i < mol.n; ++i)
+				part_q.push_back(mol.part_q[i]);
+			for (size_t i = 0; i < n + mol.n; ++i)
+				m[i] = atom_mass<T>[ int(id[i]) ];
+			for (size_t i = 0; i < mol.n; ++i)
+				p[n + i] = gen_gaussian() * sqrt(m[n + i] * kB<T> * temperature);
+
+			for (size_t i = 0; i < mol.n; ++i)
+			{
+				fixed_list<max_bonds> ls(mol.bonds[i]);
+				for (size_t j = 0; j < ls.n; ++j)
+					ls[j] += n;
+				bonds.push_back(ls);
+			}
+
+			for (size_t i = 0; i < mol.impropers.size(); ++i)
+				impropers.push_back({mol.impropers[i][0] + n,
+									 mol.impropers[i][1] + n,
+									 mol.impropers[i][2] + n,
+									 mol.impropers[i][3] + n});
+			n += mol.n;
+		}
+
+		T kinetic_energy() const
+		{
+			T two_kin = 0;
+			for (std::size_t i = 0; i < n; ++i)
+				two_kin += dot(p[i], p[i]) / m[i];
+			return two_kin/2;
+		}
+
+		T calculate_temperature() const
+		{
+			return 2*kinetic_energy() / (3*n*kB<T>);
+		}
+
+		void step(T dt = 1e-3L) // picoseconds
+		{
+			using std::sqrt;
+
+			integ.step(*this, T(dt * 20.4548282844073286665866518779L)); // picoseconds to AKMA time unit
+
+			if (rescale_temperature)
+			{
+				T measured_temp = calculate_temperature();
+				if (measured_temp > 0)
+					p *= sqrt(temperature / measured_temp);
+			}
+		}
+
+		const state<T, 3>& force(bool eval = true)
+		{
+			using std::size_t;
+
+			if (eval)
+			{
+				f = 0;
+
+				force_bonds();
+				force_angles();
+				
+				f *= 2;
+				// the 2 factor is due to the fact that the K constant parameters are two times the relative elastic constants
+
+				force_nonbonded();
+
+				diff_box_confining(10);
+			}
+			return f;
+		}
+
+		const state<T, 3>& vel(bool eval = true)
+		{
+			if (eval)
+				for (std::size_t i = 0; i < n; ++i)
+					v[i] = p[i] / m[i];
+			return v;
+		}
+
+		void rand()
+		{
+			using std::sqrt;
+
+			std::ranges::generate(noise, gen_gaussian);
+			for (size_t i = 0; i < n; ++i)
+				noise[i] *= sqrt(m[i] * kB<T> * temperature);
+			gamma = (kB<T> * temperature / D) / m;
+			/*for (size_t i = 0; i < n; ++i)
+			{
+				T minx = x[i][0], maxx = x[i][0];
+				minx = std::min(minx, x[i][1]);
+				maxx = std::max(maxx, x[i][1]);
+				minx = std::min(minx, x[i][2]);
+				maxx = std::max(maxx, x[i][2]);
+				if (minx >= -side/2 && maxx <= side/2)
+				{
+					noise[i] = 0;
+					gamma[i] = 0;
+				}
+			}*/
+		}
+
+		private:
+
+		point3<T> gen_gaussian()
+		{
+			return point3<T>(
+				n_dist(mersenne_twister),
+				n_dist(mersenne_twister),
+				n_dist(mersenne_twister)
+			);
+		}
 
 		void force_bonds()
 		{
@@ -306,155 +473,6 @@ namespace physics
 				if (x[i][2] < -hside)
 					f[i][2] += steepness;
 			}
-		}
-
-		T calculate_temperature() const
-		{
-			T two_kin = 0;
-			for (std::size_t i = 0; i < n; ++i)
-				two_kin += atom_mass<T>[ int(id[i]) ] * dot(p[i], p[i]);
-			return two_kin / (3*n*kB<T>);
-		}
-
-		public:
-
-		using scalar_type = T;
-
-		state<T, 3> x, p, f; // position, velocity, acceleration
-		state<T, 3> noise;
-		std::valarray<T> gamma;
-		std::vector<atom_type> id; // identity of the atom
-		std::vector<T> part_q; // partial charges
-		std::vector<fixed_list<max_bonds>> bonds; // bonds as an adjacency list
-		std::vector<std::array<unsigned int, 4>> impropers; // list of impropers in the whole system
-		unsigned int n; // total number of atoms
-		Integ integ; // integrator
-		std::mt19937_64 mersenne_twister;
-		std::normal_distribution<T> n_dist;
-		T side, temperature, D; // default = 25 °C
-		T t; // time
-
-		static const std::size_t max_atoms = 2'000'000;
-
-		molecular_system(T side = 100, T temp = 298.15, T D = DW25<T>, Integ integ = Integ())
-			: n(0), integ(integ), mersenne_twister(0), n_dist(0, 1), side(side), temperature(temp), D(D), t(0)
-		{}
-
-		void add_molecule(const molecule<T>& mol, const point3<T>& pos = 0)
-		{
-			using std::size_t;
-
-			if (n + mol.n > max_atoms)
-				throw("Error: Exceeded maximum number of atoms");
-			state<T, 3> x_tmp = x, p_tmp = p, f_tmp = f;
-			x.resize(n + mol.n);
-			p.resize(n + mol.n);
-			f.resize(n + mol.n);
-			noise.resize(n + mol.n);
-			gamma.resize(n + mol.n);
-			for (size_t i = 0; i < n; ++i)
-				x[i] = x_tmp[i];
-			for (size_t i = 0; i < n; ++i)
-				p[i] = p_tmp[i];
-			for (size_t i = 0; i < n; ++i)
-				f[i] = f_tmp[i];
-
-			for (size_t i = 0; i < mol.n; ++i)
-				x[n + i] = mol.x[i] + pos;
-			for (size_t i = 0; i < mol.n; ++i)
-				p[n + i] = 0;
-			for (size_t i = 0; i < mol.n; ++i)
-				id.push_back(mol.id[i]);
-			for (size_t i = 0; i < mol.n; ++i)
-				part_q.push_back(mol.part_q[i]);
-
-			for (size_t i = 0; i < mol.n; ++i)
-			{
-				fixed_list<max_bonds> ls(mol.bonds[i]);
-				for (size_t j = 0; j < ls.n; ++j)
-					ls[j] += n;
-				bonds.push_back(ls);
-			}
-
-			for (size_t i = 0; i < mol.impropers.size(); ++i)
-				impropers.push_back({mol.impropers[i][0] + n,
-									 mol.impropers[i][1] + n,
-									 mol.impropers[i][2] + n,
-									 mol.impropers[i][3] + n});
-			n += mol.n;
-		}
-
-		void step(T dt = 1e-3L, bool temp_rescale = false) // picoseconds
-		{
-			using std::sqrt;
-
-			integ.step(*this, T(dt * 20.4548282844073286665866518779L)); // picoseconds to AKMA time unit
-
-			if (temp_rescale)
-			{
-				T measured_temp = calculate_temperature();
-				if (measured_temp > 0)
-					p *= sqrt(temperature / measured_temp);
-			}
-		}
-
-		const state<T, 3>& force(bool eval = true)
-		{
-			using std::size_t;
-
-			if (eval)
-			{
-				f = 0;
-
-				force_bonds();
-				force_angles();
-				
-				f *= 2;
-				// the 2 factor is due to the fact that the K constant parameters are two times the relative elastic constants
-
-				force_nonbonded();
-
-				diff_box_confining(10);
-
-				for (size_t i = 0; i < n; ++i)
-					f[i] /= atom_mass<T>[ int(id[i]) ];
-			}
-			return f;
-		}
-
-		const state<T, 3>& vel(bool = true)
-		{
-			return p;
-		}
-
-		void rand()
-		{
-			using std::sqrt;
-
-			auto gen = [this]()
-			{
-				return point3<T>(n_dist(mersenne_twister),
-								 n_dist(mersenne_twister),
-								 n_dist(mersenne_twister));
-			};
-			std::ranges::generate(noise, gen);
-			for (size_t i = 0; i < n; ++i)
-				noise[i] *= sqrt(kB<T> * temperature / atom_mass<T>[ int(id[i]) ]);
-			for (size_t i = 0; i < n; ++i)
-				gamma[i] = kB<T> * temperature / (atom_mass<T>[ int(id[i]) ] * D);
-			/*for (size_t i = 0; i < n; ++i)
-			{
-				T minx = x[i][0], maxx = x[i][0];
-				minx = std::min(minx, x[i][1]);
-				maxx = std::max(maxx, x[i][1]);
-				minx = std::min(minx, x[i][2]);
-				maxx = std::max(maxx, x[i][2]);
-				if (minx >= -side/2 && maxx <= side/2)
-				{
-					noise[i] = 0;
-					gamma[i] = 0;
-				}
-			}*/
 		}
 	};
 

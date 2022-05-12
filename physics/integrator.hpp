@@ -176,6 +176,68 @@ namespace physics
 	};
 
 	template <typename T, typename State>
+	struct isokinetic_leapfrog : integrator_base<T, State>
+	// (gaussian) isokinetic integrator (2nd order?, 1 stage)
+	// it assumes quadratic kinetic energy
+	// not symplectic, but still time-reversible
+	// it conserves the kinetic energy rather than the total hamiltonian
+	// at equilibrium, its configurations sample a canonical ensemble rather than a microcanonical one
+	// dp = f dt - xi p dt
+	// xi = sum(p * f / m) / sum(p^2 / m)
+	{
+		template <having_coordinates<T, State> S>
+		void step(S& s, T dt) const
+		{
+			kick(s, dt/2);
+			s.x += s.vel() * dt;
+			s.force();
+			kick(s, dt/2);
+
+			s.t += dt;
+		}
+
+		private:
+
+			template <having_coordinates<T, State> S>
+			void kick(S& s, T tau) const
+			{
+				using std::size_t;
+				using std::sqrt;
+				using std::sinh;
+				using std::cosh;
+
+				T den = 0, xi0 = 0, omega02 = 0, omega0, a, b;
+				for (size_t i = 0; i < s.n; ++i)
+					den += dot(s.p[i], s.p[i]) / s.m[i];
+				if (den)
+				{
+					for (size_t i = 0; i < s.n; ++i)
+						xi0 += dot(s.p[i], s.f[i]) / s.m[i];
+					xi0 /= den;
+					for (size_t i = 0; i < s.n; ++i)
+						omega02 += dot(s.f[i], s.f[i]) / s.m[i];
+					omega02 /= den;
+					omega0 = sqrt(omega02);
+
+					if (omega0)
+					{
+						a = cosh(omega0*tau) + xi0*sinh(omega0*tau)/omega0;
+						b = sinh(omega0*tau)/omega0 + xi0*(cosh(omega0*tau)-1)/omega02;
+					}
+					else
+					{
+						a = 1 + xi0*tau;
+						b = tau*(1 + xi0*tau/2);
+					}
+
+					s.p = (s.p + s.force(false) * b) / a;
+				}
+				else
+					s.p += s.force(false) * tau;
+			}
+	};
+
+	template <typename T, typename State>
 	struct pefrl : symplectic_integrator_base<T, State>
 	// Position-extended Forest-Ruth-like (4th order, 4 stages)
 	// OMELYAN, MRYGLOD, FOLK

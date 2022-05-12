@@ -24,6 +24,7 @@ layout(location = 10) in vec4 inst_pos;
 // Values that stay constant for all vertices
 uniform mat4 MV;
 uniform mat4 Proj;
+uniform float gamma = 2.2 + 1./30;
 
 // Output (to fragment shader)
 out vec3 fragPos;
@@ -31,46 +32,44 @@ flat out vec3 fragCenter;
 flat out vec3 fragCol;
 flat out float fragSize;
 
+const vec4 atom_pars[19] = vec4[](
+	vec4(1.00, 1.00, 1.00, 1), // default (white)
+	vec4(1.00, 1.00, 1.00, 1.20), // hydrogen (white)
+	vec4(.851, 1.00, 1.00, 1.40), // helium
+	vec4(.800, .502, 1.00, 1.82), // lithium
+	vec4(.761, 1.00, .000, 1.53), // beryllium
+	vec4(1.00, .710, .710, 1.92), // boron
+	vec4(.565, .565, .565, 1.70), // carbon (dark gray)
+	vec4(.188, .313, .973, 1.55), // nitrogen (blue)
+	vec4(1.00, .051, .051, 1.52), // oxygen (red)
+	vec4(.565, .878, .313, 1.47), // fluorine
+	vec4(.702, .890, .961, 1.54), // neon
+	vec4(.671, .361, .949, 2.27), // sodium
+	vec4(.541, 1.00, .000, 1.73), // magnesium
+	vec4(.749, .651, .651, 1.84), // aluminium
+	vec4(.941, .784, .627, 2.10), // silicon
+	vec4(1.00, .502, .000, 1.80), // phosphorus (orange)
+	vec4(1.00, 1.00, .188, 1.80), // sulfur (yellow)
+	vec4(.121, .941, .121, 1.75), // chlorine (green)
+	vec4(.502, .820, .890, 1.88) // argon
+);
+
 void main()
 {
 	vec4 pos0 = MV * (vec4(inst_pos.xyz, 1)); // position of the center of the sphere (square) in view space
 	fragCenter = pos0.xyz;
 	int atom_id = int(inst_pos.w);
-	switch (atom_id)
+	if (atom_id < 19)
 	{
-		case 1: // hydrogen
-			fragCol = vec3(1, 1, 1); // white
-			fragSize = 1.20; // van der Waals radius
-			break;
-		case 6: // carbon
-			fragCol = vec3(.1, .1, .1); // dark gray
-			fragSize = 1.70;
-			break;
-		case 7: // nitrogen
-			fragCol = vec3(0, 0, 1); // blue
-			fragSize = 1.55;
-			break;
-		case 8: // oxygen
-			fragCol = vec3(1, 0, 0); // red
-			fragSize = 1.52;
-			break;
-		case 15: // phosphorus
-			fragCol = vec3(1, .3, 0); // orange
-			fragSize = 1.80;
-			break;
-		case 16: // sulfur
-			fragCol = vec3(1, 1, 0); // yellow
-			fragSize = 1.80;
-			break;
-		case 17: // chlorine
-			fragCol = vec3(0, 1, 0); // green
-			fragSize = 1.75;
-			break;
-		default:
-			fragCol = vec3(1, 1, 1);
-			fragSize = 1.;
-			break;
+		fragCol = atom_pars[atom_id].xyz;
+		fragSize = atom_pars[atom_id].w;
 	}
+	else
+	{
+		fragCol = atom_pars[0].xyz;
+		fragSize = atom_pars[0].w;
+	}
+	fragCol = pow(fragCol, vec3(gamma)); // gamma correction
 	//fragSize *= 0.5;
 	float boxScal = fragSize*max(1., 1 / (.1 + .1*length(fragCenter)));
 	vec3 zAxis = normalize(-fragCenter);
