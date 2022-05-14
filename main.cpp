@@ -32,12 +32,12 @@ int main(const int, const char**)
 
 	//test();
 
-	int side = 6, hside = side/2;
+	int side = 8, hside = side/2;
 	int N = side*side*side;
 	//double volume = (side*side*side*18)/0.55; // 0.55 = density of ice in AKMA units
 	//double dist = std::cbrt(volume)/side;
 	double dist = 12;
-	double init_temp = 1000, end_temp = 220;
+	double init_temp = 500, end_temp = 220;
 	std::cout << "N = " << N << ", dist = " << dist << std::endl;
 
 	physics::molecular_system<double, physics::isokinetic_leapfrog> molsys(

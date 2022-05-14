@@ -25,6 +25,7 @@
 #include <algorithm> // min, max, ranges::generate
 #include <cmath> // sqrt, atan2, pow
 #include <random> // mt19937_64, normal_distribution
+#include <thread>
 
 #include "../math.hpp" // deg2rad
 
@@ -256,7 +257,8 @@ namespace physics
 				f *= 2;
 				// the 2 factor is due to the fact that the K constant parameters are two times the relative elastic constants
 
-				force_nonbonded();
+				force_nonbonded_mthread(8);
+				//force_nonbonded();
 
 				diff_box_confining(10);
 			}
@@ -412,12 +414,12 @@ namespace physics
 						if (i0 == k)
 							return true;
 						/*else
-							for (size_t ml = 0; ml < f_bonds[k].n; ++ml)
+							for (size_t ml = 0; ml < bonds[k].n; ++ml)
 							{
-								size_t l = f_bonds[k][ml];
+								size_t l = bonds[k][ml];
 								atom_type idl = id[l];
 								if (i0 == l)
-									if (get<0>(dihedral_params<T>[{ idi, idj, idj, idl }]) != 0)
+									if (get<0>(dihedral_params<T>[{ idi, idj, idk, idl }]) != 0)
 										return true;
 									else
 										return false;
@@ -447,6 +449,36 @@ namespace physics
 						f[i] += r;
 						f[j] -= r;
 					}
+		}
+
+		void force_nonbonded_mthread(size_t num_threads)
+		{
+			using std::size_t;
+
+			auto eval = [this, num_threads](size_t idx)
+			{
+				size_t block = (n-1)/num_threads + 1;
+				for (size_t i = idx*block; (i < n) && (i < (idx+1)*block); ++i)
+					for (size_t j = 0; j < n; ++j)
+						if (!check_vicinity(i, j))
+						{
+							atom_type idi = id[i], idj = id[j];
+							const auto& par = LJ_params<T>[int(idi)][int(idj)];
+
+							point3<T> r = x[i] - x[j];
+							T r2_ = 1/dot(r, r);
+							T d_ = sqrt(r2_);
+							T s = par.second * par.second * r2_;
+							s = s * s * s * 2;
+							r = ((12 * par.first * s * (s - 1) + kC<T> * part_q[i] * part_q[j] * d_) * r2_) * r;
+							f[i] += r;
+						}
+			};
+			std::thread *threads = new std::thread[num_threads];
+			for (size_t i = 0; i < num_threads; ++i)
+				threads[i] = std::thread(eval, i);
+			for (size_t i = 0; i < num_threads; ++i)
+				threads[i].join();
 		}
 
 		void elastic_confining(point3<T> k)

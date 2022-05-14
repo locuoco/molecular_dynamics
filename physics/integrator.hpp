@@ -115,7 +115,7 @@ namespace physics
 	};
 
 	template <typename T, typename State>
-	struct stochastic_leapfrog : symplectic_integrator_base<T, State>, stochastic_integrator_base<T, State>
+	struct stochastic_leapfrog : stochastic_integrator_base<T, State>
 	// stochastic leapfrog (2nd order?, 1 stage)
 	// dp = f dt - gamma p dt + sigma dw
 	// with:
@@ -177,7 +177,7 @@ namespace physics
 
 	template <typename T, typename State>
 	struct isokinetic_leapfrog : integrator_base<T, State>
-	// (gaussian) isokinetic integrator (2nd order?, 1 stage)
+	// (gaussian) isokinetic integrator (2nd order, 1 stage)
 	// it assumes quadratic kinetic energy
 	// not symplectic, but still time-reversible
 	// it conserves the kinetic energy rather than the total hamiltonian
@@ -269,7 +269,9 @@ namespace physics
 	};
 
 	// COMPOSITION SCHEMES
-	// can be used as long as the symplectic integrator of 2nd order for a given hamiltonian is known
+	// can be used as long as the 2nd order integrator for a given hamiltonian is known
+	// useful to build higher-order symplectic methods
+	// composing the 2nd-order isokinetic integrator should give higher-order isokinetic integrators
 
 /*
 	KAHAN, LI
@@ -287,7 +289,6 @@ namespace physics
 */
 
 	template <typename T, typename State, template <typename, typename> typename IntegT, std::size_t Stages>
-	requires symplectic_integrator<IntegT<T, State>, T, State>
 	struct composition_scheme_base : IntegT<T, State>
 	{
 		template <typename ... Ts>

@@ -108,7 +108,7 @@ By default, the floating point type is `double` (64-bit floating point) and the 
 * `physics::damped_leapfrog`: Damped "leapfrog" method (1 stage)
 * `physics::isokinetic_leapfrog`: Isokinetic "leapfrog" method (1 stage)
 * `physics::pefrl`: Position-extended Forest-Ruth-like method (4th order, 4 stages)
-* Composition schemes (symplectic):
+* Composition schemes (they are structure-preserving, and can be used to construct higher-order, also symplectic, methods starting from 2nd order ones):
   * `physics::forest_ruth`: Forest-Ruth method (4th order, 3 stages)
   * `physics::suzuki4`: Suzuki method (4th order, 5 stages)
   * `physics::yoshida6`: Yoshida method (6th order, 8 stages)
