@@ -232,9 +232,9 @@ namespace physics
 		template <having_coordinates<T, State> S>
 		void step(S& s, T dt) const
 		{
-			kick(s, dt/2);
+			kick(s, dt/2, false);
 			s.x += s.vel() * dt;
-			kick(s, dt/2, true);
+			kick(s, dt/2);
 
 			s.t += dt;
 		}
