@@ -63,6 +63,8 @@ namespace physics
 		{
 			s.x += s.vel() * dt;
 			s.p += s.force() * dt;
+			s.x += s.vel(false) * dt;
+			s.p += s.force(false) * dt;
 			s.t += dt;
 		};
 
@@ -106,12 +108,54 @@ namespace physics
 		template <having_coordinates<T, State> S>
 		void step(S& s, T dt) const
 		{
-			s.x += s.vel(false) * (dt/2);
-			s.p += s.force() * dt;
-			s.x += s.vel() * (dt/2);
+			s.p += s.force(false) * (dt/2);
+			s.x += s.vel() * dt;
+			s.p += s.force() * (dt/2);
 
 			s.t += dt;
 		}
+	};
+
+	template <typename T, typename State>
+	struct multi_timestep_leapfrog : symplectic_integrator_base<T, State>
+	// Multi-timestep leapfrog method (2nd order, 1 stage)
+	// If the force is divided into a high frequency and a low frequency part,
+	// and the low frequency is much more expensive to compute, then this method
+	// will be useful to reduce compute time or to increase accuracy
+	// In the microcanonical (NVE) ensemble this method can better conserve the
+	// total energy without reducing the timestep
+	{
+		multi_timestep_leapfrog(std::size_t n_short = 10) : n_short(n_short)
+		{}
+
+		template <having_coordinates<T, State> S>
+		requires requires(S& s, T dt)
+		{
+			s.p += s.force_long() * dt;
+			s.p += s.force_short() * dt;
+			s.p += s.force_long(false) * dt;
+			s.p += s.force_short(false) * dt;
+		}
+		void step(S& s, T dt) const
+		{
+			T deltat = dt/n_short;
+			s.p += s.force_long(false) * (dt/2);
+			s.p += s.force_short() * (deltat/2);
+			for (size_t i = 0; i < n_short-1; ++i)
+			{
+				s.x += s.vel() * deltat;
+				s.p += s.force_short() * deltat;
+			}
+			s.x += s.vel() * deltat;
+			s.p += s.force_short() * (deltat/2);
+			s.p += s.force_long() * (dt/2);
+
+			s.t += dt;
+		}
+
+		private:
+
+			std::size_t n_short;
 	};
 
 	template <typename T, typename State>
@@ -190,8 +234,7 @@ namespace physics
 		{
 			kick(s, dt/2);
 			s.x += s.vel() * dt;
-			s.force();
-			kick(s, dt/2);
+			kick(s, dt/2, true);
 
 			s.t += dt;
 		}
@@ -199,7 +242,7 @@ namespace physics
 		private:
 
 			template <having_coordinates<T, State> S>
-			void kick(S& s, T tau) const
+			void kick(S& s, T tau, bool eval = true) const
 			{
 				using std::size_t;
 				using std::sqrt;
@@ -209,6 +252,7 @@ namespace physics
 				T den = 0, xi0 = 0, omega02 = 0, omega0, a, b;
 				for (size_t i = 0; i < s.n; ++i)
 					den += dot(s.p[i], s.p[i]) / s.m[i];
+				s.force(eval);
 				if (den)
 				{
 					for (size_t i = 0; i < s.n; ++i)
@@ -249,13 +293,13 @@ namespace physics
 		void step(S& s, T dt) const
 		{
 			s.x += s.vel(false) * (xi * dt);
-			s.p += s.accel() * ((1 - 2*lambda) * dt/2);
+			s.p += s.force() * ((1 - 2*lambda) * dt/2);
 			s.x += s.vel() * (chi * dt);
-			s.p += s.accel() * (lambda * dt);
+			s.p += s.force() * (lambda * dt);
 			s.x += s.vel() * ((1 - 2*(chi + xi)) * dt);
-			s.p += s.accel() * (lambda * dt);
+			s.p += s.force() * (lambda * dt);
 			s.x += s.vel() * (chi * dt);
-			s.p += s.accel() * ((1 - 2*lambda) * dt/2);
+			s.p += s.force() * ((1 - 2*lambda) * dt/2);
 			s.x += s.vel() * (xi * dt);
 
 			s.t += dt;
@@ -266,6 +310,37 @@ namespace physics
 			static constexpr T xi = 0.1786178958448091L;
 			static constexpr T lambda = -0.2123418310626054L;
 			static constexpr T chi = -0.6626458266981849e-1L;
+	};
+
+	template <typename T, typename State>
+	struct vefrl : symplectic_integrator_base<T, State>
+	// Velocity-extended Forest-Ruth-like (4th order, 4 stages)
+	// OMELYAN, MRYGLOD, FOLK
+	// OPTIMIZED FOREST-RUTH- AND SUZUKI-LIKE ALGORITHMS FOR INTEGRATION
+	// OF MOTION IN MANY-BODY SYSTEMS
+	// 2008
+	{
+		template <having_coordinates<T, State> S>
+		void step(S& s, T dt) const
+		{
+			s.p += s.force(false) * (xi * dt);
+			s.x += s.vel() * ((1 - 2*lambda) * dt/2);
+			s.p += s.force() * (chi * dt);
+			s.x += s.vel() * (lambda * dt);
+			s.p += s.force() * ((1 - 2*(chi + xi)) * dt);
+			s.x += s.vel() * (lambda * dt);
+			s.p += s.force() * (chi * dt);
+			s.x += s.vel() * ((1 - 2*lambda) * dt/2);
+			s.p += s.force() * (xi * dt);
+
+			s.t += dt;
+		}
+
+		private:
+
+			static constexpr T xi = 0.1644986515575760L;
+			static constexpr T lambda = -0.2094333910398989e-1L;
+			static constexpr T chi = 0.1235692651138917e+1L;
 	};
 
 	// COMPOSITION SCHEMES

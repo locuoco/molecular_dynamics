@@ -71,15 +71,17 @@ namespace physics
 		{ {atom_type::HF, atom_type::OF, atom_type::HF}, {45.769598470363288718929254302103L, math::deg2rad(114.70L)} }
 	};
 
+	long double two1_6 = 1.1224620483093729814335330496792L;
+
 	template <std::floating_point T> // epsilon, sigma
 	std::pair<T, T> LJ_params[][int(atom_type::N)] =
 	{
-		{ {0.046L, 0.4L}, {0.0836L, 1.7753L}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // HT
-		{ {0.0836L, 1.7753L}, {0.1521L, 3.1507L}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // OT
+		{ {0.046L, 0.4L*two1_6}, {0.0836L, 1.7753L*two1_6}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // HT
+		{ {0.0836L, 1.7753L*two1_6}, {0.1521L, 3.1507L*two1_6}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // OT
 		{ {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // HTL
-		{ {0, 0}, {0, 0}, {0, 0}, {0.102L, 3.188L}, {0, 0}, {0, 0} }, // OTL
+		{ {0, 0}, {0, 0}, {0, 0}, {0.102L, 3.188L*two1_6}, {0, 0}, {0, 0} }, // OTL
 		{ {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // HF
-		{ {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0.18936998087954110898661567877629L, 3.1776L} } // OF
+		{ {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0.18936998087954110898661567877629L, 3.1776L*two1_6} } // OF
 	};
 
 	template <std::floating_point T = double>
@@ -156,7 +158,7 @@ namespace physics
 		Integ integ; // integrator
 		std::mt19937_64 mersenne_twister;
 		T side, temperature, D; // D = diffusion coefficient
-		T t; // time
+		T t, U; // time, potential energy
 		bool rescale_temperature;
 
 		static const std::size_t max_atoms = 2'000'000;
@@ -224,6 +226,11 @@ namespace physics
 			return two_kin/2;
 		}
 
+		T total_energy() const
+		{
+			return kinetic_energy() + U;
+		}
+
 		T calculate_temperature() const
 		{
 			return 2*kinetic_energy() / (3*n*kB<T>);
@@ -231,34 +238,54 @@ namespace physics
 
 		void step(T dt = 1e-3L) // picoseconds
 		{
-			using std::sqrt;
-
 			integ.step(*this, T(dt * 20.4548282844073286665866518779L)); // picoseconds to AKMA time unit
 
-			if (rescale_temperature)
-			{
-				T measured_temp = calculate_temperature();
-				if (measured_temp > 0)
-					p *= sqrt(temperature / measured_temp);
-			}
+			rescale_temp();
 		}
 
 		const state<T, 3>& force(bool eval = true)
 		{
-			using std::size_t;
+			if (eval)
+			{
+				f = 0;
+				U = 0;
 
+				force_nonbonded(8);
+
+				force_dihedrals();
+				force_impropers();
+
+				force_angles();
+				force_bonds();
+
+				diff_box_confining(2);
+			}
+			return f;
+		}
+
+		const state<T, 3>& force_long(bool eval = true)
+		{
 			if (eval)
 			{
 				f = 0;
 
-				force_bonds();
-				force_angles();
-				
-				f *= 2;
-				// the 2 factor is due to the fact that the K constant parameters are two times the relative elastic constants
+				force_nonbonded(8);
+			}
+			return f;
+		}
 
-				force_nonbonded_mthread(8);
-				//force_nonbonded();
+		const state<T, 3>& force_short(bool eval = true)
+		{
+			if (eval)
+			{
+				f = 0;
+				U = 0;
+
+				force_dihedrals();
+				force_impropers();
+
+				force_angles();
+				force_bonds();
 
 				diff_box_confining(10);
 			}
@@ -298,6 +325,18 @@ namespace physics
 
 		private:
 
+		void rescale_temp()
+		{
+			using std::sqrt;
+
+			if (rescale_temperature)
+			{
+				T measured_temp = calculate_temperature();
+				if (measured_temp > 0)
+					p *= sqrt(temperature / measured_temp);
+			}
+		}
+
 		point3<T> gen_gaussian()
 		{
 			return point3<T>(
@@ -324,9 +363,11 @@ namespace physics
 
 					point3<T> r = x[i] - x[j];
 					T d = norm(r);
-					r = (par.first * (d - par.second) / d) * r;
+					T diff = d - par.second;
+					r = (2 * par.first * diff / d) * r;
 					f[i] -= r;
 					f[j] += r;
+					U += par.first * diff*diff;
 				}
 		}
 
@@ -360,7 +401,8 @@ namespace physics
 						T cosangle = num / den;
 						T sinangle = sqrt((1 + cosangle) * (1 - cosangle));
 						T angle = atan2(sinangle, cosangle);
-						T Kanglesinden = par.first * (angle - par.second) / (sinangle * den);
+						T diff = angle - par.second;
+						T Kanglesinden = 2 * par.first * diff / (sinangle * den);
 						point3<T> rijt = rij * (num / rij2), rkjt = rkj * (num / rkj2);
 						/* // for Urey-Bradley
 						point3<T> rik = x[i] - x[k];
@@ -371,6 +413,7 @@ namespace physics
 						f[i] += (rkj - rijt) * Kanglesinden; // - rik
 						f[j] += (rijt + rkjt - rij - rkj) * Kanglesinden;
 						f[k] += (rij - rkjt) * Kanglesinden; // + rik
+						U += par.first * diff*diff;
 					}
 				}
 		}
@@ -429,37 +472,14 @@ namespace physics
 			return false;
 		}
 
-		void force_nonbonded()
+		void force_nonbonded(size_t num_threads = 1)
 		{
 			using std::size_t;
 
-			for (size_t i = 0; i < n; ++i)
-				for (size_t j = i+1; j < n; ++j)
-					if (!check_vicinity(i, j))
-					{
-						atom_type idi = id[i], idj = id[j];
-						const auto& par = LJ_params<T>[int(idi)][int(idj)];
-
-						point3<T> r = x[i] - x[j];
-						T r2_ = 1/dot(r, r);
-						T d_ = sqrt(r2_);
-						T s = par.second * par.second * r2_;
-						s = s * s * s * 2;
-						r = ((12 * par.first * s * (s - 1) + kC<T> * part_q[i] * part_q[j] * d_) * r2_) * r;
-						f[i] += r;
-						f[j] -= r;
-					}
-		}
-
-		void force_nonbonded_mthread(size_t num_threads)
-		{
-			using std::size_t;
-
-			auto eval = [this, num_threads](size_t idx)
+			if (num_threads == 1)
 			{
-				size_t block = (n-1)/num_threads + 1;
-				for (size_t i = idx*block; (i < n) && (i < (idx+1)*block); ++i)
-					for (size_t j = 0; j < n; ++j)
+				for (size_t i = 0; i < n; ++i)
+					for (size_t j = i+1; j < n; ++j)
 						if (!check_vicinity(i, j))
 						{
 							atom_type idi = id[i], idj = id[j];
@@ -469,21 +489,56 @@ namespace physics
 							T r2_ = 1/dot(r, r);
 							T d_ = sqrt(r2_);
 							T s = par.second * par.second * r2_;
-							s = s * s * s * 2;
-							r = ((12 * par.first * s * (s - 1) + kC<T> * part_q[i] * part_q[j] * d_) * r2_) * r;
+							s = s * s * s;
+							T coulomb = kC<T> * part_q[i] * part_q[j] * d_;
+							r = ((12 * par.first * s * (s - 1) + coulomb) * r2_) * r;
 							f[i] += r;
+							f[j] -= r;
+							U += par.first * s * (s - 2) + coulomb;
 						}
-			};
-			std::thread *threads = new std::thread[num_threads];
-			for (size_t i = 0; i < num_threads; ++i)
-				threads[i] = std::thread(eval, i);
-			for (size_t i = 0; i < num_threads; ++i)
-				threads[i].join();
+			}
+			else
+			{
+				std::vector<T> partU(num_threads);
+				auto eval = [this, num_threads, &partU](size_t idx)
+				{
+					T u = 0;
+					size_t block = (n-1)/num_threads + 1;
+					for (size_t i = idx*block; (i < n) && (i < (idx+1)*block); ++i)
+						for (size_t j = 0; j < n; ++j)
+							if (!check_vicinity(i, j))
+							{
+								atom_type idi = id[i], idj = id[j];
+								const auto& par = LJ_params<T>[int(idi)][int(idj)];
+
+								point3<T> r = x[i] - x[j];
+								T r2_ = 1/dot(r, r);
+								T d_ = sqrt(r2_);
+								T s = par.second * par.second * r2_;
+								s = s * s * s;
+								T coulomb = kC<T> * part_q[i] * part_q[j] * d_;
+								r = ((12 * par.first * s * (s - 1) + coulomb) * r2_) * r;
+								f[i] += r;
+								u += par.first * s * (s - 2) + coulomb;
+							}
+					partU[idx] = u/2;
+				};
+				std::vector<std::thread> threads;
+				for (size_t i = 0; i < num_threads; ++i)
+					threads.push_back(std::move(std::thread(eval, i)));
+				for (size_t i = 0; i < num_threads; ++i)
+					threads[i].join();
+				for (size_t i = 0; i < num_threads; ++i)
+					U += partU[i];
+			}
 		}
 
 		void elastic_confining(point3<T> k)
 		{
+			using std::size_t;
 			f -= k * x;
+			for (size_t i = 0; i < n; ++i)
+				U += T(.5L) * dot(k, x[i]*x[i]);
 		}
 
 		void diff_box_confining(T steepness)
@@ -492,18 +547,36 @@ namespace physics
 			for (std::size_t i = 0; i < n; ++i)
 			{
 				if (x[i][0] > hside)
+				{
 					f[i][0] -= steepness;
+					U += (x[i][0] - hside)*steepness;
+				}
 				if (x[i][1] > hside)
+				{
 					f[i][1] -= steepness;
+					U += (x[i][1] - hside)*steepness;
+				}
 				if (x[i][2] > hside)
+				{
 					f[i][2] -= steepness;
+					U += (x[i][2] - hside)*steepness;
+				}
 
 				if (x[i][0] < -hside)
+				{
 					f[i][0] += steepness;
+					U += (-hside - x[i][0])*steepness;
+				}
 				if (x[i][1] < -hside)
+				{
 					f[i][1] += steepness;
+					U += (-hside - x[i][1])*steepness;
+				}
 				if (x[i][2] < -hside)
+				{
 					f[i][2] += steepness;
+					U += (-hside - x[i][2])*steepness;
+				}
 			}
 		}
 	};

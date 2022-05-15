@@ -293,7 +293,8 @@ class graphics
 			font -> Draw(
 				std::string("T = ") + std::to_string(molsys.temperature) +
 				std::string(" K\nV = ") + std::to_string(molsys.side*molsys.side*molsys.side/1'000) +
-				std::string(" nm^3\nN = ") + std::to_string(molsys.n),
+				std::string(" nm^3\nE = ") + std::to_string(molsys.total_energy()) +
+				std::string(" kcal/mol\nN = ") + std::to_string(molsys.n),
 				w-160*xscale, h-36*yscale, 0.5f*xscale
 			);
 			font -> End();

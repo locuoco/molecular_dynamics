@@ -40,7 +40,7 @@ int main(const int, const char**)
 	double init_temp = 500, end_temp = 220;
 	std::cout << "N = " << N << ", dist = " << dist << std::endl;
 
-	physics::molecular_system<double, physics::isokinetic_leapfrog> molsys(
+	physics::molecular_system<double, physics::multi_timestep_leapfrog> molsys(
 		dist*side,
 		init_temp,
 		physics::DW5<>
@@ -66,7 +66,7 @@ int main(const int, const char**)
 	{
 		//molsys.temperature = end_temp + (molsys.temperature - end_temp) * 0.9999;
 		for (int i = 0; i < 2; ++i)
-			molsys.step(1e-3);
+			molsys.step(2e-3);
 		molsys.temperature = molsys.calculate_temperature();
 
 		window.draw(molsys);
