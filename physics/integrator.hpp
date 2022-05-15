@@ -63,8 +63,6 @@ namespace physics
 		{
 			s.x += s.vel() * dt;
 			s.p += s.force() * dt;
-			s.x += s.vel(false) * dt;
-			s.p += s.force(false) * dt;
 			s.t += dt;
 		};
 
@@ -92,7 +90,7 @@ namespace physics
 	// It is equivalent to leapfrog after correcting the initial conditions
 	{
 		template <having_coordinates<T, State> S>
-		void step(S& s, T dt) const
+		void step(S& s, T dt, bool = false) const
 		{
 			s.p += s.force() * dt;
 			s.x += s.vel() * dt;
@@ -106,9 +104,9 @@ namespace physics
 	// Leapfrog method (2nd order, 1 stage)
 	{
 		template <having_coordinates<T, State> S>
-		void step(S& s, T dt) const
+		void step(S& s, T dt, bool first_step = false) const
 		{
-			s.p += s.force(false) * (dt/2);
+			s.p += s.force(first_step) * (dt/2);
 			s.x += s.vel() * dt;
 			s.p += s.force() * (dt/2);
 
@@ -118,7 +116,7 @@ namespace physics
 
 	template <typename T, typename State>
 	struct multi_timestep_leapfrog : symplectic_integrator_base<T, State>
-	// Multi-timestep leapfrog method (2nd order, 1 stage)
+	// Multi-timestep leapfrog method (2nd order, 1 long stage, n_short short stages)
 	// If the force is divided into a high frequency and a low frequency part,
 	// and the low frequency is much more expensive to compute, then this method
 	// will be useful to reduce compute time or to increase accuracy
@@ -130,18 +128,17 @@ namespace physics
 
 		template <having_coordinates<T, State> S>
 		requires requires(S& s, T dt)
-		{
-			s.p += s.force_long() * dt;
-			s.p += s.force_short() * dt;
-			s.p += s.force_long(false) * dt;
-			s.p += s.force_short(false) * dt;
-		}
-		void step(S& s, T dt) const
+			{
+				s.p += s.force_long() * dt;
+				s.p += s.force_short() * dt;
+				s.p += s.force_long(false) * dt;
+			}
+		void step(S& s, T dt, bool first_step = false) const
 		{
 			T deltat = dt/n_short;
-			s.p += s.force_long(false) * (dt/2);
+			s.p += s.force_long(first_step) * (dt/2);
 			s.p += s.force_short() * (deltat/2);
-			for (size_t i = 0; i < n_short-1; ++i)
+			for (std::size_t i = 0; i < n_short-1; ++i)
 			{
 				s.x += s.vel() * deltat;
 				s.p += s.force_short() * deltat;
@@ -175,12 +172,12 @@ namespace physics
 */
 	{
 		template <having_coordinates_stochastic<T, State> S>
-		void step(S& s, T dt) const
+		void step(S& s, T dt, bool first_step = false) const
 		{
 			using std::exp;
 			using std::sqrt;
 
-			s.p += s.force(false) * (dt/2);
+			s.p += s.force(first_step) * (dt/2);
 			s.x += s.vel() * (dt/2);
 			s.rand();
 			if (s.D == 0) // gamma -> inf
@@ -204,11 +201,11 @@ namespace physics
 	// dp = f dt - gamma p dt
 	{
 		template <having_coordinates_damped<T, State> S>
-		void step(S& s, T dt) const
+		void step(S& s, T dt, bool first_step = false) const
 		{
 			using std::exp;
 
-			s.p += s.force(false) * (dt/2);
+			s.p += s.force(first_step) * (dt/2);
 			s.x += s.vel() * (dt/2);
 			for (std::size_t i = 0; i < s.n; ++i)
 				s.p[i] *= exp(-s.gamma[i] * dt);
@@ -226,13 +223,14 @@ namespace physics
 	// not symplectic, but still time-reversible
 	// it conserves the kinetic energy rather than the total hamiltonian
 	// at equilibrium, its configurations sample a canonical ensemble rather than a microcanonical one
+	// unfortunately, momenta do not follow the MB distribution
 	// dp = f dt - xi p dt
 	// xi = sum(p * f / m) / sum(p^2 / m)
 	{
 		template <having_coordinates<T, State> S>
-		void step(S& s, T dt) const
+		void step(S& s, T dt, bool first_step = false) const
 		{
-			kick(s, dt/2, false);
+			kick(s, dt/2, first_step);
 			s.x += s.vel() * dt;
 			kick(s, dt/2);
 
@@ -242,6 +240,12 @@ namespace physics
 		private:
 
 			template <having_coordinates<T, State> S>
+			requires requires(S& s, T t, std::size_t i)
+				{
+					t += dot(s.p[i], s.p[i]) / s.m[i];
+					t += dot(s.p[i], s.f[i]) / s.m[i];
+					t += dot(s.f[i], s.f[i]) / s.m[i];
+				}
 			void kick(S& s, T tau, bool eval = true) const
 			{
 				using std::size_t;
@@ -282,6 +286,80 @@ namespace physics
 	};
 
 	template <typename T, typename State>
+	struct nose_hoover : integrator_base<T, State>
+	// Nosé-Hoover thermostat integrator (2nd order, 1 stage)
+	{
+		nose_hoover(std::size_t n_th = 10, T tau = 1) : p_th(n_th), m_th(n_th), tau_relax(tau), n_th(n_th)
+		{}
+
+		template <having_coordinates<T, State> S>
+		requires requires(S& s, T t)
+			{
+				t += 2 * s.kinetic_energy() - s.dof * s.kT_fixed();
+			}
+		void step(S& s, T dt, bool first_step = false)
+		{
+			using std::size_t;
+			using std::exp;
+
+			T tau2 = s.kT_fixed() * tau_relax*tau_relax;
+			m_th[0] = s.n * tau2;
+			for (size_t i = 1; i < n_th; ++i)
+				m_th[i] = tau2;
+
+			p_th[n_th-1] += G(s,n_th-1) * (dt/2);
+			for (size_t i = n_th-1; i --> 0; )
+			{
+				if (p_th[i])
+				{
+					T a = exp(-xi(i+1)*(dt/2));
+					p_th[i] = p_th[i] * a + G(s,i) * (1 - a) / xi(i+1);
+				}
+				else
+					p_th[i] += G(s,i) * (dt/2);
+			}
+			s.p *= exp(-xi(0) * (dt/2));
+			s.p += s.force(first_step) * (dt/2);
+			s.x += s.vel() * dt;
+			s.p += s.force() * (dt/2);
+			s.p *= exp(-xi(0) * (dt/2));
+			for (size_t i = 0; i < n_th-1; ++i)
+			{
+				if (p_th[i])
+				{
+					T a = exp(-xi(i+1)*(dt/2));
+					p_th[i] = p_th[i] * a + G(s,i) * (1 - a) / xi(i+1);
+				}
+				else
+					p_th[i] += G(s,i) * (dt/2);
+			}
+			p_th[n_th-1] += G(s,n_th-1) * (dt/2);
+
+			s.t += dt;
+		}
+
+		private:
+
+			std::vector<T> p_th, m_th;
+			T tau_relax;
+			std::size_t n_th;
+
+			T xi(std::size_t i) const
+			{
+				return p_th[i]/m_th[i];
+			}
+
+			template <having_coordinates<T, State> S>
+			T G(const S& s, std::size_t i) const
+			{
+				if (i == 0)
+					return 2 * s.kinetic_energy() - s.dof * s.kT_fixed();
+				else
+					return p_th[i-1]*xi(i-1) - s.kT_fixed();
+			}
+	};
+
+	template <typename T, typename State>
 	struct pefrl : symplectic_integrator_base<T, State>
 	// Position-extended Forest-Ruth-like (4th order, 4 stages)
 	// OMELYAN, MRYGLOD, FOLK
@@ -290,9 +368,9 @@ namespace physics
 	// 2008
 	{
 		template <having_coordinates<T, State> S>
-		void step(S& s, T dt) const
+		void step(S& s, T dt, bool first_step = false) const
 		{
-			s.x += s.vel(false) * (xi * dt);
+			s.x += s.vel(first_step) * (xi * dt);
 			s.p += s.force() * ((1 - 2*lambda) * dt/2);
 			s.x += s.vel() * (chi * dt);
 			s.p += s.force() * (lambda * dt);
@@ -321,9 +399,9 @@ namespace physics
 	// 2008
 	{
 		template <having_coordinates<T, State> S>
-		void step(S& s, T dt) const
+		void step(S& s, T dt, bool first_step = false) const
 		{
-			s.p += s.force(false) * (xi * dt);
+			s.p += s.force(first_step) * (xi * dt);
 			s.x += s.vel() * ((1 - 2*lambda) * dt/2);
 			s.p += s.force() * (chi * dt);
 			s.x += s.vel() * (lambda * dt);
@@ -370,10 +448,10 @@ namespace physics
 		composition_scheme_base(Ts ... pars) : d{T(pars)...} {}
 
 		template <having_coordinates<T, State> S>
-		void step(S& s, T dt) const
+		void step(S& s, T dt, bool first_step = false) const
 		{
 			for (size_t i = 0; i < Stages; ++i)
-				IntegT<T, State>::step(s, d[std::min(i, Stages-i-1)] * dt);
+				IntegT<T, State>::step(s, d[std::min(i, Stages-i-1)] * dt, first_step);
 		}
 
 		private:
@@ -668,7 +746,7 @@ namespace physics
 		explicit_runge_kutta_base(Ts ... pars) : pars{T(pars)...} {}
 
 		template <having_coordinates<T, State> S>
-		void step(S& s, T dt) const
+		void step(S& s, T dt, bool = false) const
 		{
 			using std::size_t;
 
@@ -864,7 +942,7 @@ namespace physics
 		runge_kutta_nystrom_base(Ts ... pars) : pars{T(pars)...} {}
 
 		template <having_coordinates<T, State> S>
-		void step(S& s, T dt) const
+		void step(S& s, T dt, bool = false) const
 		{
 			using std::size_t;
 
@@ -903,6 +981,8 @@ namespace physics
 			const std::array<T, (Stages+1)*Stages> pars;
 			State k[Stages], prev_x, prev_v, prev_p;
 	};
+
+	// TODO
 
 } // namespace physics
 

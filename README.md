@@ -104,10 +104,11 @@ By default, the floating point type is `double` (64-bit floating point) and the 
 
 * `physics::symplectic_euler`: Symplectic Euler method (1st order, 1 stage)
 * `physics::leapfrog`: Leapfrog method (2nd order, 1 stage)
-* `physics::multi_timestep_leapfrog`: Multi-timestep leapfrog method (2nd order, 1 stage)
+* `physics::multi_timestep_leapfrog`: Multi-timestep leapfrog method (2nd order, 1 stage for long-range forces)
 * `physics::stochastic_leapfrog`: Stochastic "leapfrog" method (1 stage)
 * `physics::damped_leapfrog`: Damped "leapfrog" method (1 stage)
-* `physics::isokinetic_leapfrog`: Isokinetic "leapfrog" method (1 stage)
+* `physics::isokinetic_leapfrog`: Isokinetic "leapfrog" method (2nd order, 1 stage)
+* `physics::nose_hoover`: Nosé-Hoover thermostat integrator (2nd order, 1 stage): it approximates a canonical (NVT) ensemble
 * `physics::pefrl`: Position-extended Forest-Ruth-like method (4th order, 4 stages)
 * `physics::vefrl`: Velocity-extended Forest-Ruth-like method (4th order, 4 stages)
 * Composition schemes (they are structure-preserving, and can be used to construct higher-order, also symplectic, methods starting from 2nd order ones):

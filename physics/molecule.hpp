@@ -142,6 +142,8 @@ namespace physics
 		using Integ = IntegT<T, state<T, 3>, TPars...>;
 
 		std::normal_distribution<T> n_dist;
+		mutable T kin;
+		mutable bool kin_updated;
 
 		public:
 
@@ -154,17 +156,19 @@ namespace physics
 		std::vector<atom_type> id; // identity of the atom
 		std::vector<fixed_list<max_bonds>> bonds; // bonds as an adjacency list
 		std::vector<std::array<unsigned int, 4>> impropers; // list of impropers in the whole system
-		unsigned int n; // total number of atoms
+		unsigned int n, dof; // total number of atoms, degrees of freedom
 		Integ integ; // integrator
 		std::mt19937_64 mersenne_twister;
-		T side, temperature, D; // D = diffusion coefficient
-		T t, U; // time, potential energy
-		bool rescale_temperature;
+		T side, temperature_fixed, D; // D = diffusion coefficient
+		// temperature_fixed is a fixed number independent of the simulation
+		T t, U; // time, kinetic energy, potential energy
+		bool rescale_temperature, first_step;
 
 		static const std::size_t max_atoms = 2'000'000;
 
 		molecular_system(T side = 100, T temp = 298.15, T D = DW25<T>, Integ integ = Integ())
-			: n_dist(0, 1), n(0), integ(integ), mersenne_twister(0), side(side), temperature(temp), D(D), t(0), rescale_temperature(false)
+			: n_dist(0, 1), kin_updated(false), n(0), integ(integ), mersenne_twister(0), side(side), temperature_fixed(temp), D(D), t(0),
+			  rescale_temperature(false), first_step(true)
 		{}
 
 		void add_molecule(const molecule<T>& mol, const point3<T>& pos = 0)
@@ -200,7 +204,7 @@ namespace physics
 			for (size_t i = 0; i < n + mol.n; ++i)
 				m[i] = atom_mass<T>[ int(id[i]) ];
 			for (size_t i = 0; i < mol.n; ++i)
-				p[n + i] = gen_gaussian() * sqrt(m[n + i] * kB<T> * temperature);
+				p[n + i] = gen_gaussian() * sqrt(m[n + i] * kB<T> * temperature_fixed);
 
 			for (size_t i = 0; i < mol.n; ++i)
 			{
@@ -216,14 +220,21 @@ namespace physics
 									 mol.impropers[i][2] + n,
 									 mol.impropers[i][3] + n});
 			n += mol.n;
+			dof = 3*n;
 		}
 
 		T kinetic_energy() const
 		{
-			T two_kin = 0;
-			for (std::size_t i = 0; i < n; ++i)
-				two_kin += dot(p[i], p[i]) / m[i];
-			return two_kin/2;
+			if (!kin_updated)
+			{
+				kin = 0;
+				for (std::size_t i = 0; i < n; ++i)
+					kin += dot(p[i], p[i]) / m[i];
+				kin /= 2;
+
+				kin_updated = true;
+			}
+			return kin;
 		}
 
 		T total_energy() const
@@ -231,14 +242,20 @@ namespace physics
 			return kinetic_energy() + U;
 		}
 
-		T calculate_temperature() const
+		T temperature() const
 		{
 			return 2*kinetic_energy() / (3*n*kB<T>);
 		}
 
+		T kT_fixed() const
+		{
+			return kB<T> * temperature_fixed;
+		}
+
 		void step(T dt = 1e-3L) // picoseconds
 		{
-			integ.step(*this, T(dt * 20.4548282844073286665866518779L)); // picoseconds to AKMA time unit
+			integ.step(*this, T(dt * 20.4548282844073286665866518779L), first_step); // picoseconds to AKMA time unit
+			first_step = false;
 
 			rescale_temp();
 		}
@@ -260,6 +277,7 @@ namespace physics
 
 				diff_box_confining(2);
 			}
+			kin_updated = false;
 			return f;
 		}
 
@@ -271,6 +289,7 @@ namespace physics
 
 				force_nonbonded(8);
 			}
+			kin_updated = false;
 			return f;
 		}
 
@@ -289,6 +308,7 @@ namespace physics
 
 				diff_box_confining(10);
 			}
+			kin_updated = false;
 			return f;
 		}
 
@@ -306,8 +326,8 @@ namespace physics
 
 			std::ranges::generate(noise, gen_gaussian);
 			for (size_t i = 0; i < n; ++i)
-				noise[i] *= sqrt(m[i] * kB<T> * temperature);
-			gamma = (kB<T> * temperature / D) / m;
+				noise[i] *= sqrt(m[i] * kB<T> * temperature_fixed);
+			gamma = (kB<T> * temperature_fixed / D) / m;
 			/*for (size_t i = 0; i < n; ++i)
 			{
 				T minx = x[i][0], maxx = x[i][0];
@@ -331,9 +351,9 @@ namespace physics
 
 			if (rescale_temperature)
 			{
-				T measured_temp = calculate_temperature();
-				if (measured_temp > 0)
-					p *= sqrt(temperature / measured_temp);
+				T temp = temperature();
+				if (temp > 0)
+					p *= sqrt(temperature_fixed / temp);
 			}
 		}
 
