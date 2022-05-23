@@ -449,8 +449,7 @@ namespace physics
 					const auto& par = bond_params<T>[{ idi, idj }];
 
 					point3<T> r = x[i] - x[j];
-					T r2 = dot(r, r);
-					T d = sqrt(r2);
+					T d = norm(r);
 					T d_ = 1/d;
 					T diff = d - par.second;
 
@@ -496,8 +495,7 @@ namespace physics
 						point3<T> rijt = rij * (num / rij2), rkjt = rkj * (num / rkj2);
 						// for Urey-Bradley
 						point3<T> rik = x[i] - x[k];
-						T rik2 = dot(rik, rik);
-						T dik = sqrt(rik2);
+						T dik = norm(rik);
 						T dik_ = 1/dik;
 						T diffUB = dik - get<3>(par);
 
