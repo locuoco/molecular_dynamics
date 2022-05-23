@@ -34,6 +34,7 @@
 
 #include "shader.hpp"
 #include "controls.hpp"
+#include "physics/molecule.hpp"
 
 #define TEST(x)
 #include "Font.hpp"
@@ -135,13 +136,14 @@ class graphics
 		template <typename MolSys>
 		void draw(const MolSys& molsys)
 		{
+			using std::remainder;
 			atomPosType.resize(4*molsys.n);
 
 			for (unsigned i = 0; i < molsys.n; ++i)
 			{
-				atomPosType[i*4+0] = molsys.x[i][0];
-				atomPosType[i*4+1] = molsys.x[i][1];
-				atomPosType[i*4+2] = molsys.x[i][2];
+				atomPosType[i*4+0] = remainder(molsys.x[i][0], molsys.side);
+				atomPosType[i*4+1] = remainder(molsys.x[i][1], molsys.side);
+				atomPosType[i*4+2] = remainder(molsys.x[i][2], molsys.side);
 				atomPosType[i*4+3] = physics::atom_number[int(molsys.id[i])];
 			}
 
@@ -292,9 +294,12 @@ class graphics
 			);
 			font -> Draw(
 				std::string("T = ") + std::to_string(molsys.temperature()) +
-				std::string(" K\nV = ") + std::to_string(molsys.side*molsys.side*molsys.side/1'000) +
+				std::string(" K\nP = ") + std::to_string(molsys.pressure_fixedT()/physics::atm<double>) +
+				std::string(" atm\nV = ") + std::to_string(molsys.volume()/1'000) +
 				std::string(" nm^3\nE = ") + std::to_string(molsys.total_energy()) +
-				std::string(" kcal/mol\nN = ") + std::to_string(molsys.n),
+				std::string(" kcal/mol\nN = ") + std::to_string(molsys.n) +
+				std::string("\nrho = ") + std::to_string(molsys.density()/physics::kg_per_m3<double>) +
+				std::string(" kg/m^3"),
 				w-160*xscale, h-36*yscale, 0.5f*xscale
 			);
 			font -> End();

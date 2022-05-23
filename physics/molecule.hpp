@@ -31,6 +31,7 @@
 
 #include "point.hpp"
 #include "integrator.hpp"
+#include "ewald.hpp"
 
 namespace physics
 {
@@ -44,7 +45,19 @@ namespace physics
 	constexpr T kC = 332.06371330062682040436798930743L; // Coulomb constant in AKMA units
 
 	template <std::floating_point T>
-	constexpr T kB = 0.00198720425864083173996175908222L; // Boltzmann constant in AKMA units
+	constexpr T sqrtkC = 18.222615435239443706926657644703L; // square root of the Coulomb constant in AKMA units
+
+	template <std::floating_point T>
+	constexpr T kB = 0.00198720425864083173996175908222L; // Boltzmann constant in AKMA units (kcal/(mol K))
+
+	template <std::floating_point T>
+	constexpr T NA = 6.02214076e23L; // Avogadro number (mol^-1)
+
+	template <std::floating_point T>
+	constexpr T atm = 1.4583972574259082217973231357553e-5L; // 1 atmosphere in AKMA units
+
+	template <std::floating_point T>
+	constexpr T kg_per_m3 = 6.02214076e-4L; // 1 kg/m^3 in AKMA units
 
 	template <std::floating_point T = double>
 	constexpr T DW5 = 0.00616480364668354400695529510607L; // water self-diffusion constant in AKMA units at 5 °C
@@ -56,7 +69,7 @@ namespace physics
 	constexpr T atom_mass[] = {1.008L, 15.9994L, 1.008L, 15.9994L, 1.008L, 15.9994L};
 
 	template <std::floating_point T>
-	std::map<const std::pair<atom_type, atom_type>, const std::pair<T, T>> bond_params = // k, r0
+	std::map<const std::pair<atom_type, atom_type>, const std::pair<T, T>> bond_params = // K, r0
 	{
 		{ {atom_type::HT, atom_type::OT}, {450, 0.9572L} },
 		{ {atom_type::HTL, atom_type::OTL}, {450, 0.9572L} },
@@ -64,24 +77,24 @@ namespace physics
 	};
 
 	template <std::floating_point T>
-	std::map<const std::tuple<atom_type, atom_type, atom_type>, const std::pair<T, T>> angle_params = // k, theta0 // 383 kJ/mol
+	std::map<const std::tuple<atom_type, atom_type, atom_type>, const std::tuple<T, T, T, T>> angle_params = // K, theta0, KUB, rUB
 	{
-		{ {atom_type::HT, atom_type::OT, atom_type::HT}, {55, math::deg2rad(104.52L)} },
-		{ {atom_type::HTL, atom_type::OTL, atom_type::HTL}, {55, math::deg2rad(104.52L)} },
-		{ {atom_type::HF, atom_type::OF, atom_type::HF}, {45.769598470363288718929254302103L, math::deg2rad(114.70L)} }
+		{ {atom_type::HT, atom_type::OT, atom_type::HT}, {55, math::deg2rad(104.52L), 0, 0} },
+		{ {atom_type::HTL, atom_type::OTL, atom_type::HTL}, {55, math::deg2rad(104.52L), 0, 0} },
+		{ {atom_type::HF, atom_type::OF, atom_type::HF}, {45.769598470363288718929254302103L, math::deg2rad(114.70L), 0, 0} }
 	};
 
-	long double two1_6 = 1.1224620483093729814335330496792L;
+	constexpr long double two1_6 = 1.1224620483093729814335330496792L;
 
-	template <std::floating_point T> // epsilon, sigma
-	std::pair<T, T> LJ_params[][int(atom_type::N)] =
+	template <std::floating_point T> // epsilon, R/2
+	std::pair<T, T> LJ_params[] =
 	{
-		{ {0.046L, 0.4L*two1_6}, {0.0836L, 1.7753L*two1_6}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // HT
-		{ {0.0836L, 1.7753L*two1_6}, {0.1521L, 3.1507L*two1_6}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // OT
-		{ {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // HTL
-		{ {0, 0}, {0, 0}, {0, 0}, {0.102L, 3.188L*two1_6}, {0, 0}, {0, 0} }, // OTL
-		{ {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0} }, // HF
-		{ {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0.18936998087954110898661567877629L, 3.1776L*two1_6} } // OF
+		{0.046L, 0.4L*two1_6/2}, // HT
+		{0.1521L, 3.1507L*two1_6/2}, // OT
+		{0, 0}, {0, 0}, // HTL
+		{0.102L, 3.188L*two1_6/2}, // OTL
+		{0, 0}, {0, 0}, // HF
+		{0.18936998087954110898661567877629L, 3.1776L*two1_6/2}, // OF
 	};
 
 	template <std::floating_point T = double>
@@ -134,12 +147,14 @@ namespace physics
 	template <
 		std::floating_point T = double,
 		template <typename, typename, template <typename...> typename...> typename IntegT = leapfrog,
-		template <typename...> typename ... TPars
+		template <typename, typename> typename LRSummationT = ewald,
+		template <typename...> typename ... IntegPars
 	>
-	requires integrator<IntegT<T, state<T, 3>, TPars...>, T, state<T, 3>>
+	requires integrator<IntegT<T, state<T, 3>, IntegPars...>, T, state<T, 3>>
 	class molecular_system : public physical_system_base<T, state<T, 3>>
 	{
-		using Integ = IntegT<T, state<T, 3>, TPars...>;
+		using LRSum = LRSummationT<T, state<T, 3>>;
+		using Integ = IntegT<T, state<T, 3>, IntegPars...>;
 
 		std::normal_distribution<T> n_dist;
 		mutable T kin;
@@ -152,23 +167,24 @@ namespace physics
 		state<T, 3> x, p, v, f; // position, momentum, velocity, force
 		state<T, 3> noise; // gaussian noise
 		std::valarray<T> m, gamma; // mass, damping factor
-		std::vector<T> part_q; // partial charges
+		std::vector<T> z, LJ_sqrteps, LJ_halfR; // normalized partial charges + Lennard-Jones parameters
 		std::vector<atom_type> id; // identity of the atom
 		std::vector<fixed_list<max_bonds>> bonds; // bonds as an adjacency list
 		std::vector<std::array<unsigned int, 4>> impropers; // list of impropers in the whole system
+		T virial;
 		unsigned int n, dof; // total number of atoms, degrees of freedom
+		LRSum lrsum; // long-range summation algorithm
 		Integ integ; // integrator
 		std::mt19937_64 mersenne_twister;
-		T side, temperature_fixed, D; // D = diffusion coefficient
-		// temperature_fixed is a fixed number independent of the simulation
-		T t, U; // time, kinetic energy, potential energy
+		T side, temperature_fixed;
+		T t, U, M, D; // time, kinetic energy, potential energy, total mass, diffusion coefficient
 		bool rescale_temperature, first_step;
 
 		static const std::size_t max_atoms = 2'000'000;
 
-		molecular_system(T side = 100, T temp = 298.15, T D = DW25<T>, Integ integ = Integ())
-			: n_dist(0, 1), kin_updated(false), n(0), integ(integ), mersenne_twister(0), side(side), temperature_fixed(temp), D(D), t(0),
-			  rescale_temperature(false), first_step(true)
+		molecular_system(T side = 50, T temp = 298.15, T D = DW25<T>, LRSum lrsum = LRSum(), Integ integ = Integ())
+			: n_dist(0, 1), kin_updated(false), n(0), lrsum(lrsum), integ(integ), mersenne_twister(0),
+			  side(side), temperature_fixed(temp), t(0), M(0), D(D), rescale_temperature(false), first_step(true)
 		{}
 
 		void add_molecule(const molecule<T>& mol, const point3<T>& pos = 0)
@@ -200,11 +216,17 @@ namespace physics
 			for (size_t i = 0; i < mol.n; ++i)
 				id.push_back(mol.id[i]);
 			for (size_t i = 0; i < mol.n; ++i)
-				part_q.push_back(mol.part_q[i]);
+				z.push_back(mol.part_q[i]*sqrtkC<long double>);
+			for (size_t i = 0; i < mol.n; ++i)
+				LJ_sqrteps.push_back(sqrt(LJ_params<long double>[int(mol.id[i])].first));
+			for (size_t i = 0; i < mol.n; ++i)
+				LJ_halfR.push_back(LJ_params<T>[int(mol.id[i])].second);
 			for (size_t i = 0; i < n + mol.n; ++i)
 				m[i] = atom_mass<T>[ int(id[i]) ];
 			for (size_t i = 0; i < mol.n; ++i)
-				p[n + i] = gen_gaussian() * sqrt(m[n + i] * kB<T> * temperature_fixed);
+				M += m[n + i];
+			for (size_t i = 0; i < mol.n; ++i)
+				p[n + i] = gen_gaussian() * sqrt(m[n + i] * kT_fixed());
 
 			for (size_t i = 0; i < mol.n; ++i)
 			{
@@ -239,17 +261,52 @@ namespace physics
 
 		T total_energy() const
 		{
-			return kinetic_energy() + U;
+			return kinetic_energy() + U; // in kcal/mol
 		}
 
 		T temperature() const
+		// instantaneous temperature, in K
 		{
-			return 2*kinetic_energy() / (3*n*kB<T>);
+			return 2*kinetic_energy() / (dof*kB<T>);
+		}
+
+		T kT() const
+		{
+			return kB<T> * temperature(); // in kcal/mol
 		}
 
 		T kT_fixed() const
 		{
-			return kB<T> * temperature_fixed;
+			return kB<T> * temperature_fixed; // in kcal/mol
+		}
+
+		T volume() const
+		{
+			return side*side*side; // in angstrom^3 = 10^-30 m^3
+		}
+
+		T density() const
+		{
+			return M / volume(); // in amu/angstrom^3
+		}
+
+		T pressure() const
+		// instantaneous pressure calculated with instantaneous temperature in kcal/(mol angstrom^3)
+		{
+			return (2*kinetic_energy() + virial)/(3*volume());
+		}
+
+		T pressure_fixedT() const
+		// instantaneous pressure calculated with fixed temperature in kcal/(mol angstrom^3)
+		{
+			return (n*kT_fixed() + virial/3) / volume();
+		}
+
+		T external_pressure() const
+		// instantaneous pressure calculated from external virial in kcal/(mol angstrom^3)
+		// not valid if the system is periodic
+		{
+			return (virial - dot(x, f)) / (3*volume());
 		}
 
 		void step(T dt = 1e-3L) // picoseconds
@@ -267,17 +324,21 @@ namespace physics
 				f = 0;
 				U = 0;
 
-				force_nonbonded(8);
-
 				force_dihedrals();
 				force_impropers();
 
 				force_angles();
 				force_bonds();
 
-				diff_box_confining(2);
+				virial = dot(x, f);
+
+				force_nonbonded(8);
+
+				if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
+					diff_box_confining(5);
+
+				kin_updated = false;
 			}
-			kin_updated = false;
 			return f;
 		}
 
@@ -288,8 +349,9 @@ namespace physics
 				f = 0;
 
 				force_nonbonded(8);
+
+				kin_updated = false;
 			}
-			kin_updated = false;
 			return f;
 		}
 
@@ -306,9 +368,13 @@ namespace physics
 				force_angles();
 				force_bonds();
 
-				diff_box_confining(10);
+				virial = dot(x, f);
+
+				if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
+					diff_box_confining(5);
+
+				kin_updated = false;
 			}
-			kin_updated = false;
 			return f;
 		}
 
@@ -326,8 +392,8 @@ namespace physics
 
 			std::ranges::generate(noise, gen_gaussian);
 			for (size_t i = 0; i < n; ++i)
-				noise[i] *= sqrt(m[i] * kB<T> * temperature_fixed);
-			gamma = (kB<T> * temperature_fixed / D) / m;
+				noise[i] *= sqrt(m[i] * kT_fixed());
+			gamma = (kT_fixed() / D) / m;
 			/*for (size_t i = 0; i < n; ++i)
 			{
 				T minx = x[i][0], maxx = x[i][0];
@@ -369,6 +435,7 @@ namespace physics
 		void force_bonds()
 		{
 			using std::size_t;
+			using std::sqrt;
 
 			for (size_t i = 0; i < n; ++i)
 				for (size_t k = 0; k < bonds[i].n; ++k)
@@ -382,9 +449,12 @@ namespace physics
 					const auto& par = bond_params<T>[{ idi, idj }];
 
 					point3<T> r = x[i] - x[j];
-					T d = norm(r);
+					T r2 = dot(r, r);
+					T d = sqrt(r2);
+					T d_ = 1/d;
 					T diff = d - par.second;
-					r = (2 * par.first * diff / d) * r;
+
+					r = (2 * par.first * diff * d_) * r;
 					f[i] -= r;
 					f[j] += r;
 					U += par.first * diff*diff;
@@ -398,16 +468,16 @@ namespace physics
 			using std::size_t;
 
 			for (size_t i = 0; i < n; ++i)
-				for (size_t l = 0; l < bonds[i].n; ++l)
+				for (size_t mj = 0; mj < bonds[i].n; ++mj)
 				{
-					size_t j = bonds[i][l];
+					size_t j = bonds[i][mj];
 					atom_type idj = id[j];
 
 					point3<T> rij = x[i] - x[j];
 					T rij2 = dot(rij, rij);
-					for (size_t m = 0; m < bonds[j].n; ++m)
+					for (size_t mk = 0; mk < bonds[j].n; ++mk)
 					{
-						size_t k = bonds[j][m];
+						size_t k = bonds[j][mk];
 						if (!(i < k))
 							continue;
 						atom_type idi = id[i], idk = id[k];
@@ -421,26 +491,29 @@ namespace physics
 						T cosangle = num / den;
 						T sinangle = sqrt((1 + cosangle) * (1 - cosangle));
 						T angle = atan2(sinangle, cosangle);
-						T diff = angle - par.second;
-						T Kanglesinden = 2 * par.first * diff / (sinangle * den);
+						T diff = angle - get<1>(par);
+						T Kanglesinden = 2 * get<0>(par) * diff / (sinangle * den);
 						point3<T> rijt = rij * (num / rij2), rkjt = rkj * (num / rkj2);
-						/* // for Urey-Bradley
+						// for Urey-Bradley
 						point3<T> rik = x[i] - x[k];
-						T dik = norm(rik);
-						rik /= dik;
-						rik = (get<2>(par) * (dik - get<3>(par))) * rik;
-						*/
-						f[i] += (rkj - rijt) * Kanglesinden; // - rik
+						T rik2 = dot(rik, rik);
+						T dik = sqrt(rik2);
+						T dik_ = 1/dik;
+						T diffUB = dik - get<3>(par);
+
+						rik = (2 * get<2>(par) * diffUB * dik_) * rik;
+
+						f[i] += (rkj - rijt) * Kanglesinden; - rik;
 						f[j] += (rijt + rkjt - rij - rkj) * Kanglesinden;
-						f[k] += (rij - rkjt) * Kanglesinden; // + rik
-						U += par.first * diff*diff;
+						f[k] += (rij - rkjt) * Kanglesinden + rik;
+						U += get<0>(par) * diff*diff + get<2>(par) * diffUB*diffUB;
 					}
 				}
 		}
 
 		void force_dihedrals()
 		{
-			
+			// TODO
 		}
 
 		void force_impropers()
@@ -456,7 +529,7 @@ namespace physics
 			}*/
 		}
 
-		bool check_vicinity(std::size_t i, std::size_t i0)
+		bool check_vicinity(std::size_t i, std::size_t i0) const noexcept
 		{
 			using std::size_t;
 
@@ -492,65 +565,68 @@ namespace physics
 			return false;
 		}
 
-		void force_nonbonded(size_t num_threads = 1)
+		void eval_nonbonded(std::size_t i, std::size_t j, T fact = 1) noexcept
+		{
+			T Rij = LJ_halfR[i] + LJ_halfR[j];
+			point3<T> r;
+
+			if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
+				r = x[i] - x[j];
+			else
+				r = remainder(x[i] - x[j], side);
+			T r2_ = 1/dot(r, r);
+			T d_ = sqrt(r2_);
+			T s = Rij * Rij * r2_;
+			s = s * s * s;
+			T epsijs = LJ_sqrteps[i] * LJ_sqrteps[j] * s;
+			T coulomb = z[i] * z[j] * d_;
+			point3<T> fij = ((12 * epsijs * (s - 1) + coulomb) * r2_ * fact) * r;
+			f[i] += fij;
+			f[j] -= fij;
+			U += (epsijs * (s - 2) + coulomb) * fact;
+			virial += dot(r, fij);
+		}
+
+		void correct_nonbonded()
+		// correction so that non-bonded forces vanish for bonded atoms
+		{
+			for (size_t i = 0; i < n; ++i)
+			{
+				//atom_type idi = id[i];
+				for (size_t mj = 0; mj < bonds[i].n; ++mj)
+				{
+					const size_t j = bonds[i][mj];
+					if (i < j)
+						eval_nonbonded(i, j, -1);
+					//atom_type idj = id[j];
+					for (size_t mk = 0; mk < bonds[j].n; ++mk)
+					{
+						const size_t k = bonds[j][mk];
+						if (i < k)
+							eval_nonbonded(i, k, -1);
+						/*if (i != k)
+						{
+							atom_type idk = id[k];
+							for (size_t ml = 0; ml < bonds[k].n; ++ml)
+							{
+								const size_t l = bonds[k][ml];
+								atom_type idl = id[l];
+								if (i < l && j != l && get<0>(dihedral_params<T>[{ idi, idj, idk, idl }]) != 0)
+									eval_nonbonded(i, l, -1);
+							}
+						}*/
+					}
+				}
+			}
+		}
+
+		void force_nonbonded(std::size_t num_threads = 1)
 		{
 			using std::size_t;
 
-			if (num_threads == 1)
-			{
-				for (size_t i = 0; i < n; ++i)
-					for (size_t j = i+1; j < n; ++j)
-						if (!check_vicinity(i, j))
-						{
-							atom_type idi = id[i], idj = id[j];
-							const auto& par = LJ_params<T>[int(idi)][int(idj)];
+			correct_nonbonded();
 
-							point3<T> r = x[i] - x[j];
-							T r2_ = 1/dot(r, r);
-							T d_ = sqrt(r2_);
-							T s = par.second * par.second * r2_;
-							s = s * s * s;
-							T coulomb = kC<T> * part_q[i] * part_q[j] * d_;
-							r = ((12 * par.first * s * (s - 1) + coulomb) * r2_) * r;
-							f[i] += r;
-							f[j] -= r;
-							U += par.first * s * (s - 2) + coulomb;
-						}
-			}
-			else
-			{
-				std::vector<T> partU(num_threads);
-				auto eval = [this, num_threads, &partU](size_t idx)
-				{
-					T u = 0;
-					size_t block = (n-1)/num_threads + 1;
-					for (size_t i = idx*block; (i < n) && (i < (idx+1)*block); ++i)
-						for (size_t j = 0; j < n; ++j)
-							if (!check_vicinity(i, j))
-							{
-								atom_type idi = id[i], idj = id[j];
-								const auto& par = LJ_params<T>[int(idi)][int(idj)];
-
-								point3<T> r = x[i] - x[j];
-								T r2_ = 1/dot(r, r);
-								T d_ = sqrt(r2_);
-								T s = par.second * par.second * r2_;
-								s = s * s * s;
-								T coulomb = kC<T> * part_q[i] * part_q[j] * d_;
-								r = ((12 * par.first * s * (s - 1) + coulomb) * r2_) * r;
-								f[i] += r;
-								u += par.first * s * (s - 2) + coulomb;
-							}
-					partU[idx] = u/2;
-				};
-				std::vector<std::thread> threads;
-				for (size_t i = 0; i < num_threads; ++i)
-					threads.push_back(std::move(std::thread(eval, i)));
-				for (size_t i = 0; i < num_threads; ++i)
-					threads[i].join();
-				for (size_t i = 0; i < num_threads; ++i)
-					U += partU[i];
-			}
+			lrsum.eval(*this, num_threads);
 		}
 
 		void elastic_confining(point3<T> k)

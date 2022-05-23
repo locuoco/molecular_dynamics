@@ -33,7 +33,7 @@ flat out vec3 fragCol;
 flat out float fragSize;
 
 const vec4 atom_pars[19] = vec4[](
-	vec4(1.00, 1.00, 1.00, 1), // default (white)
+	vec4(1.00, 1.00, 1.00, 1.00), // default (white)
 	vec4(1.00, 1.00, 1.00, 1.20), // hydrogen (white)
 	vec4(.851, 1.00, 1.00, 1.40), // helium
 	vec4(.800, .502, 1.00, 1.82), // lithium
@@ -51,7 +51,7 @@ const vec4 atom_pars[19] = vec4[](
 	vec4(1.00, .502, .000, 1.80), // phosphorus (orange)
 	vec4(1.00, 1.00, .188, 1.80), // sulfur (yellow)
 	vec4(.121, .941, .121, 1.75), // chlorine (green)
-	vec4(.502, .820, .890, 1.88) // argon
+	vec4(.502, .820, .890, 1.88)  // argon
 );
 
 void main()
@@ -70,7 +70,7 @@ void main()
 		fragSize = atom_pars[0].w;
 	}
 	fragCol = pow(fragCol, vec3(gamma)); // gamma correction
-	//fragSize *= 0.5;
+	fragSize *= 0.5;
 	float boxScal = fragSize*max(1., 1 / (.1 + .1*length(fragCenter)));
 	vec3 zAxis = normalize(-fragCenter);
 	vec3 xAxis = normalize(cross(vec3(0, 1, 0), zAxis));

@@ -35,7 +35,7 @@ namespace math
 	}
 
 	template <typename T>
-	constexpr T pi_4()
+	constexpr T pi_4() // pi/4
 	{
 		return (T)0.78539816339744830961566084581988L;
 	}
@@ -45,6 +45,11 @@ namespace math
 	{
 		return (T)6.283185307179586476925286766559L;
 	}
+	template <typename T>
+	constexpr T sqrtpi()
+	{
+		return (T)1.7724538509055160272981674833411L;
+	}
 
 	template <typename T>
 	constexpr T sqrt2()
@@ -53,7 +58,7 @@ namespace math
 	}
 
 	template <typename T>
-	constexpr T sqrt2_()
+	constexpr T sqrt2_() // 1/sqrt(2)
 	{
 		return (T)0.70710678118654752440084436210485L;
 	}
@@ -97,9 +102,46 @@ namespace math
 	{
 		return rad/pi<T>()*180;
 	}
+
+	template <typename T, std::size_t exponent = sizeof(T)*4>
+	T fastexp(T x)
+	{
+		x = 1 + x / (1ull << exponent);
+		for (std::size_t i = 0; i < exponent; ++i)
+			x *= x;
+		return x;
+	}
+
+	template <typename T>
+	T fasterfc(T x)
+	{
+		T res = 1;
+		res += T(0.0705230784L)*x;
+		T xp = x*x;
+		res += T(0.0422820123L)*xp;
+		xp *= x;
+		res += T(0.0092705272L)*xp;
+		xp *= x;
+		res += T(0.0001520143L)*xp;
+		xp *= x;
+		res += T(0.0002765672L)*xp;
+		xp *= x;
+		res += T(0.0000430638L)*xp;
+		res *= res;
+		res *= res;
+		res *= res;
+		res *= res;
+		return 1/res;
+	}
+
+	template <typename T>
+	T fasterf(T x)
+	{
+		return 1 - fasterfc(x);
+	}
 }
 
-#endif
+#endif // MATH_H
 
 
 

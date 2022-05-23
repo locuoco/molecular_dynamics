@@ -27,7 +27,7 @@ References:
 The code makes use of C++ templates and concepts (thus it requires C++20) and is organised in many header files, that can be included from a single compilation unit. It is organised in the following way:
 * `physics`: directory which contains part of code relevant to the resolution of the physical/numerical problem.
   * `fmm.hpp`: fast multipole method for fast calculation of long-range forces (not implemented yet).
-  * `integrator.hpp`: classes and concepts for integration of classical hamiltonian dynamical systems.
+  * `integrator.hpp`: classes and concepts for integration of classical (hamiltonian and not) dynamical systems.
   * `molecule.hpp`: classes, methods and other utilites for managing molecular systems (for now, you have only water molecules, also the dihedral potential part must be added).
   * `physics.hpp`: mainly a header file that includes everything.
   * `point.hpp`: classes, aliases and data structures for use in generic dynamical systems.
@@ -108,7 +108,7 @@ By default, the floating point type is `double` (64-bit floating point) and the 
 * `physics::stochastic_leapfrog`: Stochastic "leapfrog" method (1 stage)
 * `physics::damped_leapfrog`: Damped "leapfrog" method (1 stage)
 * `physics::isokinetic_leapfrog`: Isokinetic "leapfrog" method (2nd order, 1 stage)
-* `physics::nose_hoover`: Nosé-Hoover thermostat integrator (2nd order, 1 stage): it approximates a canonical (NVT) ensemble
+* `physics::nose_hoover`: Nosé-Hoover thermostats chain integrator (2nd order, 1 stage): it approximates a canonical (NVT) ensemble
 * `physics::pefrl`: Position-extended Forest-Ruth-like method (4th order, 4 stages)
 * `physics::vefrl`: Velocity-extended Forest-Ruth-like method (4th order, 4 stages)
 * Composition schemes (they are structure-preserving, and can be used to construct higher-order, also symplectic, methods starting from 2nd order ones):

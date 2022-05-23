@@ -16,10 +16,11 @@
 
 #include <iostream>
 #include <vector>
+#include <random>
 
 /*
 
-g++ main.cpp -o pmd -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\Users\aless\Desktop\myLib\lib -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast -fmax-errors=1
+g++ main.cpp -o pmd -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\Users\aless\Desktop\myLib\lib -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1
 
 */
 
@@ -33,12 +34,12 @@ int main(const int, const char**)
 	//test();
 
 	int side = 8, hside = side/2;
-	int N = side*side*side;
-	//double volume = (side*side*side*18)/0.55; // 0.55 = density of ice in AKMA units
-	//double dist = std::cbrt(volume)/side;
-	double dist = 12;
-	double init_temp = 500, end_temp = 220;
-	std::cout << "N = " << N << ", dist = " << dist << std::endl;
+	int Nmol = side*side*side;
+	double volume = (Nmol*18.0154)/0.602214076; // 0.5522 = density of ice in AKMA units
+	double dist = std::cbrt(volume)/side;
+	//dist = 7;
+	double init_temp = 298.15, end_temp = 220;
+	std::cout << "Nmol = " << Nmol << ", dist = " << dist << std::endl;
 
 	physics::molecular_system<double, physics::nose_hoover> molsys(
 		dist*side,
@@ -46,19 +47,26 @@ int main(const int, const char**)
 		physics::DW5<>
 	);
 
-	/*physics::molecule pert_water = physics::water_tip3p_lr<>;
-	for (unsigned int i = 0; i < pert_water.n; ++i)
-		pert_water.x[i][1] = -pert_water.x[i][1];*/
+	std::mt19937_64 oliver_twist(0);
+	std::uniform_real_distribution<double> u_dist(0, 1);
+	double angles[3];
+	physics::mat3<double> rot;
 
-	for (int i = 0; i <= side; ++i)
-		for (int j = 0; j <= side; ++j)
-			for (int k = 0; k <= side; ++k)
-				molsys.add_molecule(physics::water_fba_eps<>, {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist});
-
-	/*int side = 10, hside = side/2;
-	for (int i = 0; i <= side; ++i)
-		for (int j = 0; j <= side; ++j)
-			molsys.add_molecule(physics::water_tip3p_lr<>, {(i-hside)*dist, (j-hside)*dist, 0});*/
+	for (int i = 0; i < side; ++i)
+		for (int j = 0; j < side; ++j)
+			for (int k = 0; k < side; ++k)
+			{
+				physics::molecule w = physics::water_tip3p<>;
+				physics::point3<double> p = {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist};
+				for (int l = 0; l < 3; ++l)
+					p[l] += (u_dist(oliver_twist) - 0.5) * (dist - 2);
+				for (int l = 0; l < 3; ++l)
+					angles[l] = u_dist(oliver_twist)*math::two_pi<double>();
+				rot = physics::rotation_yaw_pitch_roll(angles[0], angles[1], angles[2]);
+				for (int l = 0; l < 3; ++l)
+					w.x[l] = rot % w.x[l];
+				molsys.add_molecule(w, p);
+			}
 
 	//molsys.rescale_temperature = true;
 

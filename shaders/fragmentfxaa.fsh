@@ -1,5 +1,10 @@
-//  Fragment shader for fast approximate anti-aliasing and dithering
+//  Fragment shader for fast approximate anti-aliasing (FXAA) and dithering
 //  Copyright (C) 2022 Alessandro Lo Cuoco (alessandro.locuoco@gmail.com)
+
+//  FXAA is based on source code offered by Nvidia (Timothy Lottes)
+
+//  It has been modified slightly so that it will consider all color
+//  channels instead of just the luma.
 
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -29,7 +34,7 @@ uniform uint frame = 0u;
 uniform float relThreshold = 0.1;
 uniform float absThreshold = 0.05;
 uniform float mulReduce = 1./8; // 1/3 to 1/8 (best)
-uniform float minReduce = 1./128; // 1/32 to 1/12 (best)
+uniform float minReduce = 1./32; // 1/12 to 1/32 (best)
 uniform float maxSpan = 8;
 
 // Output (screen)

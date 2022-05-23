@@ -21,9 +21,9 @@
 #include <random> // mt19937_64, uniform_real_distribution
 #include <algorithm> // generate
 
-#include "point.hpp"
 #include "integrator.hpp"
 #include "molecule.hpp"
+#include "point.hpp"
 
 inline void test()
 {

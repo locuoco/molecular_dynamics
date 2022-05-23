@@ -287,7 +287,8 @@ namespace physics
 
 	template <typename T, typename State>
 	struct nose_hoover : integrator_base<T, State>
-	// Nosé-Hoover thermostat integrator (2nd order, 1 stage)
+	// Nosé-Hoover thermostats chain integrator (2nd order, 1 stage)
+	// It approximates a canonical (NVT) ensemble
 	{
 		nose_hoover(std::size_t n_th = 10, T tau = 1) : p_th(n_th), m_th(n_th), tau_relax(tau), n_th(n_th)
 		{}
@@ -295,15 +296,15 @@ namespace physics
 		template <having_coordinates<T, State> S>
 		requires requires(S& s, T t)
 			{
-				t += 2 * s.kinetic_energy() - s.dof * s.kT_fixed();
+				t += s.dof*(s.temperature() - s.temperature_fixed);
 			}
 		void step(S& s, T dt, bool first_step = false)
 		{
 			using std::size_t;
 			using std::exp;
 
-			T tau2 = s.kT_fixed() * tau_relax*tau_relax;
-			m_th[0] = s.n * tau2;
+			T tau2 = s.temperature_fixed * tau_relax*tau_relax;
+			m_th[0] = s.dof * tau2;
 			for (size_t i = 1; i < n_th; ++i)
 				m_th[i] = tau2;
 
@@ -353,9 +354,9 @@ namespace physics
 			T G(const S& s, std::size_t i) const
 			{
 				if (i == 0)
-					return 2 * s.kinetic_energy() - s.dof * s.kT_fixed();
+					return s.dof*(s.temperature() - s.temperature_fixed);
 				else
-					return p_th[i-1]*xi(i-1) - s.kT_fixed();
+					return p_th[i-1]*xi(i-1) - s.temperature_fixed;
 			}
 	};
 
@@ -366,6 +367,10 @@ namespace physics
 	// OPTIMIZED FOREST-RUTH- AND SUZUKI-LIKE ALGORITHMS FOR INTEGRATION
 	// OF MOTION IN MANY-BODY SYSTEMS
 	// 2008
+	// important notice: the final force (and potential energy)
+	// will not be synchronized with the final state of the system,
+	// so they may need to be recomputed. The VEFRL variant
+	// does not have this annoyance.
 	{
 		template <having_coordinates<T, State> S>
 		void step(S& s, T dt, bool first_step = false) const
@@ -746,7 +751,7 @@ namespace physics
 		explicit_runge_kutta_base(Ts ... pars) : pars{T(pars)...} {}
 
 		template <having_coordinates<T, State> S>
-		void step(S& s, T dt, bool = false) const
+		void step(S& s, T dt, bool first_step = false) const
 		{
 			using std::size_t;
 
@@ -755,7 +760,7 @@ namespace physics
 			prev_t = s.t;
 
 			kx[0] = s.vel();
-			kp[0] = s.force();
+			kp[0] = s.force(first_step);
 			for (size_t i = 1; i < Stages; ++i)
 			{
 				s.x = 0;
@@ -786,6 +791,7 @@ namespace physics
 			s.x += prev_x;
 			s.p += prev_p;
 			s.t = prev_t + dt;
+			s.force();
 		}
 
 		private:
@@ -942,7 +948,7 @@ namespace physics
 		runge_kutta_nystrom_base(Ts ... pars) : pars{T(pars)...} {}
 
 		template <having_coordinates<T, State> S>
-		void step(S& s, T dt, bool = false) const
+		void step(S& s, T dt, bool first_step = false) const
 		{
 			using std::size_t;
 
@@ -950,7 +956,7 @@ namespace physics
 			prev_v = s.vel();
 			prev_p = s.p;
 
-			k[0] = s.force();
+			k[0] = s.force(first_step);
 			for (size_t i = 1; i < Stages; ++i)
 			{
 				s.x = 0;
@@ -974,6 +980,7 @@ namespace physics
 			s.x += prev_x;
 			s.p += prev_p;
 			s.t += dt;
+			s.force();
 		}
 
 		private:
