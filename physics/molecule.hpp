@@ -182,8 +182,8 @@ namespace physics
 
 		static const std::size_t max_atoms = 2'000'000;
 
-		molecular_system(T side = 50, T temp = 298.15, T D = DW25<T>, LRSum lrsum = LRSum(), Integ integ = Integ())
-			: n_dist(0, 1), kin_updated(false), n(0), lrsum(lrsum), integ(integ), mersenne_twister(0),
+		molecular_system(T side = 50, T temp = 298.15, T D = DW25<T>, Integ integ = Integ())
+			: n_dist(0, 1), kin_updated(false), n(0), integ(integ), mersenne_twister(0),
 			  side(side), temperature_fixed(temp), t(0), M(0), D(D), rescale_temperature(false), first_step(true)
 		{}
 

@@ -39,7 +39,7 @@ struct task
 template <typename ... Args>
 class notification_queue
 {
-	std::size_t counter;
+	std::size_t wait_counter;
 	std::deque<task<Args...>> tasks;
 	std::mutex mutex;
 	std::condition_variable main;
@@ -48,20 +48,21 @@ class notification_queue
 
 	public:
 
-		notification_queue() : counter{}
+		notification_queue() : wait_counter{}
 		{}
 
 		bool pop(task<Args...>& t, std::stop_token stok)
-		// returns whether false if a stop has been requested
+		// extract a task to perform, and wait if there are none
+		// returns false if a stop has been requested
 		{
 			std::unique_lock lock(mutex);
-			++counter;
+			++wait_counter;
 			main.notify_all();
 			cond.wait(lock, stok, [this]{ return !tasks.empty(); });
 			// during waiting, mutex is unlocked, then it is locked afterwards/during condition checks
-			--counter;
 			if (stok.stop_requested())
 				return false;
+			--wait_counter;
 			t = tasks.front();
 			tasks.pop_front();
 			return true;
@@ -80,10 +81,9 @@ class notification_queue
 
 		bool busy(std::size_t num_threads)
 		// check if there is any task to be completed
-		// num_threads is the number of threads associated to this queue*
 		{
 			std::unique_lock lock(mutex);
-			return tasks.empty() && counter == num_threads;
+			return tasks.empty() && wait_counter == num_threads;
 		}
 
 		void wait(std::size_t num_threads)
@@ -91,25 +91,24 @@ class notification_queue
 		// num_threads is the number of threads associated to this queue*
 		{
 			std::unique_lock lock(mutex);
-			main.wait(lock, [this, num_threads] { return tasks.empty() && counter >= num_threads; } );
-			if (counter > num_threads)
-				throw("Counter is wrong!"); // this should never happen, but who knows
+			main.wait(lock, [this, num_threads] { return tasks.empty() && wait_counter >= num_threads; } );
+			if (wait_counter > num_threads)
+				throw("wait_counter is wrong!"); // this should never happen, but who knows
 		}
 
-		// * For a single-queue thread pool it will be the total number of threads,
-		//   while for a multi-queue thread pool it will be just 1 (one queue per thread)
+		// * For a single-queue thread pool it will be the total number of threads
 };
 
 template <typename ... Args>
 class thread_pool
-// a multi-queue thread pool
+// a simple multi-queue thread pool
 // using a thread pool rather than direct std::thread calls lead to less overhead
 // since threads are reused for many tasks rather than being constructed and destroyed
 // the code is very simple and not necessarily optimal
 // std::async may implement a thread pool but this is not guaranteed for all STL implementations
 {
 	std::atomic<std::size_t> index;
-	std::deque<notification_queue<Args...>> q;
+	std::deque<notification_queue<Args...>> queues;
 	std::deque<std::jthread> threads;
 	// jthreads are threads that, on destruction, automatically request a stop and join
 	// threads is declared last so that it will be destroyed first, by standard
@@ -130,7 +129,7 @@ class thread_pool
 		while (true)
 		{
 			task<Args...> t;
-			if (!q[i].pop(t, stok))
+			if (!queues[i].pop(t, stok))
 				break;
 
 			call(t);
@@ -155,7 +154,7 @@ class thread_pool
 		{
 			std::size_t old_num_threads = size();
 			threads.resize(num_threads);
-			q.resize(num_threads);
+			queues.resize(num_threads);
 			for (std::size_t i = old_num_threads; i < num_threads; ++i)
 				threads[i] = std::jthread([this, i](std::stop_token stok) { thread_loop(stok, i); });
 		}
@@ -165,14 +164,14 @@ class thread_pool
 		// put a new task in a queue to be performed by one thread
 		{
 			auto i = index++;
-			q[i % size()].push(std::forward<F>(f), std::forward<Brgs>(args)...);
+			queues[i % size()].push(std::forward<F>(f), std::forward<Brgs>(args)...);
 		}
 
 		bool busy()
 		// check if there is any task to be completed
 		{
 			bool ret = false;
-			for (auto& queue : q)
+			for (auto& queue : queues)
 				ret &= queue.busy(1);
 			return ret;
 		}
@@ -180,7 +179,7 @@ class thread_pool
 		void wait()
 		// wait for all tasks to be completed
 		{
-			for (auto& queue : q)
+			for (auto& queue : queues)
 				queue.wait(1);
 		}
 };

@@ -25,7 +25,8 @@
 
 #include "point.hpp"
 #include "../math/helper.hpp" // fasterfc, fastexp
-#include "../math/fft.hpp"
+#include "../thread_pool.hpp"
+#include "../math/dft.hpp"
 
 namespace physics
 {
@@ -82,7 +83,6 @@ namespace physics
 			}
 			else
 			{
-				std::vector<std::thread> threads;
 				partU.resize(num_threads);
 				partvir.resize(num_threads);
 				auto eval_lambda = [this, num_threads, &s](size_t idx)
@@ -112,9 +112,8 @@ namespace physics
 						partvir[idx] = v/2;
 					};
 				for (size_t i = 0; i < num_threads; ++i)
-					threads.push_back(std::thread(eval_lambda, i));
-				for (size_t i = 0; i < num_threads; ++i)
-					threads[i].join();
+					tp.enqueue(eval_lambda, i);
+				tp.wait();
 				for (size_t i = 0; i < num_threads; ++i)
 				{
 					s.U += partU[i];
@@ -126,6 +125,7 @@ namespace physics
 		private:
 
 			std::vector<T> partU, partvir;
+			thread_pool<std::size_t> tp;
 	};
 
 	template <typename T, typename State>
@@ -140,7 +140,6 @@ namespace physics
 			using std::cos;
 			using std::fabs;
 			using std::size_t;
-			std::vector<std::thread> threads;
 			size_t maxn1 = maxn+1, maxn3 = maxn1*maxn1*maxn1;
 			T volume = s.side * s.side * s.side;
 			T kappa = maxn/s.side;
@@ -220,13 +219,11 @@ namespace physics
 					}
 				};
 			for (size_t i = 0; i < num_threads; ++i)
-				threads.push_back(std::thread(eval_1, i));
+				tp.enqueue(eval_1, i);
+			tp.wait();
 			for (size_t i = 0; i < num_threads; ++i)
-				threads[i].join();
-			for (size_t i = 0; i < num_threads; ++i)
-				threads[i] = std::thread(eval_2, i);
-			for (size_t i = 0; i < num_threads; ++i)
-				threads[i].join();
+				tp.enqueue(eval_2, i);
+			tp.wait();
 			for (size_t i = 0; i < num_threads; ++i)
 			{
 				s.U += partU[i];
@@ -254,6 +251,7 @@ namespace physics
 			std::vector<point3<T>> k;
 			std::vector<T> partU, partvir;
 			std::vector<T> factor, csum, ssum;
+			thread_pool<std::size_t> tp;
 	};
 
 	/*template <typename T, typename State>
