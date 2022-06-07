@@ -17,11 +17,11 @@
 #ifndef PHYSICS_POINT_H
 #define PHYSICS_POINT_H
 
-#include <concepts> // floating_point, integral
+#include <concepts> // floating_point, integral, convertible_to
 #include <valarray>
 #include <vector>
 #include <array>
-#include <utility> // index_sequence
+#include <utility> // make_index_sequence, index_sequence
 #include <cmath> // sqrt
 
 namespace physics
@@ -40,138 +40,173 @@ namespace physics
 		return detail_::make_filled_impl<R, T>(scal, std::make_index_sequence<N>{});
 	}
 
-	template <std::floating_point T, std::size_t M, std::size_t N = M>
-	requires (M >= 1 && N >= 1)
-	struct mat;
+	template <typename T, std::size_t ... Ns>
+	requires ((Ns * ...) >= 1)
+	struct tens; // tensor
+
+	template <typename T, std::size_t M, std::size_t N = M>
+	using mat = tens<T, M, N>;
 
 	template <typename T, std::size_t Dim>
-	using point = mat<T, Dim, 1>;
+	using point = tens<T, Dim, 1>;
 
-	template <std::floating_point T, std::size_t Dim>
+	template <typename T, std::size_t Dim>
 	constexpr point<T, Dim> make_point(T scal) noexcept
 	{
 		return make_filled<point<T, Dim>, Dim>(scal);
 	}
 
-	template <std::floating_point T, std::size_t M, std::size_t N>
-	requires (M >= 1 && N >= 1)
-	struct mat : std::array<T, M*N>
+	// static_multi_index
+	// multi-index to single index conversion
+	namespace detail_
+	{
+		template <std::size_t N = 1, std::size_t ... Ns, typename ... Ts>
+		constexpr std::size_t static_multi_index_impl(std::size_t i = 0, std::size_t j = 0, Ts ... is) noexcept
+		{
+			return static_multi_index_impl<Ns...>(i*N + j, is...);
+		}
+		template <>
+		constexpr std::size_t static_multi_index_impl<>(std::size_t i, std::size_t) noexcept
+		{
+			return i;
+		}
+	}
+	template <std::size_t N = 1, std::size_t ... Ns, typename ... Ts>
+	constexpr std::size_t static_multi_index(Ts ... is) noexcept
+	{
+		return detail_::static_multi_index_impl<Ns...>(is...); // discard first template parameter
+	}
+
+	template <typename T, std::size_t ... Ns>
+	requires ((Ns * ...) >= 1)
+	struct tens : std::array<T, (Ns * ...)>
 	{
 		private:
-			using base = std::array<T, M*N>;
+			using base = std::array<T, (Ns * ...)>;
 
 		public:
 
-		constexpr mat() noexcept = default;
+		constexpr tens() noexcept = default;
 
 		template <typename ... Ts>
-		requires (sizeof...(Ts) <= M*N && sizeof...(Ts) >= 2 && ((std::floating_point<Ts> || std::integral<Ts>) && ...))
-		constexpr mat(Ts ... ts) noexcept : base{static_cast<T>(ts)...} {}
+		requires (sizeof...(Ts) <= (Ns * ...) && sizeof...(Ts) >= 2 && ((std::floating_point<Ts> || std::integral<Ts>) && ...))
+		constexpr tens(Ts ... ts) noexcept : base{static_cast<T>(ts)...} {}
 
-		constexpr mat(T t) noexcept : base(make_filled<mat<T, M, N>, M*N>(t)) {}
+		constexpr tens(T t) noexcept : base(make_filled<tens<T, Ns...>, (Ns * ...)>(t)) {}
 
-		constexpr T& operator()(std::size_t i, std::size_t j) noexcept
+		template <std::convertible_to<T> S>
+		explicit constexpr tens(const tens<S, Ns...>& other)
 		{
-			return base::operator[](i*N + j);
+			for (std::size_t i = 0; i < (Ns * ...); ++i)
+				base::operator[](i) = other[i];
 		}
 
-		constexpr const T& operator()(std::size_t i, std::size_t j) const noexcept
+		template <std::convertible_to<std::size_t> ... Ts>
+		requires (sizeof...(Ts) == sizeof...(Ns) && sizeof...(Ns) >= 2)
+		constexpr T& operator()(Ts ... is)
 		{
-			return base::operator[](i*N + j);
+			return base::operator[](static_multi_index<Ns...>(is...));
 		}
 
-		constexpr const mat& operator+() const noexcept
+		template <std::convertible_to<std::size_t> ... Ts>
+		requires (sizeof...(Ts) == sizeof...(Ns) && sizeof...(Ns) >= 2)
+		constexpr const T& operator()(Ts ... is) const
+		{
+			return base::operator[](static_multi_index<Ns...>(is...));
+		}
+
+		constexpr const tens& operator+() const noexcept
 		{
 			return *this;
 		}
-		constexpr mat operator-() const noexcept
+		constexpr tens operator-() const
 		{
-			mat res;
-			for (std::size_t i = 0; i < M*N; ++i)
+			tens res;
+			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				res[i] = -base::operator[](i);
 			return res;
 		}
-		constexpr mat& operator+=(const mat& other) noexcept
+		constexpr tens& operator+=(const tens& other)
 		{
-			for (std::size_t i = 0; i < M*N; ++i)
+			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) += other[i];
 			return *this;
 		}
-		constexpr mat& operator-=(const mat& other) noexcept
+		constexpr tens& operator-=(const tens& other)
 		{
-			for (std::size_t i = 0; i < M*N; ++i)
+			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) -= other[i];
 			return *this;
 		}
-		constexpr mat& operator*=(const mat& other) noexcept
+		constexpr tens& operator*=(const tens& other)
 		{
-			for (std::size_t i = 0; i < M*N; ++i)
+			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) *= other[i];
 			return *this;
 		}
-		constexpr mat& operator/=(const mat& other) noexcept
+		constexpr tens& operator/=(const tens& other)
 		{
-			for (std::size_t i = 0; i < M*N; ++i)
+			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) /= other[i];
 			return *this;
 		}
-		constexpr mat& operator*=(T scal) noexcept
+		constexpr tens& operator*=(T scal)
 		{
-			for (std::size_t i = 0; i < M*N; ++i)
+			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) *= scal;
 			return *this;
 		}
-		constexpr mat& operator/=(T scal) noexcept
+		constexpr tens& operator/=(T scal)
 		{
-			for (std::size_t i = 0; i < M*N; ++i)
+			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) /= scal;
 			return *this;
 		}
 	};
 
-	template <std::floating_point T, std::size_t M, std::size_t N>
-	constexpr mat<T, M, N> operator+(mat<T, M, N> lhs, const mat<T, M, N>& rhs) noexcept
+	template <typename T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> operator+(tens<T, Ns...> lhs, const tens<T, Ns...>& rhs)
 	{
 		return lhs += rhs;
 	}
-	template <std::floating_point T, std::size_t M, std::size_t N>
-	constexpr mat<T, M, N> operator-(mat<T, M, N> lhs, const mat<T, M, N>& rhs) noexcept
+	template <typename T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> operator-(tens<T, Ns...> lhs, const tens<T, Ns...>& rhs)
 	{
 		return lhs -= rhs;
 	}
-	template <std::floating_point T, std::size_t M, std::size_t N>
-	constexpr mat<T, M, N> operator*(mat<T, M, N> lhs, const mat<T, M, N>& rhs) noexcept
+	template <typename T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> operator*(tens<T, Ns...> lhs, const tens<T, Ns...>& rhs)
 	{
 		return lhs *= rhs;
 	}
-	template <std::floating_point T, std::size_t M, std::size_t N>
-	constexpr mat<T, M, N> operator/(mat<T, M, N> lhs, const mat<T, M, N>& rhs) noexcept
+	template <typename T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> operator/(tens<T, Ns...> lhs, const tens<T, Ns...>& rhs)
 	{
 		return lhs /= rhs;
 	}
-	template <std::floating_point T, std::size_t M, std::size_t N>
-	constexpr mat<T, M, N> operator*(mat<T, M, N> lhs, typename mat<T, M, N>::value_type scal) noexcept
+	template <typename T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> operator*(tens<T, Ns...> lhs, typename tens<T, Ns...>::value_type scal)
 	{
 		return lhs *= scal;
 	}
-	template <std::floating_point T, std::size_t M, std::size_t N>
-	constexpr mat<T, M, N> operator*(typename mat<T, M, N>::value_type scal, mat<T, M, N> rhs) noexcept
+	template <typename T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> operator*(typename tens<T, Ns...>::value_type scal, tens<T, Ns...> rhs)
 	{
 		return rhs * scal;
 	}
-	template <std::floating_point T, std::size_t M, std::size_t N>
-	constexpr mat<T, M, N> operator/(mat<T, M, N> lhs, typename mat<T, M, N>::value_type scal) noexcept
+	template <typename T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> operator/(tens<T, Ns...> lhs, typename tens<T, Ns...>::value_type scal)
 	{
 		return lhs /= scal;
 	}
-	template <std::floating_point T, std::size_t M, std::size_t N>
-	constexpr mat<T, M, N> operator/(typename mat<T, M, N>::value_type scal, mat<T, M, N> rhs) noexcept
+	template <typename T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> operator/(typename tens<T, Ns...>::value_type scal, tens<T, Ns...> rhs)
 	{
 		return rhs / scal;
 	}
 
 	template <std::floating_point T, std::size_t M, std::size_t N, std::size_t K>
-	constexpr mat<T, M, K> operator%(const mat<T, M, N>& lhs, const mat<T, N, K>& rhs) noexcept
+	constexpr mat<T, M, K> operator%(const mat<T, M, N>& lhs, const mat<T, N, K>& rhs)
 	{
 		using std::size_t;
 		mat<T, M, K> res(0);
@@ -182,17 +217,26 @@ namespace physics
 		return res;
 	}
 
-	template <std::floating_point T, std::size_t M, std::size_t N>
-	constexpr mat<T, M, N> remainder(mat<T, M, N> A, T modulo) noexcept
+	template <std::floating_point T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> remainder(tens<T, Ns...> t, T modulo)
 	{
 		using std::round;
-		for (std::size_t i = 0; i < M*N; ++i)
-			A[i] = A[i] - round(A[i]/modulo)*modulo;
-		return A;
+		for (std::size_t i = 0; i < (Ns * ...); ++i)
+			t[i] = t[i] - round(t[i]/modulo)*modulo;
+		return t;
 	}
 
-	template <std::floating_point T, std::size_t M, std::size_t N>
-	constexpr mat<T, M, N> outer(const point<T, M>& lhs, const point<T, N>& rhs) noexcept
+	template <std::floating_point T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> floor(tens<T, Ns...> t)
+	{
+		using std::floor;
+		for (std::size_t i = 0; i < (Ns * ...); ++i)
+			t[i] = floor(t[i]);
+		return t;
+	}
+
+	template <typename T, std::size_t M, std::size_t N>
+	constexpr mat<T, M, N> outer(const point<T, M>& lhs, const point<T, N>& rhs)
 	{
 		using std::size_t;
 		mat<T, M, N> res;
@@ -202,8 +246,8 @@ namespace physics
 		return res;
 	}
 
-	template <std::floating_point T, std::size_t Dim>
-	constexpr T trace(mat<T, Dim> A) noexcept
+	template <typename T, std::size_t Dim>
+	constexpr T trace(mat<T, Dim> A)
 	{
 		T res(0);
 		for (std::size_t i = 0; i < Dim; ++i)
@@ -211,8 +255,8 @@ namespace physics
 		return res;
 	}
 
-	template <std::floating_point T, std::size_t Dim>
-	constexpr T dot(const point<T, Dim>& lhs, const point<T, Dim>& rhs) noexcept
+	template <typename T, std::size_t Dim>
+	constexpr T dot(const point<T, Dim>& lhs, const point<T, Dim>& rhs)
 	{
 		T res(0);
 		for (std::size_t i = 0; i < Dim; ++i)
@@ -221,13 +265,13 @@ namespace physics
 	}
 
 	template <std::floating_point T, std::size_t Dim>
-	constexpr T norm(const point<T, Dim>& pnt) noexcept
+	constexpr T norm(const point<T, Dim>& pnt)
 	{
 		using std::sqrt;
 		return sqrt(dot(pnt, pnt));
 	}
 	template <std::floating_point T, std::size_t Dim>
-	constexpr point<T, Dim> normalize(const point<T, Dim>& pnt) noexcept
+	constexpr point<T, Dim> normalize(const point<T, Dim>& pnt)
 	{
 		T n = norm(pnt);
 		if (n == 0)
@@ -235,22 +279,27 @@ namespace physics
 		return pnt / n;
 	}
 
-	template <std::floating_point T>
-	using point3 = point<T, 3>;
+#define PHYSICS_GEN_POINTN_ALIAS(n) \
+	template <typename T> \
+	using point##n = point<T, n>
 
-	template <std::floating_point T>
-	constexpr point3<T> cross(const point3<T>& lhs, const point3<T>& rhs) noexcept
+	PHYSICS_GEN_POINTN_ALIAS(2);
+	PHYSICS_GEN_POINTN_ALIAS(3);
+	PHYSICS_GEN_POINTN_ALIAS(4);
+
+	template <typename T>
+	constexpr point3<T> cross(const point3<T>& lhs, const point3<T>& rhs)
 	{
 		return {lhs[1] * rhs[2] - lhs[2] * rhs[1],
 				lhs[2] * rhs[0] - lhs[0] * rhs[2],
 				lhs[0] * rhs[1] - lhs[1] * rhs[0]};
 	}
 
-	template <std::floating_point T, std::size_t Dim>
+	template <typename T, std::size_t Dim>
 	using state = std::valarray<point<T, Dim>>; // a "state" is an alias for a valarray of points
 
-	template <std::floating_point T, std::size_t M, std::size_t N>
-	constexpr mat<T, M, N> sum_outer(const state<T, M>& lhs, const state<T, N>& rhs) noexcept
+	template <typename T, std::size_t M, std::size_t N>
+	constexpr mat<T, M, N> sum_outer(const state<T, M>& lhs, const state<T, N>& rhs)
 	{
 		mat<T, M, N> res(0);
 		for (std::size_t i = 0; i < lhs.size(); ++i)
@@ -258,8 +307,8 @@ namespace physics
 		return res;
 	}
 
-	template <std::floating_point T, std::size_t Dim>
-	constexpr T dot(const state<T, Dim>& lhs, const state<T, Dim>& rhs) noexcept
+	template <typename T, std::size_t Dim>
+	constexpr T dot(const state<T, Dim>& lhs, const state<T, Dim>& rhs)
 	{
 		T res(0);
 		for (std::size_t i = 0; i < lhs.size(); ++i)
@@ -268,13 +317,13 @@ namespace physics
 	}
 
 	template <std::floating_point T, std::size_t Dim>
-	constexpr T norm(const state<T, Dim>& st) noexcept
+	constexpr T norm(const state<T, Dim>& st)
 	{
 		using std::sqrt;
 		return sqrt(dot(st, st));
 	}
 	template <std::floating_point T, std::size_t Dim>
-	constexpr state<T, Dim> normalize(const state<T, Dim>& st) noexcept
+	constexpr state<T, Dim> normalize(const state<T, Dim>& st)
 	{
 		T n = norm(st);
 		if (n == 0)
@@ -283,10 +332,18 @@ namespace physics
 	}
 
 	template <std::floating_point T, std::size_t Dim>
-	constexpr state<T, Dim> remainder(state<T, Dim> st, T modulo) noexcept
+	constexpr state<T, Dim> remainder(state<T, Dim> st, T modulo)
 	{
 		for (std::size_t i = 0; i < Dim; ++i)
 			st[i] = remainder(st[i], modulo);
+		return st;
+	}
+
+	template <std::floating_point T, std::size_t Dim>
+	constexpr state<T, Dim> floor(state<T, Dim> st)
+	{
+		for (std::size_t i = 0; i < Dim; ++i)
+			st[i] = floor(st[i]);
 		return st;
 	}
 
@@ -306,7 +363,7 @@ namespace physics
 			constexpr fixed_list(Ts ... ts) noexcept
 				: base{static_cast<unsigned int>(ts)...}, n(sizeof...(Ts)) {}
 
-			constexpr void push_back(unsigned int i) noexcept
+			constexpr void push_back(unsigned int i)
 			{
 				if (n < N)
 					base::operator[](n++) = i;
@@ -316,7 +373,7 @@ namespace physics
 	};
 
 #define PHYSICS_GEN_MATN_ALIAS(n) \
-	template <std::floating_point T> \
+	template <typename T> \
 	using mat##n = mat<T, n>
 
 	PHYSICS_GEN_MATN_ALIAS(2);
@@ -363,7 +420,7 @@ namespace physics
 		};
 	}
 	template <std::floating_point T>
-	mat3<T> rotation_yaw_pitch_roll(T yaw, T pitch, T roll) noexcept
+	mat3<T> rotation_yaw_pitch_roll(T yaw, T pitch, T roll)
 	{
 		return rotation_z(yaw) % rotation_y(pitch) % rotation_x(roll);
 	}

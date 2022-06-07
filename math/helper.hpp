@@ -14,8 +14,8 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef MATH_H
-#define MATH_H
+#ifndef MATH_HELPER_H
+#define MATH_HELPER_H
 
 #include <limits>
 #include <cmath>
@@ -23,66 +23,66 @@
 namespace math
 {
 	template <typename T>
-	constexpr T pi()
+	constexpr T pi() noexcept // in C++20 we have std::numbers::pi_v<T>
 	{
 		return (T)3.1415926535897932384626433832795L;
 	}
 
 	template <typename T>
-	constexpr T half_pi()
+	constexpr T half_pi() noexcept
 	{
 		return (T)1.5707963267948966192313216916398L;
 	}
 
 	template <typename T>
-	constexpr T pi_4() // pi/4
+	constexpr T pi_4() noexcept // pi/4
 	{
 		return (T)0.78539816339744830961566084581988L;
 	}
 
 	template <typename T>
-	constexpr T two_pi()
+	constexpr T two_pi() noexcept
 	{
 		return (T)6.283185307179586476925286766559L;
 	}
 	template <typename T>
-	constexpr T sqrtpi()
+	constexpr T sqrtpi() noexcept
 	{
 		return (T)1.7724538509055160272981674833411L;
 	}
 
 	template <typename T>
-	constexpr T sqrt2()
+	constexpr T sqrt2() noexcept // in C++20 we have std::numbers::sqrt2_v<T>
 	{
 		return (T)1.4142135623730950488016887242097L;
 	}
 
 	template <typename T>
-	constexpr T sqrt2_() // 1/sqrt(2)
+	constexpr T sqrt2_() noexcept // 1/sqrt(2)
 	{
 		return (T)0.70710678118654752440084436210485L;
 	}
 
 	template <typename T>
-	constexpr T eps()
+	constexpr T eps() noexcept
 	{
 		return std::numeric_limits<T>::epsilon();
 	}
 
 	template <typename T>
-	constexpr T one_minus_eps()
+	constexpr T one_minus_eps() noexcept
 	{
 		return 1 - std::numeric_limits<T>::epsilon();
 	}
 
 	template <typename T>
-	constexpr T one_plus_eps()
+	constexpr T one_plus_eps() noexcept
 	{
 		return 1 + std::numeric_limits<T>::epsilon();
 	}
 
 	template <typename T>
-	void quadratic_solver(T &x1, T &x2, T a, T b, T c)
+	void quadratic_solver(T &x1, T &x2, T a, T b, T c) noexcept
 	{
 		using std::sqrt;
 		T sign = b > 0 ? 1 : b < 0 ? -1 : 0;
@@ -92,19 +92,27 @@ namespace math
 	}
 
 	template <typename T>
-	constexpr T deg2rad(T deg)
+	constexpr T deg2rad(T deg) noexcept
 	{
 		return deg*pi<T>()/180;
 	}
 
 	template <typename T>
-	constexpr T rad2deg(T rad)
+	constexpr T rad2deg(T rad) noexcept
 	{
 		return rad/pi<T>()*180;
 	}
 
 	template <typename T, std::size_t exponent = sizeof(T)*4>
-	T fastexp(T x)
+	T fastexp(T x) noexcept
+	// based on the fundamental limit:
+	// (1 + x/n)^n -> e^x for n -> inf
+	// and the exponentiation by squaring,
+	// with n = 2^exponent
+	// if exponent is too big, underflows/truncation errors are likely to occur
+	// if it is too small, the result will be inaccurate for big values of |x|
+	// these limitations make this algorithm not suited to obtain a correct
+	// result up to machine epsilon, but it is really fast
 	{
 		x = 1 + x / (1ull << exponent);
 		for (std::size_t i = 0; i < exponent; ++i)
@@ -113,8 +121,12 @@ namespace math
 	}
 
 	template <typename T>
-	T fasterfc(T x)
+	T fasterfc(T x) noexcept
+	// From Abramowitz and Stegun (1964)
+	// max relative error should be around 10^-7
 	{
+		if (x < 0)
+			return 2 - fasterfc(-x);
 		T res = 1;
 		res += T(0.0705230784L)*x;
 		T xp = x*x;
@@ -135,13 +147,14 @@ namespace math
 	}
 
 	template <typename T>
-	T fasterf(T x)
+	T fasterf(T x) noexcept
 	{
 		return 1 - fasterfc(x);
 	}
+
 }
 
-#endif // MATH_H
+#endif // MATH_HELPER_H
 
 
 

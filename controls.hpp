@@ -23,7 +23,7 @@
 #include <glm/ext.hpp>
 #include <glm/gtx/quaternion.hpp>
 
-#include "math.hpp"
+#include "math/helper.hpp"
 
 namespace controls
 {

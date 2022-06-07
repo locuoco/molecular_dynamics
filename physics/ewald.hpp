@@ -19,8 +19,13 @@
 
 #include <cmath>
 #include <thread>
+#include <execution>
+#include <numeric> // iota
+#include <algorithm> // sort
 
 #include "point.hpp"
+#include "../math/helper.hpp" // fasterfc, fastexp
+#include "../math/fft.hpp"
 
 namespace physics
 {
@@ -37,12 +42,19 @@ namespace physics
 			s.virial += dot(s.x[i], s.x[i]);
 		};
 
+	template <typename S, typename T, typename State>
+	concept coulomb_and_LJ_periodic = coulomb_and_LJ<S, T, State>
+		&& requires(S& s, std::size_t i)
+		{
+			s.f[i] += remainder(s.x[i] - s.x[i], s.side);
+		};
+
 	template <typename T, typename State>
 	struct direct
 	// Direct summation
 	{
 		template <coulomb_and_LJ<T, State> S>
-		void eval(S& s, std::size_t num_threads = 1)
+		void operator()(S& s, std::size_t num_threads = 1)
 		{
 			using std::sqrt;
 			using std::size_t;
@@ -74,31 +86,31 @@ namespace physics
 				partU.resize(num_threads);
 				partvir.resize(num_threads);
 				auto eval_lambda = [this, num_threads, &s](size_t idx)
-				{
-					T u = 0, v = 0;
-					size_t block = (s.n-1)/num_threads + 1;
-					for (size_t i = idx*block; (i < s.n) && (i < (idx+1)*block); ++i)
-						for (size_t j = 0; j < s.n; ++j)
-							if (i != j)
-							{
-								T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
+					{
+						T u = 0, v = 0;
+						size_t block = (s.n-1)/num_threads + 1;
+						for (size_t i = idx*block; (i < s.n) && (i < (idx+1)*block); ++i)
+							for (size_t j = 0; j < s.n; ++j)
+								if (i != j)
+								{
+									T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
 
-								auto r = s.x[i] - s.x[j];
-								T r2_ = 1/dot(r, r);
-								T d_ = sqrt(r2_);
-								T t = Rij * Rij * r2_;
-								t = t * t * t;
-								T epsijt = s.LJ_sqrteps[i] * s.LJ_sqrteps[j] * t;
-								T coulomb = s.z[i] * s.z[j] * d_;
-								T tot_virial = 12 * epsijt * (t - 1) + coulomb;
-								auto fij = (tot_virial * r2_) * r;
-								s.f[i] += fij;
-								u += epsijt * (t - 2) + coulomb;
-								v += tot_virial;
-							}
-					partU[idx] = u/2;
-					partvir[idx] = v/2;
-				};
+									auto r = s.x[i] - s.x[j];
+									T r2_ = 1/dot(r, r);
+									T d_ = sqrt(r2_);
+									T t = Rij * Rij * r2_;
+									t = t * t * t;
+									T epsijt = s.LJ_sqrteps[i] * s.LJ_sqrteps[j] * t;
+									T coulomb = s.z[i] * s.z[j] * d_;
+									T tot_virial = 12 * epsijt * (t - 1) + coulomb;
+									auto fij = (tot_virial * r2_) * r;
+									s.f[i] += fij;
+									u += epsijt * (t - 2) + coulomb;
+									v += tot_virial;
+								}
+						partU[idx] = u/2;
+						partvir[idx] = v/2;
+					};
 				for (size_t i = 0; i < num_threads; ++i)
 					threads.push_back(std::thread(eval_lambda, i));
 				for (size_t i = 0; i < num_threads; ++i)
@@ -120,12 +132,8 @@ namespace physics
 	struct ewald
 	// Ewald summation
 	{
-		template <coulomb_and_LJ<T, State> S>
-		requires requires(S& s, std::size_t i)
-			{
-				s.f[i] += remainder(s.x[i] - s.x[i], s.side);
-			}
-		void eval(S& s, std::size_t num_threads = 1)
+		template <coulomb_and_LJ_periodic<T, State> S>
+		void operator()(S& s, std::size_t num_threads = 1, std::size_t maxn = 6)
 		{
 			using std::sqrt;
 			using std::sin;
@@ -133,7 +141,7 @@ namespace physics
 			using std::fabs;
 			using std::size_t;
 			std::vector<std::thread> threads;
-			size_t maxn = 6, maxn1 = maxn+1, maxn3 = maxn1*maxn1*maxn1;
+			size_t maxn1 = maxn+1, maxn3 = maxn1*maxn1*maxn1;
 			T volume = s.side * s.side * s.side;
 			T kappa = maxn/s.side;
 
@@ -146,71 +154,71 @@ namespace physics
 			ssum.resize(maxn3);
 
 			auto eval_1 = [this, num_threads, maxn, maxn1, maxn3, volume, kappa, &s](size_t idx)
-			{
-				T uC = 0, u = 0, v = 0;
-				size_t block = (s.n-1)/num_threads + 1;
-				for (size_t i = idx*block; (i < s.n) && (i < (idx+1)*block); ++i)
-					for (size_t j = 0; j < s.n; ++j)
-						if (i != j)
-						{
-							T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
+				{
+					T uC = 0, u = 0, v = 0;
+					size_t block = (s.n-1)/num_threads + 1;
+					for (size_t i = idx*block; (i < s.n) && (i < (idx+1)*block); ++i)
+						for (size_t j = 0; j < s.n; ++j)
+							if (i != j)
+							{
+								T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
 
-							auto r = remainder(s.x[i] - s.x[j], s.side);
-							T r2 = dot(r, r);
-							T r2_ = 1/dot(r, r);
-							T d = sqrt(r2);
-							T d_ = 1/d;
-							T kd = kappa * d;
-							T t = Rij * Rij * r2_;
-							t = t * t * t;
-							T epsijt = s.LJ_sqrteps[i] * s.LJ_sqrteps[j] * t;
-							T zij_d = s.z[i] * s.z[j] * d_;
-							T coulomb = zij_d * math::fasterfc(kd);
-							T lennard_jones = 12 * epsijt * (t - 1);
-							auto fij = ((lennard_jones + coulomb + zij_d * (2 / math::sqrtpi<T>()) * kd * math::fastexp(-kd*kd)) * r2_) * r;
-							s.f[i] += fij;
-							u += epsijt * (t - 2);
-							uC += coulomb;
-							v += lennard_jones;
+								auto r = remainder(s.x[i] - s.x[j], s.side);
+								T r2 = dot(r, r);
+								T r2_ = 1/dot(r, r);
+								T d = sqrt(r2);
+								T d_ = 1/d;
+								T kd = kappa * d;
+								T t = Rij * Rij * r2_;
+								t = t * t * t;
+								T epsijt = s.LJ_sqrteps[i] * s.LJ_sqrteps[j] * t;
+								T zij_d = s.z[i] * s.z[j] * d_;
+								T coulomb = zij_d * math::fasterfc(kd);
+								T lennard_jones = 12 * epsijt * (t - 1);
+								auto fij = ((lennard_jones + coulomb + zij_d * (2 / math::sqrtpi<T>()) * kd * math::fastexp(-kd*kd)) * r2_) * r;
+								s.f[i] += fij;
+								u += epsijt * (t - 2);
+								uC += coulomb;
+								v += lennard_jones;
+							}
+					u /= 2;
+					uC /= 2;
+					v /= 2;
+					block = (maxn3-1)/num_threads + 1;
+					for (size_t nijk = idx*block+1; (nijk < maxn3) && (nijk < (idx+1)*block+1); ++nijk)
+					{
+						size_t n3 = nijk % maxn1;
+						size_t nij = nijk / maxn1;
+						size_t n2 = nij % maxn1;
+						size_t n1 = nij / maxn1;
+						k[nijk-1] = math::two_pi<T>()*point3<T>{n1, n2, n3}/s.side;
+						T k2 = dot(k[nijk-1], k[nijk-1]);
+						csum[nijk-1] = 0, ssum[nijk-1] = 0;
+						for (size_t i = 0; i < s.n; ++i)
+						{
+							T dotkx = dot(k[nijk-1], s.x[i]);
+							csum[nijk-1] += s.z[i] * cos(dotkx);
+							ssum[nijk-1] += s.z[i] * sin(dotkx);
 						}
-				u /= 2;
-				uC /= 2;
-				v /= 2;
-				block = (maxn3-1)/num_threads + 1;
-				for (size_t nijk = idx*block+1; (nijk < maxn3) && (nijk < (idx+1)*block+1); ++nijk)
-				{
-					size_t n3 = nijk % maxn1;
-					size_t nij = nijk / maxn1;
-					size_t n2 = nij % maxn1;
-					size_t n1 = nij / maxn1;
-					k[nijk-1] = math::two_pi<T>()*point3<T>{n1, n2, n3}/s.side;
-					T k2 = dot(k[nijk-1], k[nijk-1]);
-					csum[nijk-1] = 0, ssum[nijk-1] = 0;
-					for (size_t i = 0; i < s.n; ++i)
-					{
-						T dotkx = dot(k[nijk-1], s.x[i]);
-						csum[nijk-1] += s.z[i] * cos(dotkx);
-						ssum[nijk-1] += s.z[i] * sin(dotkx);
+						factor[nijk-1] = 4*math::two_pi<T>()*math::fastexp(-k2/(4*kappa*kappa))/(k2*volume);
+						T kspace_contrib = (csum[nijk-1]*csum[nijk-1] + ssum[nijk-1]*ssum[nijk-1])*factor[nijk-1]/2;
+						uC += kspace_contrib;
 					}
-					factor[nijk-1] = 4*math::two_pi<T>()*math::fastexp(-k2/(4*kappa*kappa))/(k2*volume);
-					T kspace_contrib = (csum[nijk-1]*csum[nijk-1] + ssum[nijk-1]*ssum[nijk-1])*factor[nijk-1]/2;
-					uC += kspace_contrib;
-				}
-				partU[idx] = u + uC;
-				partvir[idx] = v + uC;
-			};
+					partU[idx] = u + uC;
+					partvir[idx] = v + uC;
+				};
 			auto eval_2 = [this, num_threads, maxn1, maxn3, &s](size_t idx)
-			{
-				size_t block = (s.n-1)/num_threads + 1;
-				for (size_t i = idx*block; (i < s.n) && (i < (idx+1)*block); ++i)
 				{
-					for (size_t nijk = 1; nijk < maxn3; ++nijk)
+					size_t block = (s.n-1)/num_threads + 1;
+					for (size_t i = idx*block; (i < s.n) && (i < (idx+1)*block); ++i)
 					{
-						T dotkx = dot(k[nijk-1], s.x[i]);
-						s.f[i] += (factor[nijk-1] * s.z[i] * (csum[nijk-1] * sin(dotkx) - ssum[nijk-1] * cos(dotkx))) * k[nijk-1];
+						for (size_t nijk = 1; nijk < maxn3; ++nijk)
+						{
+							T dotkx = dot(k[nijk-1], s.x[i]);
+							s.f[i] += (factor[nijk-1] * s.z[i] * (csum[nijk-1] * sin(dotkx) - ssum[nijk-1] * cos(dotkx))) * k[nijk-1];
+						}
 					}
-				}
-			};
+				};
 			for (size_t i = 0; i < num_threads; ++i)
 				threads.push_back(std::thread(eval_1, i));
 			for (size_t i = 0; i < num_threads; ++i)
@@ -247,6 +255,43 @@ namespace physics
 			std::vector<T> partU, partvir;
 			std::vector<T> factor, csum, ssum;
 	};
+
+	/*template <typename T, typename State>
+	struct pppm
+	// Particle-particle, particle-mesh method (also known as PPPM or P^3M or P3M method)
+	// based on Ewald summation, it has O(N log N) asymptotic complexity
+	{
+		template <coulomb_and_LJ_periodic<T, State> S>
+		void operator()(S& s, std::size_t num_threads = 1)
+		{
+			using std::size_t;
+			using std::floor;
+
+			T eps = 1e-6;
+			size_t mesh_size = 1 << 5;
+
+			k.resize(s.n);
+			indices.resize(s.n);
+
+			for (size_t i = 0; i < s.n; ++i)
+			{
+				auto a = point3<size_t>((remainder(s.x[i]) / s.side + T(0.5) + eps)*mesh_size)
+				k[i] = a[0]*mesh_size + a[1])*mesh_size + a[2];
+			}
+			auto comp = [this](size_t i, size_t j)
+				{
+					return k[i] < k[j];
+				};
+			std::iota(indices.begin(), indices.end(), 0);
+			std::sort(std::execution::par_unseq, indices.begin(), indices.end(), comp);
+			
+		}
+
+		private:
+
+			std::vector<T> zM;
+			std::vector<unsigned> k, indices;
+	};*/
 
 } // namespace physics
 

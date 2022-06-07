@@ -27,7 +27,7 @@
 #include <random> // mt19937_64, normal_distribution
 #include <thread>
 
-#include "../math.hpp" // deg2rad
+#include "../math/helper.hpp" // deg2rad
 
 #include "point.hpp"
 #include "integrator.hpp"
@@ -566,12 +566,8 @@ namespace physics
 		void eval_nonbonded(std::size_t i, std::size_t j, T fact = 1) noexcept
 		{
 			T Rij = LJ_halfR[i] + LJ_halfR[j];
-			point3<T> r;
 
-			if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
-				r = x[i] - x[j];
-			else
-				r = remainder(x[i] - x[j], side);
+			point3<T> r = x[i] - x[j];
 			T r2_ = 1/dot(r, r);
 			T d_ = sqrt(r2_);
 			T s = Rij * Rij * r2_;
@@ -624,7 +620,7 @@ namespace physics
 
 			correct_nonbonded();
 
-			lrsum.eval(*this, num_threads);
+			lrsum(*this, num_threads);
 		}
 
 		void elastic_confining(point3<T> k)

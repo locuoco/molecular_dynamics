@@ -34,7 +34,7 @@ uniform uint frame = 0u;
 uniform float relThreshold = 0.1;
 uniform float absThreshold = 0.05;
 uniform float mulReduce = 1./8; // 1/3 to 1/8 (best)
-uniform float minReduce = 1./32; // 1/12 to 1/32 (best)
+uniform float minReduce = 1./64; // 1/12 to 1/32 (best)
 uniform float maxSpan = 8;
 
 // Output (screen)

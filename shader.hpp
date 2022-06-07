@@ -1,4 +1,4 @@
-//  Shaders loeaders
+//  Shaders loaders
 //  Copyright (C) 2021-2022 Alessandro Lo Cuoco (alessandro.locuoco@gmail.com)
 
 //  This program is free software: you can redistribute it and/or modify
