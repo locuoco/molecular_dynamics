@@ -111,6 +111,7 @@ namespace physics
 						partU[idx] = u/2;
 						partvir[idx] = v/2;
 					};
+				tp.resize(num_threads);
 				for (size_t i = 0; i < num_threads; ++i)
 					tp.enqueue(eval_lambda, i);
 				tp.wait();
@@ -218,6 +219,7 @@ namespace physics
 						}
 					}
 				};
+			tp.resize(num_threads);
 			for (size_t i = 0; i < num_threads; ++i)
 				tp.enqueue(eval_1, i);
 			tp.wait();

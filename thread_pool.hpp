@@ -1,4 +1,4 @@
-//  Thread pool implementation based on threads
+//  Thread pool implementation based on std::jthread
 //  Copyright (C) 2022 Alessandro Lo Cuoco (alessandro.locuoco@gmail.com)
 
 //  This program is free software: you can redistribute it and/or modify
@@ -30,16 +30,14 @@
 template <typename ... Args>
 struct task
 {
-	using func_type = std::function<void(Args...)>;
-
-	func_type f;
+	std::function<void(Args...)> f;
 	std::tuple<Args...> args;
 };
 
 template <typename ... Args>
 class notification_queue
 {
-	std::size_t wait_counter;
+	std::size_t work_counter;
 	std::deque<task<Args...>> tasks;
 	std::mutex mutex;
 	std::condition_variable main;
@@ -48,7 +46,7 @@ class notification_queue
 
 	public:
 
-		notification_queue() : wait_counter{}
+		notification_queue() : work_counter{}
 		{}
 
 		bool pop(task<Args...>& t, std::stop_token stok)
@@ -56,16 +54,35 @@ class notification_queue
 		// returns false if a stop has been requested
 		{
 			std::unique_lock lock(mutex);
-			++wait_counter;
-			main.notify_all();
 			cond.wait(lock, stok, [this]{ return !tasks.empty(); });
 			// during waiting, mutex is unlocked, then it is locked afterwards/during condition checks
 			if (stok.stop_requested())
 				return false;
-			--wait_counter;
-			t = tasks.front();
+			++work_counter;
+			t = std::move(tasks.front());
 			tasks.pop_front();
 			return true;
+		}
+
+		bool try_pop(task<Args...>& t)
+		// try to extract a task to perform without waiting
+		{
+			std::unique_lock lock(mutex, std::try_to_lock);
+			if (!lock || tasks.empty())
+				return false;
+			++work_counter;
+			t = std::move(tasks.front());
+			tasks.pop_front();
+			return true;
+		}
+
+		void finished_task()
+		// to be called when the task extracted with pop has been terminated
+		{
+			std::unique_lock lock(mutex);
+			--work_counter;
+			lock.unlock();
+			main.notify_all();
 		}
 
 		template <typename F, typename ... Brgs>
@@ -74,44 +91,63 @@ class notification_queue
 		{
 			task<Args...> t{std::forward<F>(f), {std::forward<Brgs>(args)...}};
 			std::unique_lock lock(mutex);
-			tasks.push_back(t);
+			tasks.push_back(std::move(t));
 			lock.unlock();
 			cond.notify_one();
 		}
 
-		bool busy(std::size_t num_threads)
+		template <typename F, typename ... Brgs>
+		bool try_push(F&& f, Brgs&& ... args)
+		// try to put a new task in the queue without locking
+		{
+			task<Args...> t{std::forward<F>(f), {std::forward<Brgs>(args)...}};
+			std::unique_lock lock(mutex, std::try_to_lock);
+			if (!lock)
+				return false;
+			tasks.push_back(std::move(t));
+			lock.unlock();
+			cond.notify_one();
+			return true;
+		}
+
+		bool empty()
+		{
+			std::unique_lock lock(mutex);
+			return tasks.empty();
+		}
+
+		bool busy()
 		// check if there is any task to be completed
 		{
 			std::unique_lock lock(mutex);
-			return tasks.empty() && wait_counter == num_threads;
+			return !tasks.empty() || work_counter > 0;
 		}
 
-		void wait(std::size_t num_threads)
+		void wait()
 		// wait for all tasks to be completed
-		// num_threads is the number of threads associated to this queue*
 		{
 			std::unique_lock lock(mutex);
-			main.wait(lock, [this, num_threads] { return tasks.empty() && wait_counter >= num_threads; } );
-			if (wait_counter > num_threads)
-				throw("wait_counter is wrong!"); // this should never happen, but who knows
+			main.wait(lock, [this] { return tasks.empty() && work_counter == 0; } );
 		}
-
-		// * For a single-queue thread pool it will be the total number of threads
 };
 
 template <typename ... Args>
 class thread_pool
-// a simple multi-queue thread pool
+// A simple multi-queue thread pool, based on "Better Code: Concurrency", Sean Parent, 2017
 // using a thread pool rather than direct std::thread calls lead to less overhead
-// since threads are reused for many tasks rather than being constructed and destroyed
-// the code is very simple and not necessarily optimal
-// std::async may implement a thread pool but this is not guaranteed for all STL implementations
+// since threads are reused for many tasks rather than being constructed and destroyed.
+// std::async may implement a thread pool but this is not guaranteed for all compilers.
 {
+	struct worker
+	{
+		notification_queue<Args...> queue;
+		std::jthread thread;
+		// jthreads are threads that, on destruction, automatically request a stop and join;
+		// 'thread' is declared last so that it will be destroyed first, by standard
+	};
+
 	std::atomic<std::size_t> index;
-	std::deque<notification_queue<Args...>> queues;
-	std::deque<std::jthread> threads;
-	// jthreads are threads that, on destruction, automatically request a stop and join
-	// threads is declared last so that it will be destroyed first, by standard
+	std::deque<worker> workers;
 
 	template <std::size_t ... Ns>
 	void call_impl(task<Args...>& t, std::index_sequence<Ns...>)
@@ -129,10 +165,18 @@ class thread_pool
 		while (true)
 		{
 			task<Args...> t;
-			if (!queues[i].pop(t, stok))
+			std::size_t chosen_ind = i;
+			for (unsigned j = 0; j < size(); ++j)
+				if (workers[(i+j) % size()].queue.try_pop(t))
+				{
+					chosen_ind = (i+j) % size();
+					break;
+				}
+			if (!t.f && !workers[i].queue.pop(t, stok))
 				break;
 
 			call(t);
+			workers[chosen_ind].queue.finished_task();
 		}
 	}
 
@@ -146,17 +190,16 @@ class thread_pool
 		std::size_t size() const noexcept
 		// return the number of threads (i.e. the size of the thread pool)
 		{
-			return threads.size();
+			return workers.size();
 		}
 
 		void resize(std::size_t num_threads)
 		// change the number of threads
 		{
 			std::size_t old_num_threads = size();
-			threads.resize(num_threads);
-			queues.resize(num_threads);
+			workers.resize(num_threads);
 			for (std::size_t i = old_num_threads; i < num_threads; ++i)
-				threads[i] = std::jthread([this, i](std::stop_token stok) { thread_loop(stok, i); });
+				workers[i].thread = std::jthread([this, i](std::stop_token stok) { thread_loop(stok, i); });
 		}
 
 		template <typename F, typename ... Brgs>
@@ -164,23 +207,26 @@ class thread_pool
 		// put a new task in a queue to be performed by one thread
 		{
 			auto i = index++;
-			queues[i % size()].push(std::forward<F>(f), std::forward<Brgs>(args)...);
+			for (unsigned j = 0; j < size(); ++j)
+				if (workers[(i+j) % size()].queue.try_push(std::forward<F>(f), std::forward<Brgs>(args)...))
+					return;
+			workers[i % size()].queue.push(std::forward<F>(f), std::forward<Brgs>(args)...);
 		}
 
 		bool busy()
 		// check if there is any task to be completed
 		{
 			bool ret = false;
-			for (auto& queue : queues)
-				ret &= queue.busy(1);
+			for (auto& w : workers)
+				ret |= w.queue.busy();
 			return ret;
 		}
 
 		void wait()
 		// wait for all tasks to be completed
 		{
-			for (auto& queue : queues)
-				queue.wait(1);
+			for (auto& w : workers)
+				w.queue.wait();
 		}
 };
 

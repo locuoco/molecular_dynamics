@@ -221,8 +221,7 @@ namespace math
 			}
 			else
 			{
-				if (tp.size() < num_threads)
-					tp.resize(num_threads);
+				tp.resize(num_threads);
 				for (size_t i = 0; i < num_threads; ++i)
 					tmp[i].resize(n[N-1]);
 				for (size_t i = 0; i < num_threads; ++i)
