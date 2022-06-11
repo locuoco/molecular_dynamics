@@ -24,8 +24,6 @@
 #include <array>
 #include <numeric> // iota
 #include <chrono>
-#include <thread>
-#include <execution>
 
 /*
 
@@ -39,11 +37,10 @@ void test_bit_reversal()
 // test basic property of bit reversal of an incrementing sequence
 {
 	std::size_t n = 1 << 3;
-	std::vector<int> seq(n), temp(n);
+	std::vector<int> seq(n);
 	std::iota(seq.begin(), seq.end(), 0);
 
-	math::bit_reversal_permutation(seq.begin(), seq.end(), temp.begin());
-	std::copy(temp.begin(), temp.end(), seq.begin());
+	math::bit_reversal_permutation(seq.begin(), seq.end());
 
 	for (const auto& elem : seq)
 		std::cout << elem << ' ';
@@ -55,6 +52,7 @@ void test_bit_reversal()
 	assert(ok);
 }
 
+thread_pool tp;
 std::mt19937 mersenne_twister;
 
 template <typename T>
@@ -89,7 +87,7 @@ void test_fft_ifft()
 		}
 		std::valarray<std::complex<double>> xref(nN), x;
 
-		std::generate(std::execution::par, begin(xref), end(xref), gen<double>);
+		std::generate(begin(xref), end(xref), gen<double>);
 
 		if constexpr (N == 1)
 		{
@@ -99,8 +97,8 @@ void test_fft_ifft()
 		else
 		{
 			x = xref;
-			dft.fftn<N>(x, nlist, std::thread::hardware_concurrency());
-			dft.ifftn<N>(x, nlist, std::thread::hardware_concurrency());
+			dft.fftn<N>(x, nlist, tp);
+			dft.ifftn<N>(x, nlist, tp);
 		}
 
 		auto sqr = [](std::complex<double> z)
@@ -131,7 +129,7 @@ void test_fft_perf()
 		nmin = 1 << 4;
 	else
 		nmin = 1 << 2;
-	for (size_t n = nmin; (nN << N) <= (1ull << 20); n <<= 1)
+	for (size_t n = nmin; (nN << N) <= (1ull << 22); n <<= 1)
 	{
 		std::array<size_t, N> nlist;
 		nN = 1;
@@ -153,7 +151,7 @@ void test_fft_perf()
 			if constexpr (N == 1)
 				x = dft.fft(x);
 			else
-				dft.fftn<N>(x, nlist, std::thread::hardware_concurrency());
+				dft.fftn<N>(x, nlist, tp);
 			finish = std::chrono::steady_clock::now();
 
 			if (i)
@@ -191,7 +189,7 @@ int main()
 
 		for (size_t i = 0; i < n_loops+1; ++i)
 		{
-			std::generate(std::execution::par, begin(x), end(x), [&]{ return dist<double>(mersenne_twister); });
+			std::generate(begin(x), end(x), [&]{ return dist<double>(mersenne_twister); });
 
 			start = std::chrono::steady_clock::now();
 			std::sort(begin(x), end(x));

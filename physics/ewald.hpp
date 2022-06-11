@@ -55,78 +55,81 @@ namespace physics
 	// Direct summation
 	{
 		template <coulomb_and_LJ<T, State> S>
-		void operator()(S& s, std::size_t num_threads = 1)
+		void operator()(S& s)
 		{
 			using std::sqrt;
 			using std::size_t;
-			if (num_threads == 1)
-			{
-				for (size_t i = 0; i < s.n; ++i)
-					for (size_t j = i+1; j < s.n; ++j)
-					{
-						T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
-
-						auto r = s.x[i] - s.x[j];
-						T r2_ = 1/dot(r, r);
-						T d_ = sqrt(r2_);
-						T t = Rij * Rij * r2_;
-						t = t * t * t;
-						T epsijt = s.LJ_sqrteps[i] * s.LJ_sqrteps[j] * t;
-						T coulomb = s.z[i] * s.z[j] * d_;
-						T tot_virial = 12 * epsijt * (t - 1) + coulomb;
-						auto fij = (tot_virial * r2_) * r;
-						s.f[i] += fij;
-						s.f[j] -= fij;
-						s.U += epsijt * (t - 2) + coulomb;
-						s.virial += tot_virial;
-					}
-			}
-			else
-			{
-				partU.resize(num_threads);
-				partvir.resize(num_threads);
-				auto eval_lambda = [this, num_threads, &s](size_t idx)
-					{
-						T u = 0, v = 0;
-						size_t block = (s.n-1)/num_threads + 1;
-						for (size_t i = idx*block; (i < s.n) && (i < (idx+1)*block); ++i)
-							for (size_t j = 0; j < s.n; ++j)
-								if (i != j)
-								{
-									T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
-
-									auto r = s.x[i] - s.x[j];
-									T r2_ = 1/dot(r, r);
-									T d_ = sqrt(r2_);
-									T t = Rij * Rij * r2_;
-									t = t * t * t;
-									T epsijt = s.LJ_sqrteps[i] * s.LJ_sqrteps[j] * t;
-									T coulomb = s.z[i] * s.z[j] * d_;
-									T tot_virial = 12 * epsijt * (t - 1) + coulomb;
-									auto fij = (tot_virial * r2_) * r;
-									s.f[i] += fij;
-									u += epsijt * (t - 2) + coulomb;
-									v += tot_virial;
-								}
-						partU[idx] = u/2;
-						partvir[idx] = v/2;
-					};
-				tp.resize(num_threads);
-				for (size_t i = 0; i < num_threads; ++i)
-					tp.enqueue(eval_lambda, i);
-				tp.wait();
-				for (size_t i = 0; i < num_threads; ++i)
+			for (size_t i = 0; i < s.n; ++i)
+				for (size_t j = i+1; j < s.n; ++j)
 				{
-					s.U += partU[i];
-					s.virial += partvir[i];
+					T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
+
+					auto r = s.x[i] - s.x[j];
+					T r2_ = 1/dot(r, r);
+					T d_ = sqrt(r2_);
+					T t = Rij * Rij * r2_;
+					t = t * t * t;
+					T epsijt = s.LJ_sqrteps[i] * s.LJ_sqrteps[j] * t;
+					T coulomb = s.z[i] * s.z[j] * d_;
+					T tot_virial = 12 * epsijt * (t - 1) + coulomb;
+					auto fij = (tot_virial * r2_) * r;
+					s.f[i] += fij;
+					s.f[j] -= fij;
+					s.U += epsijt * (t - 2) + coulomb;
+					s.virial += tot_virial;
 				}
+		}
+
+		template <coulomb_and_LJ<T, State> S>
+		void operator()(S& s, thread_pool& tp)
+		{
+			using std::sqrt;
+			using std::size_t;
+			auto num_threads = tp.size();
+			if (num_threads == 1)
+				return operator()(s);
+			partU.resize(num_threads);
+			partvir.resize(num_threads);
+			auto eval_lambda = [this, num_threads, &s](size_t idx)
+				{
+					T u = 0, v = 0;
+					size_t block = (s.n-1)/num_threads + 1;
+					for (size_t i = idx*block; (i < s.n) && (i < (idx+1)*block); ++i)
+						for (size_t j = 0; j < s.n; ++j)
+							if (i != j)
+							{
+								T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
+
+								auto r = s.x[i] - s.x[j];
+								T r2_ = 1/dot(r, r);
+								T d_ = sqrt(r2_);
+								T t = Rij * Rij * r2_;
+								t = t * t * t;
+								T epsijt = s.LJ_sqrteps[i] * s.LJ_sqrteps[j] * t;
+								T coulomb = s.z[i] * s.z[j] * d_;
+								T tot_virial = 12 * epsijt * (t - 1) + coulomb;
+								auto fij = (tot_virial * r2_) * r;
+								s.f[i] += fij;
+								u += epsijt * (t - 2) + coulomb;
+								v += tot_virial;
+							}
+					partU[idx] = u/2;
+					partvir[idx] = v/2;
+				};
+			tp.resize(num_threads);
+			for (size_t i = 0; i < num_threads; ++i)
+				tp.enqueue(eval_lambda, i);
+			tp.wait();
+			for (size_t i = 0; i < num_threads; ++i)
+			{
+				s.U += partU[i];
+				s.virial += partvir[i];
 			}
 		}
 
 		private:
 
 			std::vector<T> partU, partvir;
-			thread_pool<std::size_t> tp;
 	};
 
 	template <typename T, typename State>
@@ -134,7 +137,7 @@ namespace physics
 	// Ewald summation
 	{
 		template <coulomb_and_LJ_periodic<T, State> S>
-		void operator()(S& s, std::size_t num_threads = 1, std::size_t maxn = 6)
+		void operator()(S& s, thread_pool& tp, std::size_t maxn = 6)
 		{
 			using std::sqrt;
 			using std::sin;
@@ -145,6 +148,7 @@ namespace physics
 			T volume = s.side * s.side * s.side;
 			T kappa = maxn/s.side;
 
+			auto num_threads = tp.size();
 			partU.resize(num_threads);
 			partvir.resize(num_threads);
 
@@ -219,7 +223,6 @@ namespace physics
 						}
 					}
 				};
-			tp.resize(num_threads);
 			for (size_t i = 0; i < num_threads; ++i)
 				tp.enqueue(eval_1, i);
 			tp.wait();
@@ -253,7 +256,6 @@ namespace physics
 			std::vector<point3<T>> k;
 			std::vector<T> partU, partvir;
 			std::vector<T> factor, csum, ssum;
-			thread_pool<std::size_t> tp;
 	};
 
 	/*template <typename T, typename State>

@@ -57,32 +57,33 @@ namespace math
 		return res;
 	}
 
-	template <std::forward_iterator InIt, std::random_access_iterator OutIt>
-	constexpr void bit_reversal_permutation(InIt first, InIt last, OutIt d_first)
-	// performs a bit-reversal permutation
-	// requires OutIt to be a random access iterator
+	template <std::random_access_iterator It>
+	constexpr void bit_reversal_permutation(It first, It last)
+	// performs a bit-reversal permutation in-place
+	// requires It to be a random access iterator
 	{
 		using std::size_t;
 		size_t n = std::distance(first, last);
 		if ((n&(n-1)) != 0)
 			throw("number of elements is not a power of 2!");
 		size_t n_bits = num_bits(n);
-		for (size_t i = 0; first != last; (void)++first, (void)++i)
-			*(d_first + bit_reverse(i, n_bits)) = *first;
+		for (size_t i = 0; i < n; ++i)
+		{
+			size_t j = bit_reverse(i, n_bits);
+			if (i < j)
+				std::swap(*(first + i), *(first + j));
+		}
 	}
 
 	template <typename T>
 	struct dft // discrete Fourier transform
 	{
-		dft() : tmp(1)
-		{}
-
 		template <std::random_access_iterator It>
 		requires requires (It it)
 			{
 				{*it} -> std::convertible_to<std::complex<T>>;
 			}
-		constexpr void fft(It first, It last, std::vector<std::complex<T>>::iterator temp)
+		constexpr void fft(It first, It last)
 		// fast Fourier transform: radix-2 (in-place) algorithm
 		// it takes O(n log n) time
 		// requires It to be a random access iterator to std::complex<T>
@@ -91,8 +92,7 @@ namespace math
 			using std::sin;
 			using std::cos;
 			size_t n = std::distance(first, last);
-			bit_reversal_permutation(first, last, temp);
-			std::copy(temp, temp + n, first);
+			bit_reversal_permutation(first, last);
 			if ((n&(n-1)) != 0)
 				throw("n is not a power of 2!");
 			for (size_t i = 1; i <= n/2; i *= 2)
@@ -116,18 +116,17 @@ namespace math
 		template <typename Vec>
 		constexpr Vec fft(Vec x)
 		{
-			tmp[0].resize(x.size());
-			fft(begin(x), end(x), tmp[0].begin());
+			fft(begin(x), end(x));
 			return x;
 		}
 
 		template <std::random_access_iterator It>
-		constexpr void ifft(It first, It last, std::vector<std::complex<T>>::iterator temp)
+		constexpr void ifft(It first, It last)
 		// inverse fast Fourier transform
 		// requires It to be a random access iterator
 		{
 			std::reverse(first+1, last);
-			fft(first, last, temp);
+			fft(first, last);
 			T n = last - first;
 			for (; first != last; ++first)
 				*first /= n;
@@ -136,21 +135,21 @@ namespace math
 		template <typename Vec>
 		constexpr Vec ifft(Vec x)
 		{
-			tmp[0].resize(x.size());
-			ifft(begin(x), end(x), tmp[0].begin());
+			ifft(begin(x), end(x));
 			return x;
 		}
 
 		template <std::size_t N, typename Vec, bool b_inverse = false>
 		requires (N >= 2)
-		void fftn(Vec& v, const std::array<std::size_t, N>& n, std::size_t num_threads = 1)
+		void fftn(Vec& v, const std::array<std::size_t, N>& n, thread_pool& tp)
 		// N-dimensional fast Fourier transform
 		// 1-dim FFTs are performed for each direction, exploiting the separability property of N-dim DFT
 		// The 1-dim FFTs are easily parallelized
 		{
 			using std::size_t;
+			auto num_threads = tp.size();
 			tmp.resize(num_threads);
-			auto eval_last = [this, num_threads, n, &v](size_t idx, size_t)
+			auto eval_last = [this, num_threads, n, &v](size_t idx)
 				{
 					size_t n_ij = 1;
 					for (size_t i = 0; i < N-1; ++i)
@@ -158,9 +157,9 @@ namespace math
 					size_t block = (n_ij-1)/num_threads + 1;
 					for (size_t i = idx*block; (i < n_ij) && (i < (idx+1)*block); ++i)
 						if constexpr (!b_inverse)
-							fft(begin(v) + i*n[N-1], begin(v) + (i+1)*n[N-1], tmp[idx].begin());
+							fft(begin(v) + i*n[N-1], begin(v) + (i+1)*n[N-1]);
 						else
-							ifft(begin(v) + i*n[N-1], begin(v) + (i+1)*n[N-1], tmp[idx].begin());
+							ifft(begin(v) + i*n[N-1], begin(v) + (i+1)*n[N-1]);
 				};
 			auto eval = [this, num_threads, n, &v](size_t idx, size_t pos)
 				{
@@ -202,35 +201,31 @@ namespace math
 						for (size_t k = 0; k < n[pos]; ++k)
 							*(it + k) = *(begin(v) + (beg + k*npos));
 						if constexpr (!b_inverse)
-							fft(it, itn, itn);
+							fft(it, itn);
 						else
-							ifft(it, itn, itn);
+							ifft(it, itn);
 						for (size_t k = 0; k < n[pos]; ++k)
 							*(begin(v) + (beg + k*npos)) = *(it + k);
 					}
 				};
 			if (num_threads == 1)
 			{
-				tmp[0].resize(n[N-1]);
-				eval_last(0, N-1);
+				eval_last(0);
 				for (int pos = N-2; pos >= 0; --pos)
 				{
-					tmp[0].resize(n[pos]*2);
+					tmp[0].resize(n[pos]);
 					eval(0, pos);
 				}
 			}
 			else
 			{
-				tp.resize(num_threads);
 				for (size_t i = 0; i < num_threads; ++i)
-					tmp[i].resize(n[N-1]);
-				for (size_t i = 0; i < num_threads; ++i)
-					tp.enqueue(eval_last, i, N-1);
+					tp.enqueue(eval_last, i);
 				tp.wait();
 				for (int pos = N-2; pos >= 0; --pos)
 				{
 					for (size_t i = 0; i < num_threads; ++i)
-						tmp[i].resize(n[pos]*2);
+						tmp[i].resize(n[pos]);
 					for (size_t i = 0; i < num_threads; ++i)
 						tp.enqueue(eval, i, pos);
 					tp.wait();
@@ -239,16 +234,15 @@ namespace math
 		}
 
 		template <std::size_t N, typename Vec>
-		constexpr void ifftn(Vec& v, const std::array<std::size_t, N>& n, std::size_t num_threads = 1)
+		constexpr void ifftn(Vec& v, const std::array<std::size_t, N>& n, thread_pool& tp)
 		{
-			fftn<N, Vec, true>(v, n, num_threads);
+			fftn<N, Vec, true>(v, n, tp);
 		}
 
 		private:
 
 			std::vector<std::vector<std::complex<T>>> tmp;
 			// a vector of std::complex<T> for each thread, to minimize chances of false sharing
-			thread_pool<std::size_t, std::size_t> tp;
 	};
 
 }

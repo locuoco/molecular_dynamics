@@ -32,6 +32,7 @@
 #include "point.hpp"
 #include "integrator.hpp"
 #include "ewald.hpp"
+#include "../thread_pool.hpp"
 
 namespace physics
 {
@@ -173,6 +174,7 @@ namespace physics
 		std::vector<std::array<unsigned int, 4>> impropers; // list of impropers in the whole system
 		T virial;
 		unsigned int n, dof; // total number of atoms, degrees of freedom
+		thread_pool tp; // thread pool
 		LRSum lrsum; // long-range summation algorithm
 		Integ integ; // integrator
 		std::mt19937_64 mersenne_twister;
@@ -332,7 +334,7 @@ namespace physics
 
 				virial = dot(x, f);
 
-				force_nonbonded(8);
+				force_nonbonded();
 
 				if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
 					diff_box_confining(5);
@@ -348,7 +350,7 @@ namespace physics
 			{
 				f = 0;
 
-				force_nonbonded(8);
+				force_nonbonded();
 
 				kin_updated = false;
 			}
@@ -584,6 +586,7 @@ namespace physics
 		void correct_nonbonded()
 		// correction so that non-bonded forces vanish for bonded atoms
 		{
+			using std::size_t;
 			for (size_t i = 0; i < n; ++i)
 			{
 				//atom_type idi = id[i];
@@ -614,13 +617,11 @@ namespace physics
 			}
 		}
 
-		void force_nonbonded(std::size_t num_threads = 1)
+		void force_nonbonded()
 		{
-			using std::size_t;
-
 			correct_nonbonded();
 
-			lrsum(*this, num_threads);
+			lrsum(*this, tp);
 		}
 
 		void elastic_confining(point3<T> k)
