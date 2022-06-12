@@ -22,8 +22,11 @@
 #include <iterator> // random_access_iterator
 #include <complex>
 #include <numbers> // pi_v
+#include <utility> // swap
+#include <iterator> // random_access_iterator
+#include <concepts> // convertible_to
 
-#include "../thread_pool.hpp"
+#include "../utils/thread_pool.hpp"
 
 namespace math
 {
@@ -141,7 +144,7 @@ namespace math
 
 		template <std::size_t N, typename Vec, bool b_inverse = false>
 		requires (N >= 2)
-		void fftn(Vec& v, const std::array<std::size_t, N>& n, thread_pool& tp)
+		void fftn(Vec& v, const std::array<std::size_t, N>& n, utils::thread_pool& tp)
 		// N-dimensional fast Fourier transform
 		// 1-dim FFTs are performed for each direction, exploiting the separability property of N-dim DFT
 		// The 1-dim FFTs are easily parallelized
@@ -234,7 +237,7 @@ namespace math
 		}
 
 		template <std::size_t N, typename Vec>
-		constexpr void ifftn(Vec& v, const std::array<std::size_t, N>& n, thread_pool& tp)
+		constexpr void ifftn(Vec& v, const std::array<std::size_t, N>& n, utils::thread_pool& tp)
 		{
 			fftn<N, Vec, true>(v, n, tp);
 		}

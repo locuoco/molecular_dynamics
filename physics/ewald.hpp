@@ -25,8 +25,8 @@
 
 #include "point.hpp"
 #include "../math/helper.hpp" // fasterfc, fastexp
-#include "../thread_pool.hpp"
 #include "../math/dft.hpp"
+#include "../utils/thread_pool.hpp"
 
 namespace physics
 {
@@ -81,7 +81,7 @@ namespace physics
 		}
 
 		template <coulomb_and_LJ<T, State> S>
-		void operator()(S& s, thread_pool& tp)
+		void operator()(S& s, utils::thread_pool& tp)
 		{
 			using std::sqrt;
 			using std::size_t;
@@ -116,7 +116,6 @@ namespace physics
 					partU[idx] = u/2;
 					partvir[idx] = v/2;
 				};
-			tp.resize(num_threads);
 			for (size_t i = 0; i < num_threads; ++i)
 				tp.enqueue(eval_lambda, i);
 			tp.wait();
@@ -137,7 +136,7 @@ namespace physics
 	// Ewald summation
 	{
 		template <coulomb_and_LJ_periodic<T, State> S>
-		void operator()(S& s, thread_pool& tp, std::size_t maxn = 6)
+		void operator()(S& s, utils::thread_pool& tp, std::size_t maxn = 6)
 		{
 			using std::sqrt;
 			using std::sin;
@@ -264,7 +263,7 @@ namespace physics
 	// based on Ewald summation, it has O(N log N) asymptotic complexity
 	{
 		template <coulomb_and_LJ_periodic<T, State> S>
-		void operator()(S& s, std::size_t num_threads = 1)
+		void operator()(S& s, utils::thread_pool& tp)
 		{
 			using std::size_t;
 			using std::floor;
@@ -293,6 +292,7 @@ namespace physics
 
 			std::vector<T> zM;
 			std::vector<unsigned> k, indices;
+			math::dft<T> dft;
 	};*/
 
 } // namespace physics

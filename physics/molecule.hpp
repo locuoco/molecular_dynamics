@@ -32,7 +32,7 @@
 #include "point.hpp"
 #include "integrator.hpp"
 #include "ewald.hpp"
-#include "../thread_pool.hpp"
+#include "../utils/thread_pool.hpp"
 
 namespace physics
 {
@@ -174,7 +174,7 @@ namespace physics
 		std::vector<std::array<unsigned int, 4>> impropers; // list of impropers in the whole system
 		T virial;
 		unsigned int n, dof; // total number of atoms, degrees of freedom
-		thread_pool tp; // thread pool
+		utils::thread_pool tp; // thread pool
 		LRSum lrsum; // long-range summation algorithm
 		Integ integ; // integrator
 		std::mt19937_64 mersenne_twister;

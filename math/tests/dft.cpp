@@ -17,9 +17,8 @@
 #include <iostream> // cout, endl
 #include <vector>
 #include <random>
-#include <algorithm> // generate, reverse
+#include <algorithm> // generate
 #include <cassert>
-#include <cmath> // fabs
 #include <valarray>
 #include <array>
 #include <numeric> // iota
@@ -52,7 +51,7 @@ void test_bit_reversal()
 	assert(ok);
 }
 
-thread_pool tp;
+utils::thread_pool tp;
 std::mt19937 mersenne_twister;
 
 template <typename T>
@@ -178,29 +177,6 @@ int main()
 	test_fft_perf<2>();
 	test_fft_perf<3>();
 	test_fft_perf<4>();
-
-	/*size_t n_loops = 10;
-	for (int n = 16; n < (1 << 20); n <<= 1)
-	{
-		std::vector<double> x(n);
-
-		decltype(std::chrono::steady_clock::now()) start, finish;
-		double timing = 0;
-
-		for (size_t i = 0; i < n_loops+1; ++i)
-		{
-			std::generate(begin(x), end(x), [&]{ return dist<double>(mersenne_twister); });
-
-			start = std::chrono::steady_clock::now();
-			std::sort(begin(x), end(x));
-			finish = std::chrono::steady_clock::now();
-
-			if (i)
-				timing += std::chrono::duration<double>(finish-start).count();
-		}
-		timing /= n_loops;
-		std::cout << "n = " << n << " -- t = " << timing << "s -- x_0 = " << x[0] << std::endl;
-	}*/
 
 	return 0;
 }
