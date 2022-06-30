@@ -19,7 +19,7 @@
 
 #include <thread>
 #include <condition_variable>
-#include <mutex>
+#include <mutex> // mutex, unique_lock, lock_guard
 #include <deque>
 #include <tuple>
 #include <stop_token>
@@ -37,11 +37,9 @@ namespace utils
 	};
 
 	template <typename Func>
-	struct task_wrapper : task_base
+	class task_wrapper : public task_base
 	// for type erasure
 	{
-		private:
-
 			template <typename T>
 			struct args_tuple {};
 
@@ -57,13 +55,13 @@ namespace utils
 				f(get<Ns>(args)...);
 			}
 
-		public:
-
 			using func_type = decltype(std::function{std::declval<Func>()});
 			using args_type = args_tuple<func_type>::type;
 
 			func_type f;
 			args_type args;
+
+		public:
 
 			template <typename F, typename ... Args>
 			task_wrapper(F&& f, Args&& ... args)
@@ -149,9 +147,10 @@ namespace utils
 			void finished_task()
 			// to be called when the task extracted with pop has terminated
 			{
-				std::unique_lock lock(mutex);
-				--work_counter;
-				lock.unlock();
+				{
+					std::lock_guard lock(mutex);
+					--work_counter;
+				}
 				main.notify_all();
 			}
 
@@ -159,10 +158,11 @@ namespace utils
 			void push(F&& f, Args&& ... args)
 			// put a new task in the queue
 			{
-				task t(std::forward<F>(f), std::forward<Args>(args)...);
-				std::unique_lock lock(mutex);
-				tasks.push_back(std::move(t));
-				lock.unlock();
+				{
+					task t(std::forward<F>(f), std::forward<Args>(args)...);
+					std::lock_guard lock(mutex);
+					tasks.push_back(std::move(t));
+				}
 				cond.notify_one();
 			}
 
@@ -184,14 +184,14 @@ namespace utils
 			bool empty()
 			// check if the task queue is empty
 			{
-				std::unique_lock lock(mutex);
+				std::lock_guard lock(mutex);
 				return tasks.empty();
 			}
 
 			bool busy()
 			// check if there is any task to be completed
 			{
-				std::unique_lock lock(mutex);
+				std::lock_guard lock(mutex);
 				return !tasks.empty() || work_counter > 0;
 			}
 

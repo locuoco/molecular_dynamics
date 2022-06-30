@@ -17,7 +17,7 @@
 #include <iostream> // cout, endl
 #include <vector>
 #include <random>
-#include <algorithm> // generate
+#include <algorithm> // generate, is_permutation
 #include <cassert>
 #include <valarray>
 #include <array>
@@ -33,22 +33,25 @@ g++ dft.cpp -o dft -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-erro
 #include "../dft.hpp"
 
 void test_bit_reversal()
-// test basic property of bit reversal of an incrementing sequence
+// test basic properties of bit reversal of an incrementing sequence
 {
 	std::size_t n = 1 << 3;
-	std::vector<int> seq(n);
+	std::vector<int> seq(n), res;
 	std::iota(seq.begin(), seq.end(), 0);
 
-	math::bit_reversal_permutation(seq.begin(), seq.end());
+	res = seq;
 
-	for (const auto& elem : seq)
+	math::bit_reversal_permutation(res.begin(), res.end());
+
+	for (const auto& elem : res)
 		std::cout << elem << ' ';
 	std::cout << '\n';
 
 	bool ok = true;
 	for (std::size_t i = 0; i < n/2; ++i)
-		ok &= (seq[i+n/2] == seq[i]+1);
+		ok &= (res[i+n/2] == res[i]+1);
 	assert(ok);
+	assert(std::is_permutation(res.begin(), res.end(), seq.begin()));
 }
 
 utils::thread_pool tp;
@@ -63,7 +66,7 @@ auto gen()
 	return std::complex<T>(dist<T>(mersenne_twister), dist<T>(mersenne_twister));
 }
 
-template <std::size_t N = 1>
+template <std::size_t N = 1, bool b_real = false>
 void test_fft_ifft()
 // test that composing FFT and inverse FFT one obtains identity up to rounding errors
 {
@@ -90,14 +93,14 @@ void test_fft_ifft()
 
 		if constexpr (N == 1)
 		{
-			x = dft.fft(xref);
-			x = dft.ifft(x);
+			x = dft.bfft<false, b_real>(xref);
+			x = dft.bfft<true, b_real>(x);
 		}
 		else
 		{
 			x = xref;
-			dft.fftn<N>(x, nlist, tp);
-			dft.ifftn<N>(x, nlist, tp);
+			dft.bfftn<false, b_real, N>(x, nlist, tp);
+			dft.bfftn<true, b_real, N>(x, nlist, tp);
 		}
 
 		auto sqr = [](std::complex<double> z)
@@ -170,13 +173,33 @@ int main()
 {
 	test_bit_reversal();
 	test_fft_ifft();
+	test_fft_ifft<1, true>();
 	test_fft_ifft<2>();
+	test_fft_ifft<2, true>();
 	test_fft_ifft<3>();
+	test_fft_ifft<3, true>();
 	test_fft_ifft<4>();
+	test_fft_ifft<4, true>();
 	test_fft_perf();
 	test_fft_perf<2>();
 	test_fft_perf<3>();
 	test_fft_perf<4>();
+
+	/*using std::size_t;
+	math::dft<double> dft;
+	size_t n = 8;
+	std::valarray<std::complex<double>> x(n*n);
+
+	std::generate(begin(x), end(x), []{ return std::complex(dist<double>(mersenne_twister), 0.); });
+
+	dft.fftn<2>(x, {n, n}, tp);
+
+	for (size_t i = 0; i < n; ++i)
+	{
+		for (size_t j = 0; j < n; ++j)
+			std::cout << x[i*n+j] << ", ";
+		std::cout << '\n';
+	}*/
 
 	return 0;
 }

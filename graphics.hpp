@@ -36,7 +36,6 @@
 #include "controls.hpp"
 #include "physics/molecule.hpp"
 
-#define TEST(x)
 #include "Font.hpp"
 
 #ifdef __MINGW32__

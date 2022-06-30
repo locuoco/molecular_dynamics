@@ -148,7 +148,7 @@ namespace physics
 	template <
 		std::floating_point T = double,
 		template <typename, typename, template <typename...> typename...> typename IntegT = leapfrog,
-		template <typename, typename> typename LRSummationT = ewald,
+		template <typename, typename> typename LRSummationT = pppm,
 		template <typename...> typename ... IntegPars
 	>
 	requires integrator<IntegT<T, state<T, 3>, IntegPars...>, T, state<T, 3>>

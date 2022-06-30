@@ -17,6 +17,7 @@
 #include <iostream> // cout, endl
 #include <vector>
 #include <algorithm> // sort, generate
+#include <functional> // greater
 #include <random>
 #include <chrono>
 #include <cassert>
@@ -38,7 +39,7 @@ std::uniform_real_distribution<T> dist(-1, 1);
 
 void test_parallel_sort_correct()
 {
-	for (int n = 16; n < (1 << 20); n <<= 1)
+	for (std::size_t n = 16; n <= (1 << 20); n <<= 1)
 	{
 		std::vector<double> x(n), xref;
 
@@ -52,10 +53,28 @@ void test_parallel_sort_correct()
 	}
 }
 
+void test_parallel_sort_reverse_correct()
+{
+	tp.resize(6);
+	for (std::size_t n = 21; n <= (1 << 20); n <<= 1)
+	{
+		std::vector<double> x(n), xref;
+
+		std::generate(begin(x), end(x), [&]{ return dist<double>(mersenne_twister); });
+		xref = x;
+
+		utils::parallel_sort(begin(x), end(x), tp, std::greater{});
+		std::sort(begin(xref), end(xref), std::greater{});
+
+		assert(x == xref);
+	}
+}
+
 void test_parallel_sort_perf()
 {
-	size_t n_loops = 10;
-	for (int n = 128; n < (1 << 20); n <<= 1)
+	std::cout << " ======   utils::parallel_sort   ====== " << std::endl;
+	std::size_t n_loops = 10;
+	for (std::size_t n = 128; n <= (1 << 20); n <<= 1)
 	{
 		std::vector<double> x(n);
 
@@ -80,15 +99,16 @@ void test_parallel_sort_perf()
 
 void test_sort_perf()
 {
-	size_t n_loops = 10;
-	for (int n = 128; n < (1 << 20); n <<= 1)
+	std::cout << " ======   std::sort   ====== " << std::endl;
+	std::size_t n_loops = 10;
+	for (std::size_t n = 128; n <= (1 << 20); n <<= 1)
 	{
 		std::vector<double> x(n);
 
 		decltype(std::chrono::steady_clock::now()) start, finish;
 		double timing = 0;
 
-		for (size_t i = 0; i < n_loops+1; ++i)
+		for (std::size_t i = 0; i < n_loops+1; ++i)
 		{
 			std::generate(begin(x), end(x), [&]{ return dist<double>(mersenne_twister); });
 
@@ -107,6 +127,7 @@ void test_sort_perf()
 int main()
 {
 	test_parallel_sort_correct();
+	test_parallel_sort_reverse_correct();
 	test_parallel_sort_perf();
 	test_sort_perf();
 

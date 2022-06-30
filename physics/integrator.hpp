@@ -18,7 +18,6 @@
 #define PHYSICS_INTEGRATOR_H
 
 #include <concepts> // convertible_to
-#include <valarray>
 #include <type_traits> // is_base_of
 #include <cmath> // exp, sqrt
 

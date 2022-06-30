@@ -22,7 +22,9 @@
 #include <vector>
 #include <array>
 #include <utility> // make_index_sequence, index_sequence
-#include <cmath> // sqrt
+#include <cmath> // sqrt, remainder, floor, round, trunc
+
+#include "../math/helper.hpp" // mod
 
 namespace physics
 {
@@ -150,6 +152,18 @@ namespace physics
 				base::operator[](i) /= other[i];
 			return *this;
 		}
+		constexpr tens& operator+=(T scal)
+		{
+			for (std::size_t i = 0; i < (Ns * ...); ++i)
+				base::operator[](i) += scal;
+			return *this;
+		}
+		constexpr tens& operator-=(T scal)
+		{
+			for (std::size_t i = 0; i < (Ns * ...); ++i)
+				base::operator[](i) -= scal;
+			return *this;
+		}
 		constexpr tens& operator*=(T scal)
 		{
 			for (std::size_t i = 0; i < (Ns * ...); ++i)
@@ -185,6 +199,26 @@ namespace physics
 		return lhs /= rhs;
 	}
 	template <typename T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> operator+(tens<T, Ns...> lhs, typename tens<T, Ns...>::value_type scal)
+	{
+		return lhs += scal;
+	}
+	template <typename T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> operator+(typename tens<T, Ns...>::value_type scal, tens<T, Ns...> rhs)
+	{
+		return rhs + scal;
+	}
+	template <typename T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> operator-(tens<T, Ns...> lhs, typename tens<T, Ns...>::value_type scal)
+	{
+		return lhs -= scal;
+	}
+	template <typename T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> operator-(typename tens<T, Ns...>::value_type scal, tens<T, Ns...> rhs)
+	{
+		return rhs - scal;
+	}
+	template <typename T, std::size_t ... Ns>
 	constexpr tens<T, Ns...> operator*(tens<T, Ns...> lhs, typename tens<T, Ns...>::value_type scal)
 	{
 		return lhs *= scal;
@@ -218,20 +252,43 @@ namespace physics
 	}
 
 	template <std::floating_point T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> remainder(tens<T, Ns...> t, T modulo)
+	constexpr tens<T, Ns...> remainder(tens<T, Ns...> t, typename tens<T, Ns...>::value_type modulo)
 	{
 		using std::round;
 		for (std::size_t i = 0; i < (Ns * ...); ++i)
 			t[i] = t[i] - round(t[i]/modulo)*modulo;
 		return t;
 	}
-
+	template <std::floating_point T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> mod(tens<T, Ns...> t, typename tens<T, Ns...>::value_type modulo)
+	{
+		using math::mod;
+		for (std::size_t i = 0; i < (Ns * ...); ++i)
+			t[i] = mod(t[i], modulo);
+		return t;
+	}
 	template <std::floating_point T, std::size_t ... Ns>
 	constexpr tens<T, Ns...> floor(tens<T, Ns...> t)
 	{
 		using std::floor;
 		for (std::size_t i = 0; i < (Ns * ...); ++i)
 			t[i] = floor(t[i]);
+		return t;
+	}
+	template <std::floating_point T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> round(tens<T, Ns...> t)
+	{
+		using std::round;
+		for (std::size_t i = 0; i < (Ns * ...); ++i)
+			t[i] = round(t[i]);
+		return t;
+	}
+	template <std::floating_point T, std::size_t ... Ns>
+	constexpr tens<T, Ns...> trunc(tens<T, Ns...> t)
+	{
+		using std::trunc;
+		for (std::size_t i = 0; i < (Ns * ...); ++i)
+			t[i] = trunc(t[i]);
 		return t;
 	}
 
@@ -338,12 +395,32 @@ namespace physics
 			st[i] = remainder(st[i], modulo);
 		return st;
 	}
-
+	template <std::floating_point T, std::size_t Dim>
+	constexpr state<T, Dim> mod(state<T, Dim> st, T modulo)
+	{
+		for (std::size_t i = 0; i < Dim; ++i)
+			st[i] = mod(st[i], modulo);
+		return st;
+	}
 	template <std::floating_point T, std::size_t Dim>
 	constexpr state<T, Dim> floor(state<T, Dim> st)
 	{
 		for (std::size_t i = 0; i < Dim; ++i)
 			st[i] = floor(st[i]);
+		return st;
+	}
+	template <std::floating_point T, std::size_t Dim>
+	constexpr state<T, Dim> round(state<T, Dim> st)
+	{
+		for (std::size_t i = 0; i < Dim; ++i)
+			st[i] = round(st[i]);
+		return st;
+	}
+	template <std::floating_point T, std::size_t Dim>
+	constexpr state<T, Dim> trunc(state<T, Dim> st)
+	{
+		for (std::size_t i = 0; i < Dim; ++i)
+			st[i] = trunc(st[i]);
 		return st;
 	}
 

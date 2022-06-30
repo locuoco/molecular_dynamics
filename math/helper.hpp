@@ -17,8 +17,9 @@
 #ifndef MATH_HELPER_H
 #define MATH_HELPER_H
 
-#include <limits>
-#include <cmath>
+#include <limits> // numeric_limits
+#include <cmath> // sqrt, fmod, sin
+#include <type_traits> // is_integral_v
 
 namespace math
 {
@@ -110,8 +111,8 @@ namespace math
 	// and the exponentiation by squaring,
 	// with n = 2^exponent
 	// if exponent is too big, underflows/truncation errors are likely to occur
-	// if it is too small, the result will be inaccurate for big values of |x|
-	// these limitations make this algorithm not suited to obtain a correct
+	// if it is too small, the result will be inaccurate for big values of |x|.
+	// These limitations make this algorithm not suited to obtain a correct
 	// result up to machine epsilon, but it is really fast
 	{
 		x = 1 + x / (1ull << exponent);
@@ -150,6 +151,31 @@ namespace math
 	T fasterf(T x) noexcept
 	{
 		return 1 - fasterfc(x);
+	}
+
+	template <typename T>
+	T mod(T x, T y) noexcept
+	// Note that x % y = n such that x = trunc(x/y)*y + n
+	// on the other hand, x mod y = n such that x = floor(x/y)*y + n
+	// the value returned by this function is thus always positive
+	// (fmod behaves as % but with floating-point types)
+	{
+		using std::fmod;
+		if constexpr (std::is_integral_v<T>)
+			return (x %= y) < 0 ? x+y : x;
+		else
+			return (x = fmod(x, y)) < 0 ? x+y : x;
+	}
+
+	template <typename T>
+	T sinc(T x) noexcept
+	{
+		using std::sin;
+		return x*x == 0 ? 1 : sin(x)/x;
+		// by multiplying x by itself, I force denormals to flush to zero
+		// In this case, 1 is the correct result
+		// (if x is a denormal (or zero) and -ffast-math is enabled, then this
+		// avoids division by 0)
 	}
 
 }

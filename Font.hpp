@@ -18,7 +18,8 @@
 #define FONT_H
 
 #ifndef TEST
-#define TEST(x) GLenum _err_ = glGetError(); if (_err_) std::cerr << _err_ << " in " << x << std::endl
+//#define TEST(x) GLenum _err_ = glGetError(); if (_err_) std::cerr << _err_ << " in " << x << std::endl
+#define TEST(x)
 #endif
 
 #include <iostream>
