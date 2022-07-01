@@ -95,7 +95,7 @@ namespace math
 			using std::cos;
 			size_t n = std::distance(first, last);
 			bit_reversal_permutation(first, last);
-			if ((n&(n-1)) != 0 && n)
+			if ((n&(n-1)) != 0 || !n)
 				throw std::runtime_error("n is not a power of 2!");
 			for (size_t i = 1; i <= n/2; i *= 2)
 			{

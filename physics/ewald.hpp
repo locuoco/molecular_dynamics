@@ -402,6 +402,10 @@ namespace physics
 			using std::remainder;
 			if (s.n < 2)
 				return;
+			if (order < 1)
+				throw std::runtime_error("Error: minimum PPPM order is 1");
+			if (order > pppm_max_order)
+				throw std::runtime_error("Error: maximum PPPM order is 7");
 
 			size_t num_cells = 1ull << size_t(std::round(std::log2(s.n)/3));
 			size_t m = num_cells*num_cells*num_cells;
