@@ -178,6 +178,12 @@ namespace math
 		// avoids division by 0)
 	}
 
+	template <typename T>
+	T clamp(T x, T a, T b) noexcept
+	{
+		return x>b?b:x<a?a:x;
+	}
+
 }
 
 #endif // MATH_HELPER_H

@@ -17,12 +17,13 @@
 #ifndef FONT_H
 #define FONT_H
 
-#ifndef TEST
-//#define TEST(x) GLenum _err_ = glGetError(); if (_err_) std::cerr << _err_ << " in " << x << std::endl
+#ifdef ENABLE_TEST
+#define TEST(x) GLenum _err_ = glGetError(); if (_err_) std::cerr << _err_ << " in " << x << std::endl
+#else
 #define TEST(x)
 #endif
 
-#include <iostream>
+#include <iostream> // cerr, endl
 #include <string>
 #include <map>
 #include <utility> // pair
@@ -31,6 +32,12 @@
 #include <ft2build.h> // Compile with -lfreetype
 #include FT_FREETYPE_H
 
+#ifdef USE_POINT
+
+#include "physics/point.hpp"
+
+#else
+
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -38,17 +45,31 @@
 #include <glm/trigonometric.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#endif
+
 class Font
 {
+#ifdef USE_POINT
+		using vec2i = physics::point2i;
+		using vec3f = physics::point3f;
+		using vec4f = physics::point4f;
+		using mat4f = physics::mat4f;
+#else
+		using vec2i = glm::ivec2;
+		using vec3f = glm::vec3;
+		using vec4f = glm::vec4;
+		using mat4f = glm::mat4;
+#endif
+
 		struct Character {
 			GLuint ID;
-			glm::ivec2 Size;
-			glm::ivec2 Bearing;
+			vec2i Size;
+			vec2i Bearing;
 			GLint Advance;
 		};
 
 		std::map<wchar_t, Character> characters;
-		mutable glm::vec4 precCol;
+		mutable vec4f precCol;
 
 		unsigned int w, h;
 		static constexpr unsigned int tab = 64, margin = 16;
@@ -87,20 +108,20 @@ class Font
 
 			Character ch = {
 				texture, 
-				glm::ivec2(gs -> bitmap.width, gs -> bitmap.rows),
-				glm::ivec2(gs -> bitmap_left, gs -> bitmap_top),
+				vec2i(gs -> bitmap.width, gs -> bitmap.rows),
+				vec2i(gs -> bitmap_left, gs -> bitmap_top),
 				(GLint)gs -> advance.x
 			};
 			characters.insert(std::pair<wchar_t, Character>(c, ch));
 		}
 
-		bool coleq(GLfloat r, GLfloat g, GLfloat b, GLfloat a) const
+		bool coleq(float r, float g, float b, float a) const
 		{
 			if (r == precCol[0] && g == precCol[1] && b == precCol[2] && a == precCol[3])
 				return true;
 			return false;
 		}
-		bool coleq(const glm::vec4& c) const
+		bool coleq(const vec4f& c) const
 		{
 			if (c == precCol)
 				return true;
@@ -162,9 +183,14 @@ class Font
 			transf = glGetUniformLocation(prog, "Pmat");
 			col = glGetUniformLocation(prog, "col");
 
-			glm::mat4 m_Pmat = glm::ortho(0., (double)w, 0., (double)h);
 			glUseProgram(prog);
+#ifdef USE_POINT
+			mat4f m_Pmat = physics::orthographic_projection(0., double(w), 0., double(h));
+			glUniformMatrix4fv(transf, 1, GL_TRUE, &m_Pmat(0, 0));
+#else
+			mat4f m_Pmat = glm::ortho(0., double(w), 0., double(h));
 			glUniformMatrix4fv(transf, 1, GL_FALSE, &m_Pmat[0][0]);
+#endif
 
 			glPixelStorei(GL_UNPACK_ALIGNMENT, GL_TRUE);
 
@@ -229,33 +255,33 @@ class Font
 			return (bool)init;
 		}
 
-		void Color(GLfloat r, GLfloat g, GLfloat b, GLfloat a) const
+		void Color(float r, float g, float b, float a) const
 		{
 			if (!coleq(r, g, b, a))
 			{
 				glUniform4f(col, r, g, b, a);
-				precCol = glm::vec4(r, g, b, a);
-				TEST("Font::Color(GLfloat, GLfloat, GLfloat, GLfloat)");
+				precCol = vec4f(r, g, b, a);
+				TEST("Font::Color(float, float, float, float)");
 			}
 		}
 
-		void Color(GLfloat r, GLfloat g, GLfloat b) const
+		void Color(float r, float g, float b) const
 		{
 			Color(r,g,b,1.f);
 		}
 
-		void Color(const glm::vec3& color) const
+		void Color(const vec3f& color) const
 		{
 			Color(color[0],color[1],color[2],1.f);
 		}
 
-		void Color(const glm::vec4& color) const
+		void Color(const vec4f& color) const
 		{
 			if (!coleq(color))
 			{
 				glUniform4fv(col, 1, &color[0]);
 				precCol = color;
-				TEST("Font::Color(const glm::vec4&)");
+				TEST("Font::Color(const vec4f&)");
 			}
 		}
 
@@ -284,13 +310,13 @@ class Font
 		}
 
 		template<typename T>
-		void Draw(const std::basic_string<T>& text, GLfloat x, GLfloat y, const GLfloat scale) const
+		void Draw(const std::basic_string<T>& text, float x, float y, const float scale) const
 		// valid for string and wstring
 		{
 			if (!text.length())
 				return;
 
-			const GLfloat xi = x;
+			const float xi = x;
 
 			for (auto i = text.begin(); i != text.end(); ++i)
 				switch (*i)
@@ -307,7 +333,7 @@ class Font
 					{
 						for (unsigned int i = 0; i < w - margin; i += tab)
 						{
-							GLfloat t = xi + i;
+							float t = xi + i;
 							if (t > x)
 							{
 								x = t;
@@ -340,12 +366,12 @@ class Font
 					{
 						Character ch = characters.at(*i);
 
-						GLfloat xpos = x + ch.Bearing[0] * scale;
-						GLfloat xl = xpos + ch.Size[0] * scale;
-						GLfloat yh = y + ch.Bearing[1] * scale;
-						GLfloat ypos = yh - ch.Size[1] * scale;
+						float xpos = x + ch.Bearing[0] * scale;
+						float xl = xpos + ch.Size[0] * scale;
+						float yh = y + ch.Bearing[1] * scale;
+						float ypos = yh - ch.Size[1] * scale;
 
-						GLfloat vertices[24] =
+						float vertices[24] =
 						{
 							xpos, yh,   0.f, 0.f,
 							xpos, ypos, 0.f, 1.f,
@@ -360,7 +386,7 @@ class Font
 
 						glDrawArrays(GL_TRIANGLES, 0, 6);
 
-						TEST("Font::Draw(const std::basic_string<T>&, GLfloat, GLfloat, GLfloat)");
+						TEST("Font::Draw(const std::basic_string<T>&, float, float, float)");
 
 						x += (ch.Advance >> 6) * scale;
 					}

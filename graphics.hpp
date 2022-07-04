@@ -27,8 +27,6 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#include <glm/ext.hpp>
-
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -36,6 +34,7 @@
 #include "controls.hpp"
 #include "physics/molecule.hpp"
 
+#define USE_POINT
 #include "Font.hpp"
 
 #ifdef __MINGW32__
@@ -173,25 +172,25 @@ class graphics
 
 			updateControls(window, w, h, (float)dt);
 
-			glm::dmat4 Model(1);
-			glm::dmat4 dMV = controls::View * Model;
-			glm::mat4 MV = dMV;
-			glm::mat4 fProj = controls::Proj;
+			physics::mat4d Model = physics::make_identity_matrix<double, 4>();
+			physics::mat4d dMV = controls::View % Model;
+			physics::mat4f MV = dMV;
+			physics::mat4f fProj = controls::Proj;
 
-			glUniformMatrix4fv(mvID, 1, GL_FALSE, &MV[0][0]);
-			glUniformMatrix4fv(projID, 1, GL_FALSE, &fProj[0][0]);
+			glUniformMatrix4fv(mvID, 1, GL_TRUE, &MV(0, 0));
+			glUniformMatrix4fv(projID, 1, GL_TRUE, &fProj(0, 0));
 
-			//glm::mat3 NormalMat(transpose(inverse(dMV)));
+			//physics::mat4f NormalMat(transpose(inverse(dMV)));
 
-			//glUniformMatrix3fv(normalMatID, 1, GL_FALSE, &NormalMat[0][0]);
+			//glUniformMatrix3fv(normalMatID, 1, GL_TRUE, &NormalMat[0][0]);
 
-			glm::dvec4 lightPosWorld = glm::dvec4(
+			physics::point4d lightPosWorld(
 				400*std::sin(2*lastTime/100),
 				400*std::sin(std::sqrt(2.)*lastTime/100),
 				400*std::cos(2*lastTime/100),
 				1
 			);
-			glm::vec3 lightPos = controls::View * lightPosWorld;
+			physics::point4f lightPos = controls::View % lightPosWorld;
 
 			glUniform3fv(lightPosID, 1, &lightPos[0]);
 			glUniform1f(gammaID, controls::gamma);
@@ -282,9 +281,9 @@ class graphics
 
 			font -> Color(0, 1, 0, 1);
 			font -> Draw(
-				std::string("FPS: ") + std::to_string(FPS) + '\n' + std::to_string(controls::pos.x) + ' '
-																  + std::to_string(controls::pos.y) + ' '
-																  + std::to_string(controls::pos.z),
+				std::string("FPS: ") + std::to_string(FPS) + '\n' + std::to_string(controls::pos[0]) + ' '
+																  + std::to_string(controls::pos[1]) + ' '
+																  + std::to_string(controls::pos[2]),
 				12*xscale, 24*yscale, 0.5f*xscale
 			);
 			font -> Draw(

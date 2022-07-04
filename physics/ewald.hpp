@@ -158,15 +158,14 @@ namespace physics
 		v += lennard_jones;
 	}
 
-	/*template <typename T, typename S>
-	void eval_ewald_r_lj(S& s, T& u, T& uC, T& v, T kappa, std::size_t i, std::size_t j,
+	template <typename T, typename S>
+	void eval_ewald_r_6(S& s, T& u, T& uC, T& v, T kappa, std::size_t i, std::size_t j,
 		decltype(S::x[i])& r, T r2)
-	// real space summation for Ewald summation for both Coulomb and LJ interactions
+	// real space summation for Ewald summation for both Coulomb and dispersion interactions
 	{
 		T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
 		T epsij = s.LJ_sqrteps[i] * s.LJ_sqrteps[j];
 
-		T r2_ = 1/r2, r4_ = r2_*r2_, r6_ = r4_*r2_, r12_ = r6_*r6_;
 		T d = sqrt(r2);
 		T d_ = 1/d;
 		T kd = kappa * d;
@@ -178,13 +177,16 @@ namespace physics
 		C12ij *= epsij;
 		T zij_d = s.z[i] * s.z[j] * d_;
 		T coulomb = zij_d * math::fasterfc(kd);
-		T lennard_jones = 12 * C12ij * r12_ - C6ij * ();
+		T r2_ = 1/r2, r4_ = r2_*r2_, r6_ = r4_*r2_;
+		T k2 = kappa*kappa, k4 = k2*k2;
+		T lj12 = C12ij * r6_*r6_;
+		T lennard_jones = 12 * lj12 - C6ij * (6*r6_ + 6*k2*r4_ + 3*k4*r2_ + k4*k2) * emkd2;
 		auto fij = ((lennard_jones + coulomb + zij_d * (2 * std::numbers::inv_sqrtpi_v<T>) * kd * emkd2) * r2_) * r;
 		s.f[i] += fij;
-		u += epsijt * (t - 2);
+		u += lj12 - C6ij * (r6_ + k2*r4_ + k4*r2_/2) * emkd2;
 		uC += coulomb;
 		v += lennard_jones;
-	}*/
+	}
 
 	template <typename S, typename T>
 	void eval_ewald_r(S& s, T& u, T& uC, T& v, T kappa, std::size_t i, std::size_t j)

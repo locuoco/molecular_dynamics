@@ -20,17 +20,14 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#include <glm/ext.hpp>
-#include <glm/gtx/quaternion.hpp>
-
 #include "math/helper.hpp"
 
 namespace controls
 {
-	glm::dmat4 Proj;
-	glm::dmat4 View;
-	glm::dvec3 pos = glm::dvec3(0, 0, 5);
-	glm::dvec3 vel = glm::dvec3(0, 0, 0);
+	physics::mat4d Proj;
+	physics::mat4d View;
+	physics::point3d pos(0, 0, 5);
+	physics::point3d vel(0, 0, 0);
 	double horVel = 0;
 	double vertVel = 0;
 	double horAngle = math::pi<double>();
@@ -46,7 +43,7 @@ inline void updateScroll(GLFWwindow*, double, double yoff)
 
 	FoV -= 5 * yoff;
 
-	FoV = glm::clamp(FoV, 30., 110.);
+	FoV = math::clamp(FoV, 30., 110.);
 }
 
 inline void updateControls(GLFWwindow* window, int w, int h, double dt)
@@ -110,20 +107,20 @@ inline void updateControls(GLFWwindow* window, int w, int h, double dt)
 		vertVel = 0;
 	}
 
-	glm::dvec3 dir(
+	physics::point3d dir(
 		cos(vertAngle) * sin(horAngle),
 		sin(vertAngle),
 		cos(vertAngle) * cos(horAngle)
 	);
 
-	glm::dvec3 horDir(
+	physics::point3d horDir(
 		sin(horAngle),
 		0,
 		cos(horAngle)
 	);
 
-	glm::dvec3 up = glm::dvec3(0,1,0);
-	glm::dvec3 right = glm::normalize(glm::cross(dir, up));
+	physics::point3d up(0,1,0);
+	physics::point3d right = normalize(cross(dir, up));
 
 	vel -= vel * (friction * dt);
 
@@ -149,22 +146,23 @@ inline void updateControls(GLFWwindow* window, int w, int h, double dt)
 		if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
 			gamma -= dt * strengthSpeed;
 
-		gamma = glm::clamp(gamma, 1., 5.);
+		gamma = clamp(gamma, 1., 5.);
 	}
 
 	double aspect = (double)w / (double)h;
 
-	double height = tan(glm::radians(FoV)/2);
+	double height = tan(deg2rad(FoV)/2);
 
 	double f = 1 / height;
 
-    Proj = glm::dmat4(
+    Proj = physics::mat4d(
 		f / aspect, 0, 0, 0,
 		0, f, 0, 0,
 		0, 0, 0, -1,
 		0, 0, 1.e-4, 0
 	); // perspective projection with infinite far plane for reverse depth buffer
-	View = glm::lookAt(
+	transpose(Proj);
+	View = physics::look_at(
 		pos,		// position
 		pos + dir,	// target
 		up			// up vector

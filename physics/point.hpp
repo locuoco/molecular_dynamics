@@ -21,7 +21,7 @@
 #include <valarray>
 #include <vector>
 #include <array>
-#include <utility> // make_index_sequence, index_sequence
+#include <utility> // make_index_sequence, index_sequence, swap
 #include <cmath> // sqrt, remainder, floor, round, trunc
 
 #include "../math/helper.hpp" // mod
@@ -53,9 +53,19 @@ namespace physics
 	using point = tens<T, Dim, 1>;
 
 	template <typename T, std::size_t Dim>
-	constexpr point<T, Dim> make_point(T scal) noexcept
+	constexpr point<T, Dim> make_filled_point(T scal) noexcept
 	{
 		return make_filled<point<T, Dim>, Dim>(scal);
+	}
+
+	template <typename T, std::size_t Dim>
+	constexpr mat<T, Dim> make_identity_matrix()
+	{
+		using std::size_t;
+		mat<T, Dim> res(0);
+		for (size_t i = 0; i < Dim; ++i)
+			res(i, i) = 1;
+		return res;
 	}
 
 	// static_multi_index
@@ -97,7 +107,7 @@ namespace physics
 		constexpr tens(T t) noexcept : base(make_filled<tens<T, Ns...>, (Ns * ...)>(t)) {}
 
 		template <std::convertible_to<T> S>
-		explicit constexpr tens(const tens<S, Ns...>& other)
+		constexpr tens(const tens<S, Ns...>& other)
 		{
 			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) = other[i];
@@ -336,13 +346,41 @@ namespace physics
 		return pnt / n;
 	}
 
-#define PHYSICS_GEN_POINTN_ALIAS(n) \
+#define PHYSICS_GEN_POINTN_ALIAS(N) \
 	template <typename T> \
-	using point##n = point<T, n>
+	using point##N = point<T, N>
 
 	PHYSICS_GEN_POINTN_ALIAS(2);
 	PHYSICS_GEN_POINTN_ALIAS(3);
 	PHYSICS_GEN_POINTN_ALIAS(4);
+
+#define PHYSICS_GEN_POINTNT_ALIAS(TYPE, SUFFIX) \
+	using point2##SUFFIX = point2<TYPE>; \
+	using point3##SUFFIX = point3<TYPE>; \
+	using point4##SUFFIX = point4<TYPE>
+
+	PHYSICS_GEN_POINTNT_ALIAS(int, i);
+	PHYSICS_GEN_POINTNT_ALIAS(float, f);
+	PHYSICS_GEN_POINTNT_ALIAS(double, d);
+	PHYSICS_GEN_POINTNT_ALIAS(long double, ld);
+
+#define PHYSICS_GEN_MATN_ALIAS(n) \
+	template <typename T> \
+	using mat##n = mat<T, n>
+
+	PHYSICS_GEN_MATN_ALIAS(2);
+	PHYSICS_GEN_MATN_ALIAS(3);
+	PHYSICS_GEN_MATN_ALIAS(4);
+
+#define PHYSICS_GEN_MATNT_ALIAS(TYPE, SUFFIX) \
+	using mat2##SUFFIX = mat2<TYPE>; \
+	using mat3##SUFFIX = mat3<TYPE>; \
+	using mat4##SUFFIX = mat4<TYPE>
+
+	PHYSICS_GEN_MATNT_ALIAS(int, i);
+	PHYSICS_GEN_MATNT_ALIAS(float, f);
+	PHYSICS_GEN_MATNT_ALIAS(double, d);
+	PHYSICS_GEN_MATNT_ALIAS(long double, ld);
 
 	template <typename T>
 	constexpr point3<T> cross(const point3<T>& lhs, const point3<T>& rhs)
@@ -350,6 +388,16 @@ namespace physics
 		return {lhs[1] * rhs[2] - lhs[2] * rhs[1],
 				lhs[2] * rhs[0] - lhs[0] * rhs[2],
 				lhs[0] * rhs[1] - lhs[1] * rhs[0]};
+	}
+
+	template <typename T, std::size_t Dim>
+	constexpr void transpose(mat<T, Dim>& A)
+	{
+		using std::size_t;
+		using std::swap;
+		for (size_t i = 0; i < Dim; ++i)
+			for (size_t j = 0; j < i; ++j)
+				swap(A(i, j), A(j, i));
 	}
 
 	template <typename T, std::size_t Dim>
@@ -374,13 +422,13 @@ namespace physics
 	}
 
 	template <std::floating_point T, std::size_t Dim>
-	constexpr T norm(const state<T, Dim>& st)
+	T norm(const state<T, Dim>& st)
 	{
 		using std::sqrt;
 		return sqrt(dot(st, st));
 	}
 	template <std::floating_point T, std::size_t Dim>
-	constexpr state<T, Dim> normalize(const state<T, Dim>& st)
+	state<T, Dim> normalize(const state<T, Dim>& st)
 	{
 		T n = norm(st);
 		if (n == 0)
@@ -449,14 +497,6 @@ namespace physics
 			using base::operator[];
 	};
 
-#define PHYSICS_GEN_MATN_ALIAS(n) \
-	template <typename T> \
-	using mat##n = mat<T, n>
-
-	PHYSICS_GEN_MATN_ALIAS(2);
-	PHYSICS_GEN_MATN_ALIAS(3);
-	PHYSICS_GEN_MATN_ALIAS(4);
-
 	template <std::floating_point T>
 	mat3<T> rotation_x(T angle) noexcept
 	{
@@ -500,6 +540,50 @@ namespace physics
 	mat3<T> rotation_yaw_pitch_roll(T yaw, T pitch, T roll)
 	{
 		return rotation_z(yaw) % rotation_y(pitch) % rotation_x(roll);
+	}
+
+	template <std::floating_point T>
+	constexpr mat4<T> orthographic_projection(T left, T right, T bottom, T top) noexcept
+	{
+		return
+		{
+			2/(right-left), 0, 0, (right+left)/(left-right),
+			0, 2/(top-bottom), 0, (top+bottom)/(bottom-top),
+			0, 0, -1, 0,
+			0, 0, 0, 1,
+		};
+	}
+
+	template <std::floating_point T>
+	constexpr mat4<T> orthographic_projection_col(T left, T right, T bottom, T top)
+	{
+		mat4<T> res(orthographic_projection(left, right, bottom, top));
+		transpose(res);
+		return res;
+	}
+
+	template <std::floating_point T>
+	mat4<T> look_at(const point3<T>& eye, const point3<T>& center, const point3<T>& up)
+	{
+		point3<T> f(normalize(center - eye));
+		point3<T> s(normalize(cross(f, up)));
+		point3<T> u(cross(s, f));
+
+		return
+		{
+			s[0], s[1], s[2], -dot(s, eye),
+			u[0], u[1], u[2], -dot(u, eye),
+			-f[0], -f[1], -f[2], dot(f, eye),
+			0, 0, 0, 1,
+		};
+	}
+
+	template <std::floating_point T>
+	mat4<T> look_at_col(const point3<T>& eye, const point3<T>& center, const point3<T>& up)
+	{
+		mat4<T> res(look_at(eye, center, up));
+		transpose(res);
+		return res;
 	}
 
 } // namespace physics
