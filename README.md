@@ -4,22 +4,57 @@
 
 This is an interactive program for molecular dynamics using classical force fields. A force field is defined from the following potential (using CHARMM convention):
 <!---
-$V(\mathrm{r})&=\sum_{i \sim j}K_{ij}^r \left(r_{ij} - r_{ij}^0\right)^2
+$V(\mathrm{r}_i)&=\sum_{i \sim j}K_{ij}^r \left(r_{ij} - r_{ij}^0\right)^2
 + \sum_{i\sim j\sim k}K_{ijk}^{\theta} \left(\theta_{ijk} - \theta_{ijk}^0\right)^2
 + \sum_{i\sim\cdot\sim k}K_{ik}^{UB} \left(r_{ik} - r_{ik}^0\right)^2 \\
 &+ \sum_{i\sim j\sim k\sim l, n}K_{ijkl}^{\chi} \left(1 + \cos\left(n\chi_{ijkl} - \delta_{ijkl}\right) \right)
 + \sum_{ijkl\ \text{impropers}}K_{ijkl}^{\psi} \left( \psi_{ijkl} - \psi_{ijkl}^0 \right)^2 \\
 &+ \sum_{ij} \epsilon_{ij} \left( \left( \frac{R_{ij}}{r_{ij}} \right)^{12} - 2 \left(\frac{R_{ij}}{r_{ij}} \right)^{6} \right)
 + \sum_{ij} k_C \frac{q_i q_j}{r_{ij}^2}$
+
+Old URL:
+https://render.githubusercontent.com/render/math?math=\displaystyle+
+
+Plus (+) = %2B
+Space = %20
+Comma (,) = %2C
 --->
-<img src="https://render.githubusercontent.com/render/math?math=\displaystyle+V(\mathrm{r})=\sum_{i\sim+j}K_{ij}^r\left(r_{ij}-r_{ij}^0\right)^2%2B\sum_{i\sim+j\sim+k}K_{ijk}^{\theta} \left(\theta_{ijk}-\theta_{ijk}^0\right)^2%2B\sum_{i\sim\cdot\sim+k}K_{ik}^{UB}\left(r_{ik}-r_{ik}^0\right)^2\\">
-<img src="https://render.githubusercontent.com/render/math?math=\displaystyle\qquad%2B\sum_{i\sim+j\sim+k\sim+l,n}K_{ijkl}^{\chi}+\left(1%2B\cos\left(n\chi_{ijkl}-\delta_{ijkl}\right)\right)%2B\sum_{ijkl\+\text{impropers}}K_{ijkl}^{\psi}\left(\psi_{ijkl}-\psi_{ijkl}^0\right)^2\\%2B\sum_{ij}\epsilon_{ij}\left(\left(\frac{R_{ij}}{r_{ij}}\right)^{12}-2\left(\frac{R_{ij}}{r_{ij}}\right)^{6}\right)%2B\sum_{ij}k_C\frac{q_i+q_j}{r_{ij}^2}">
+<img src="https://latex.codecogs.com/gif.latex?V=\sum_{i\sim%20j}K_{ij}^r\left(r_{ij}-r_{ij}^0\right)^2%2B\sum_{i\sim%20j\sim%20k}K_{ijk}^{\theta}%20\left(\theta_{ijk}-\theta_{ijk}^0\right)^2%2B\sum_{i\sim\cdot\sim%20k}K_{ik}^{UB}\left(r_{ik}-r_{ik}^0\right)^2\\">
+<img src="https://latex.codecogs.com/gif.latex?\qquad%2B\sum_{i\sim%20j\sim%20k\sim%20l%2Cn}K_{ijkl}^{\chi}%20\left(1%2B\cos\left(n\chi_{ijkl}-\delta_{ijkl}\right)\right)%2B\sum_{ijkl\%20\text{impropers}}K_{ijkl}^{\psi}\left(\psi_{ijkl}-\psi_{ijkl}^0\right)^2\\">
+<img src="https://latex.codecogs.com/gif.latex?\qquad%2B\sum_{i<j}\epsilon_{ij}\left(\left(\frac{R_{ij}}{r_{ij}}\right)^{12}-2\left(\frac{R_{ij}}{r_{ij}}\right)^6\right)%2B\sum_{i<j}k_C\frac{q_i%20q_j}{r_{ij}^2}">
 
 The first term describes the bond potential, modeled as an elastic potential between bonded atoms (with elastic constant <img src="https://render.githubusercontent.com/render/math?math=k^r=2K^r">), the second term is the angle potential, the third term is the Urey-Bradley potential, acting between 1-3 atoms, the fourth and fifth terms describe the dihedral (proper and improper) angles potentials and the last two terms correspond to non-bonded potentials (Lennard-Jones and electrostatic respectively).
 
 References:
 * M. P. Allen, D. J. Tildesley, *Computer Simulation of Liquids*, Oxford University Press, 2017
 * P. Spijker, B. Markvoort, P. Hilbers, *Parallel Utility for Modeling of Molecular Aggregation*, Biomodeling and bioinformatics, Eindhoven University of Technology, 2007
+
+![Animation of a system of water molecules](animation.gif)
+
+### Ewald summation
+
+In a cubic periodic system of side <img src="https://latex.codecogs.com/gif.latex?L">, the electrostatic potential is given by:
+
+<img src="https://latex.codecogs.com/gif.latex?V=\frac{1}{2}\sum_{ij}^N\sum_{\mathrm{n}\in%20Z^3}^{%27}\frac{q_i%20q_j}{\left|\mathrm{r}_{ij}%2B\mathrm{n}L\right|}">
+
+where the prime symbol means that the <img src="https://latex.codecogs.com/gif.latex?i=j"> term must be excluded for <img src="https://latex.codecogs.com/gif.latex?\mathrm{n}=\mathrm{0}">. As it is not practical to calculate all the contributions directly, it is more convenient to calculate the long-range part in Fourier space, leading to a formula which converges much faster than the previous equation. To do so, the Green's function must be separated in the following way:
+
+<img src="https://latex.codecogs.com/gif.latex?\frac{1}{r}=\frac{f(r)}{r}%2B\frac{1-f(r)}{r}">
+
+where <img src="https://latex.codecogs.com/gif.latex?f(r)"> is the known as the splitting function. Choosing <img src="https://latex.codecogs.com/gif.latex?f(r)"> to be the complementary error function, one obtains the classical Ewald summation, whose terms are given by:
+
+<img src="https://latex.codecogs.com/gif.latex?V=V^{(r)}%2BV^{(k)}%2BV^{(s)}%2BV^{(d)}">
+<img src="https://latex.codecogs.com/gif.latex?V^{(r)}=\frac{1}{2}\sum_{ij}^N\sum_{\mathrm{n}\in%20Z^3}^{%27}q_i%20q_j\frac{\text{erfc}\left(\kappa\left|\mathrm{r}_{ij}%2B\mathrm{n}L\right|\right)}{\left|\mathrm{r}_{ij}%2B\mathrm{n}L\right|}">
+<img src="https://latex.codecogs.com/gif.latex?V^{(k)}=\frac{1}{2L^3}\sum_{\mathrm{n}\neq\mathrm{0}}\frac{4\pi}{k_n^2}e^{-k_n^2/4\kappa^2}\left|\tilde{\rho}(\mathrm{k}_n)\right|^2">
+
+where <img src="https://latex.codecogs.com/gif.latex?V^{(r)}"> ... etc...
+
+### PPPM method
+
+TODO
+
+References:
+* M. Deserno, C. Holm, *How to mesh up Ewald sums (I): A theoretical and numerical comparison of various particle mesh routines*, Max-Planck-Institut fur Polymerforschung, Ackermannweg, Germany, 1998
 
 ![Animation of a system of water molecules](animation.gif)
 
@@ -45,7 +80,6 @@ The graphics part has some dependencies on public libraries that enable the usag
 * [GLFW 3](https://www.glfw.org/) (Graphics Library Framework 3): an open source, multi-platform API for creating windows, contexts and managing input and events.
 * [GLEW](http://glew.sourceforge.net/) (OpenGL Extension Wrangler): a cross-platform library that include core and extended OpenGL functionalities.
 * [FreeType](https://freetype.org/): an OpenGL library to render fonts (used in `Font.hpp`).
-* [GLM](https://glm.g-truc.net/0.9.9/) (OpenGL Mathematics): a simple math header-only library for convenient interface with OpenGL and GLSL (OpenGL Shading Language).
 * [STB Image](https://github.com/nothings/stb/blob/master/stb_image.h): a single-header file, public domain library for loading images.
 
 These dependencies are required only for these header files:
