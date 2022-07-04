@@ -61,7 +61,7 @@ The particle-particle, particle-mesh (PPPM, or P<sup>3</sup>M) method can be app
 
 <img src="https://latex.codecogs.com/svg.image?z_M(\mathrm{r_p})=\int_VW(\mathrm{r_p}-\mathrm{r})\rho(\mathrm{r})d^3r=\sum_{i=1}^Nz_iW(\mathrm{r_p}-\mathrm{r}_i)">
 
-where <img src="https://latex.codecogs.com/svg.image?\mathrm{p}=h\mathrm{n}"> <img src="https://latex.codecogs.com/svg.image?W"> is the charge assignment function, which is chosen so that the sum behaves as a convolution with a small window (so that the cost of the computation of <img src="https://latex.codecogs.com/svg.image?z_M"> is <img src="https://latex.codecogs.com/svg.image?O(N)">. Its Fourier transform can be written as a DFT:
+where <img src="https://latex.codecogs.com/svg.image?\mathrm{p}=h\mathrm{n}"> and <img src="https://latex.codecogs.com/svg.image?W"> is the charge assignment function, which is chosen so that the sum behaves as a convolution with a small window (so that the cost of the computation of <img src="https://latex.codecogs.com/svg.image?z_M"> is <img src="https://latex.codecogs.com/svg.image?O(N)">). Its Fourier transform can be written as a DFT:
 
 <img src="https://latex.codecogs.com/svg.image?\tilde{z}_M(\mathrm{k_n})=\sum_{\mathrm{r_p}\in%20M}z_M(\mathrm{r_p})e^{-i\mathrm{k}\cdot\mathrm{r_p}">
 
@@ -73,11 +73,7 @@ where <img src="https://latex.codecogs.com/svg.image?\tilde{G}_{opt}"> is the op
 
 <img src="https://latex.codecogs.com/svg.image?\tilde{G}_{opt}(\mathrm{k})=\frac{\tilde{\mathrm{D}}(\mathrm{k})\cdot\sum_{\mathrm{m}\in%20Z^3}\tilde{U}^2\left(\mathrm{k}%2B\frac{2\pi}{h}\mathrm{m}\right)\tilde{\mathrm{R}}\left(\mathrm{k}%2B\frac{2\pi}{h}\mathrm{m}\right)}{\left|\tilde{\mathrm{D}}(\mathrm{k})\right|^2\left[\sum_{\mathrm{m}\in%20Z^3}\tilde{U}^2\left(\mathrm{k}%2B\frac{2\pi}{h}\mathrm{m}\right)\right]^2}">
 
-where <img src="https://latex.codecogs.com/svg.image?\tilde{U}(\mathrm{k})"> is defined as:
-
-<img src="https://latex.codecogs.com/svg.image?\tilde{U}(\mathrm{k})=\frac{1}{h^3}\tilde{W}(\mathrm{k})">
-
-<img src="https://latex.codecogs.com/svg.image?\tilde{\mathrm{D}}(\mathrm{k})"> is the Fourier transform of the differential operator and <img src="https://latex.codecogs.com/svg.image?\tilde{\mathrm{R}}(\mathrm{k})"> is the Fourier transform of the true reference force:
+where <img src="https://latex.codecogs.com/svg.image?\tilde{U}(\mathrm{k})=\tilde{W}(\mathrm{k})/h^3">, while <img src="https://latex.codecogs.com/svg.image?\tilde{\mathrm{D}}(\mathrm{k})"> is the Fourier transform of the differential operator and <img src="https://latex.codecogs.com/svg.image?\tilde{\mathrm{R}}(\mathrm{k})"> is the Fourier transform of the true reference force:
 
 <img src="https://latex.codecogs.com/svg.image?\tilde{\mathrm{R}}(\mathrm{k})=-i\mathrm{k}\tilde{g}(k)\tilde{\gamma}(k)">
 
