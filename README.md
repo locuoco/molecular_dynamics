@@ -56,8 +56,6 @@ TODO
 References:
 * M. Deserno, C. Holm, *How to mesh up Ewald sums (I): A theoretical and numerical comparison of various particle mesh routines*, Max-Planck-Institut fur Polymerforschung, Ackermannweg, Germany, 1998
 
-![Animation of a system of water molecules](animation.gif)
-
 ## The code
 The code makes use of C++ templates and concepts (thus it requires C++20) and is organised in many header files, that can be included from a single compilation unit. It is organised in the following way:
 * `physics`: directory which contains part of code relevant to the resolution of the physical/numerical problem.
