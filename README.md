@@ -19,11 +19,11 @@ Plus (+) = %2B
 Space = %20
 Comma (,) = %2C
 --->
-<img src="https://latex.codecogs.com/gif.latex?V=\sum_{i\sim%20j}K_{ij}^r\left(r_{ij}-r_{ij}^0\right)^2%2B\sum_{i\sim%20j\sim%20k}K_{ijk}^{\theta}%20\left(\theta_{ijk}-\theta_{ijk}^0\right)^2%2B\sum_{i\sim\cdot\sim%20k}K_{ik}^{UB}\left(r_{ik}-r_{ik}^0\right)^2\\">
-<img src="https://latex.codecogs.com/gif.latex?\qquad%2B\sum_{i\sim%20j\sim%20k\sim%20l%2Cn}K_{ijkl}^{\chi}%20\left(1%2B\cos\left(n\chi_{ijkl}-\delta_{ijkl}\right)\right)%2B\sum_{ijkl\%20\text{impropers}}K_{ijkl}^{\psi}\left(\psi_{ijkl}-\psi_{ijkl}^0\right)^2\\">
-<img src="https://latex.codecogs.com/gif.latex?\qquad%2B\sum_{i<j}\epsilon_{ij}\left(\left(\frac{R_{ij}}{r_{ij}}\right)^{12}-2\left(\frac{R_{ij}}{r_{ij}}\right)^6\right)%2B\sum_{i<j}k_C\frac{q_i%20q_j}{r_{ij}^2}">
+<img src="https://latex.codecogs.com/svg.image?V=\sum_{i\sim%20j}K_{ij}^r\left(r_{ij}-r_{ij}^0\right)^2%2B\sum_{i\sim%20j\sim%20k}K_{ijk}^{\theta}%20\left(\theta_{ijk}-\theta_{ijk}^0\right)^2%2B\sum_{i\sim\cdot\sim%20k}K_{ik}^{UB}\left(r_{ik}-r_{ik}^0\right)^2\\">
+<img src="https://latex.codecogs.com/svg.image?\qquad%2B\sum_{i\sim%20j\sim%20k\sim%20l%2Cn}K_{ijkl}^{\chi}%20\left(1%2B\cos\left(n\chi_{ijkl}-\delta_{ijkl}\right)\right)%2B\sum_{ijkl\%20\text{impropers}}K_{ijkl}^{\psi}\left(\psi_{ijkl}-\psi_{ijkl}^0\right)^2\\">
+<img src="https://latex.codecogs.com/svg.image?\qquad%2B\sum_{i<j}\epsilon_{ij}\left(\left(\frac{R_{ij}}{r_{ij}}\right)^{12}-2\left(\frac{R_{ij}}{r_{ij}}\right)^6\right)%2B\sum_{i<j}k_C\frac{q_i%20q_j}{r_{ij}^2}">
 
-The first term describes the bond potential, modeled as an elastic potential between bonded atoms (with elastic constant <img src="https://render.githubusercontent.com/render/math?math=k^r=2K^r">), the second term is the angle potential, the third term is the Urey-Bradley potential, acting between 1-3 atoms, the fourth and fifth terms describe the dihedral (proper and improper) angles potentials and the last two terms correspond to non-bonded potentials (Lennard-Jones and electrostatic respectively).
+The first term describes the bond potential, modeled as an elastic potential between bonded atoms (with elastic constant <img src="https://latex.codecogs.com/svg.image?k^r=2K^r">), the second term is the angle potential, the third term is the Urey-Bradley potential, acting between 1-3 atoms, the fourth and fifth terms describe the dihedral (proper and improper) angles potentials and the last two terms correspond to non-bonded potentials (Lennard-Jones and electrostatic respectively).
 
 References:
 * M. P. Allen, D. J. Tildesley, *Computer Simulation of Liquids*, Oxford University Press, 2017
@@ -33,42 +33,75 @@ References:
 
 ### Ewald summation
 
-In a cubic periodic system of side <img src="https://latex.codecogs.com/gif.latex?L">, the electrostatic potential is given by:
+In a cubic periodic system of side <img src="https://latex.codecogs.com/svg.image?L">, the electrostatic potential is given by:
 
-<img src="https://latex.codecogs.com/gif.latex?V=\frac{1}{2}\sum_{ij}^N\sum_{\mathrm{n}\in%20Z^3}^{%27}\frac{q_i%20q_j}{\left|\mathrm{r}_{ij}%2B\mathrm{n}L\right|}">
+<img src="https://latex.codecogs.com/svg.image?V_C=\frac{1}{2}\sum_{ij}^N\sum_{\mathrm{n}\in%20Z^3}^{%27}\frac{z_i%20z_j}{\left|\mathrm{r}_{ij}%2B\mathrm{n}L\right|}">
 
-where the prime symbol means that the <img src="https://latex.codecogs.com/gif.latex?i=j"> term must be excluded for <img src="https://latex.codecogs.com/gif.latex?\mathrm{n}=\mathrm{0}">. As it is not practical to calculate all the contributions directly, it is more convenient to calculate the long-range part in Fourier space, leading to a formula which converges much faster than the previous equation. To do so, the Green's function must be separated in the following way:
+where the prime symbol means that the <img src="https://latex.codecogs.com/svg.image?i=j"> term must be excluded for <img src="https://latex.codecogs.com/svg.image?\mathrm{n}=\mathrm{0}">, and <img src="https://latex.codecogs.com/svg.image?z_i=\sqrt{k_C}q_i">. As it is not practical to calculate all the contributions directly, it is more convenient to calculate the long-range part in Fourier space, leading to a formula which converges much faster than the previous equation. To do so, the Green's function must be separated in the following way:
 
-<img src="https://latex.codecogs.com/gif.latex?\frac{1}{r}=\frac{f(r)}{r}%2B\frac{1-f(r)}{r}">
+<img src="https://latex.codecogs.com/svg.image?\frac{1}{r}=\frac{f(r)}{r}%2B\frac{1-f(r)}{r}">
 
-where <img src="https://latex.codecogs.com/gif.latex?f(r)"> is the known as the splitting function. Choosing <img src="https://latex.codecogs.com/gif.latex?f(r)"> to be the complementary error function, one obtains the classical Ewald summation, whose terms are given by:
+where <img src="https://latex.codecogs.com/svg.image?f(r)"> is sometimes referred to as the splitting function. Choosing <img src="https://latex.codecogs.com/svg.image?f(r)"> to be the complementary error function, one obtains the classical Ewald summation, whose terms are given by:
 
-<img src="https://latex.codecogs.com/gif.latex?V=V^{(r)}%2BV^{(k)}%2BV^{(s)}%2BV^{(d)}">
-<img src="https://latex.codecogs.com/gif.latex?V^{(r)}=\frac{1}{2}\sum_{ij}^N\sum_{\mathrm{n}\in%20Z^3}^{%27}q_i%20q_j\frac{\text{erfc}\left(\kappa\left|\mathrm{r}_{ij}%2B\mathrm{n}L\right|\right)}{\left|\mathrm{r}_{ij}%2B\mathrm{n}L\right|}">
-<img src="https://latex.codecogs.com/gif.latex?V^{(k)}=\frac{1}{2L^3}\sum_{\mathrm{n}\neq\mathrm{0}}\frac{4\pi}{k_n^2}e^{-k_n^2/4\kappa^2}\left|\tilde{\rho}(\mathrm{k}_n)\right|^2">
+<img src="https://latex.codecogs.com/svg.image?V_C=V^{(r)}%2BV^{(k)}%2BV^{(s)}%2BV^{(d)}">
+<img src="https://latex.codecogs.com/svg.image?V^{(r)}=\frac{1}{2}\sum_{ij}^N\sum_{\mathrm{n}\in%20Z^3}^{%27}z_i%20z_j\frac{\text{erfc}\left(\kappa\left|\mathrm{r}_{ij}%2B\mathrm{n}L\right|\right)}{\left|\mathrm{r}_{ij}%2B\mathrm{n}L\right|}">
+<img src="https://latex.codecogs.com/svg.image?V^{(k)}=\frac{1}{2L^3}\sum_{\mathrm{n}\neq\mathrm{0}}\frac{4\pi}{k_{\mathrm{n}}^2}e^{-k_{\mathrm{n}}^2/4\kappa^2}\left|\tilde{\rho}(\mathrm{k_n})\right|^2=\frac{1}{2L^3}\sum_{\mathrm{n}\neq\mathrm{0}}\tilde{g}(k_{\mathrm{n}})\tilde{\gamma}(k_{\mathrm{n}})\left|\tilde{\rho}(\mathrm{k_n})\right|^2">
+<img src="https://latex.codecogs.com/svg.image?V^{(s)}=-\frac{\kappa}{\sqrt{\pi}}\sum_i%20z_i^2">
+<img src="https://latex.codecogs.com/svg.image?V^{(d)}=\frac{2\pi}{(1+2\epsilon_r)L^3}\left(\sum_i%20z_i\mathrm{r}_i\right)^2">
 
-where <img src="https://latex.codecogs.com/gif.latex?V^{(r)}"> ... etc...
+where <img src="https://latex.codecogs.com/svg.image?V^{(r)}"> is the contribution from real space (short-range), <img src="https://latex.codecogs.com/svg.image?V^{(k)}"> is the contribution from the reciprocal space (long-range), <img src="https://latex.codecogs.com/svg.image?V^{(s)}"> is the self-energy correction and <img src="https://latex.codecogs.com/svg.image?V^{(d)}"> is the dipole correction. The Fourier transform of the charge density <img src="https://latex.codecogs.com/svg.image?\tilde{\rho}"> is defined as:
+
+<img src="https://latex.codecogs.com/svg.image?\tilde{\rho}(\mathrm{k})=\int_V%20\rho(\mathrm{r})e^{-i\mathrm{k}\cdot\mathrm{r}}d^3r=\sum_{j=1}^Nz_je^{-i\mathrm{k}\cdot\mathrm{r}_j">
+
+The <img src="https://latex.codecogs.com/svg.image?\mathrm{k_n}">-vectors are given by <img src="https://latex.codecogs.com/svg.image?\mathrm{k_n}=2\pi\mathrm{n}/L">, while <img src="https://latex.codecogs.com/svg.image?\epsilon_r"> is the relative dielectric constant (equal to 1 in vacuum) and <img src="https://latex.codecogs.com/svg.image?\kappa"> is a free parameter, known as the Ewald parameter.
 
 ### PPPM method
 
-TODO
+The particle-particle, particle-mesh (PPPM, or P<sup>3</sup>M) method can be applied to speed up the calculation of the reciprocal space term of Ewald summation thanks to fast Fourier transform (FFT) algorithms. Since FFT is based on discrete Fourier transforms (DFT), it requires sample points to be equally spaced, so a necessary preparatory step is to interpolate the charges on a 3-dimensional lattice (called mesh) with spacing <img src="https://latex.codecogs.com/svg.image?h">. The charge of a single mesh point <img src="https://latex.codecogs.com/svg.image?\mathrm{r_p}"> is given by:
+
+<img src="https://latex.codecogs.com/svg.image?z_M(\mathrm{r_p})=\int_VW(\mathrm{r_p}-\mathrm{r})\rho(\mathrm{r})d^3r=\sum_{i=1}^Nz_iW(\mathrm{r_p}-\mathrm{r}_i)">
+
+where <img src="https://latex.codecogs.com/svg.image?\mathrm{p}=h\mathrm{n}"> <img src="https://latex.codecogs.com/svg.image?W"> is the charge assignment function, which is chosen so that the sum behaves as a convolution with a small window (so that the cost of the computation of <img src="https://latex.codecogs.com/svg.image?z_M"> is <img src="https://latex.codecogs.com/svg.image?O(N)">. Its Fourier transform can be written as a DFT:
+
+<img src="https://latex.codecogs.com/svg.image?\tilde{z}_M(\mathrm{k_n})=\sum_{\mathrm{r_p}\in%20M}z_M(\mathrm{r_p})e^{-i\mathrm{k}\cdot\mathrm{r_p}">
+
+The reciprical space term of the potential is then given by:
+
+<img src="https://latex.codecogs.com/svg.image?V^{(k)}=\frac{1}{2L^3}\sum_{\mathrm{n}\neq\mathrm{0}}\tilde{G}_{opt}(k_{\mathrm{n}})\left|\tilde{z}_M(\mathrm{k_n})\right|^2">
+
+where <img src="https://latex.codecogs.com/svg.image?\tilde{G}_{opt}"> is the optimal influence function, given by:
+
+<img src="https://latex.codecogs.com/svg.image?\tilde{G}_{opt}(\mathrm{k})=\frac{\tilde{\mathrm{D}}(\mathrm{k})\cdot\sum_{\mathrm{m}\in%20Z^3}\tilde{U}^2\left(\mathrm{k}%2B\frac{2\pi}{h}\mathrm{m}\right)\tilde{\mathrm{R}}\left(\mathrm{k}%2B\frac{2\pi}{h}\mathrm{m}\right)}{\left|\tilde{\mathrm{D}}(\mathrm{k})\right|^2\left[\sum_{\mathrm{m}\in%20Z^3}\tilde{U}^2\left(\mathrm{k}%2B\frac{2\pi}{h}\mathrm{m}\right)\right]^2}">
+
+where <img src="https://latex.codecogs.com/svg.image?\tilde{U}(\mathrm{k})"> is defined as:
+
+<img src="https://latex.codecogs.com/svg.image?\tilde{U}(\mathrm{k})=\frac{1}{h^3}\tilde{W}(\mathrm{k})">
+
+<img src="https://latex.codecogs.com/svg.image?\tilde{\mathrm{D}}(\mathrm{k})"> is the Fourier transform of the differential operator and <img src="https://latex.codecogs.com/svg.image?\tilde{\mathrm{R}}(\mathrm{k})"> is the Fourier transform of the true reference force:
+
+<img src="https://latex.codecogs.com/svg.image?\tilde{\mathrm{R}}(\mathrm{k})=-i\mathrm{k}\tilde{g}(k)\tilde{\gamma}(k)">
 
 References:
 * M. Deserno, C. Holm, *How to mesh up Ewald sums (I): A theoretical and numerical comparison of various particle mesh routines*, Max-Planck-Institut fur Polymerforschung, Ackermannweg, Germany, 1998
 
 ## The code
 The code makes use of C++ templates and concepts (thus it requires C++20) and is organised in many header files, that can be included from a single compilation unit. It is organised in the following way:
+* `math`: directory which contains helper functions and FFT implementation
+  * `dft.hpp`: contains the `dft` class which implements a simple radix-2 FFT algorithm for both real and complex inputs, and also multidimensional variants.
+  * `helper.hpp`: some math helper functions.
 * `physics`: directory which contains part of code relevant to the resolution of the physical/numerical problem.
-  * `fmm.hpp`: fast multipole method for fast calculation of long-range forces (not implemented yet).
+  * `ewald.hpp`: Ewald summation and PPPM method for fast calculation of long-range forces.
   * `integrator.hpp`: classes and concepts for integration of classical (hamiltonian and not) dynamical systems.
   * `molecule.hpp`: classes, methods and other utilites for managing molecular systems (for now, you have only water molecules, also the dihedral potential part must be added).
   * `physics.hpp`: mainly a header file that includes everything.
   * `point.hpp`: classes, aliases and data structures for use in generic dynamical systems.
 * `shaders`: directory which contains shaders for the rendering of impostors (for fast rendering of spheres), post-processing filters (fast approximate anti-aliasing, blue noise dithering) and text.
+* `utils`: directory which contains some utilities used in this project.
+  * `parallel_sort.hpp`: multi-threaded parallel sorting algorithm based on `std::sort`, `std::inplace_merge` and `utils::thread_pool`.
+  * `thread_pool.hpp`: a simple multi-queue thread pool based on `std::jthread`. It reuses threads for many tasks instead of creating and destroying them continuously and thus avoids some overhead.
 * `controls.hpp`: includes a function to manage keyboard and mouse controls.
 * `Font.hpp`: class for drawing text on the window.
 * `graphics.hpp`: class that manages the graphics used in this specific program.
-* `math.hpp`: some math helper functions.
 * `shader.hpp`: some functions to load shaders from file.
 * `main.cpp`: it just contains the main loop and some basic initialization of the system (it can be ignored or modified).
 
