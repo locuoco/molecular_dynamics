@@ -91,7 +91,7 @@ The particle-particle, particle-mesh (PPPM, or P<sup>3</sup>M) method can be app
 where <img src="https://latex.codecogs.com/svg.image?\mathrm{p}=h\mathrm{n}"/> and <img src="https://latex.codecogs.com/svg.image?W"/> is the charge assignment function, which is chosen so that the sum behaves as a convolution with a small window (so that the cost of the computation of <img src="https://latex.codecogs.com/svg.image?z_M"/> is <img src="https://latex.codecogs.com/svg.image?O(N)"/>). Its Fourier transform can be written as a DFT:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\tilde{z}_M(\mathrm{k_n})=\sum_{\mathrm{r_p}\in%20M}z_M(\mathrm{r_p})e^{-i\mathrm{k}\cdot\mathrm{r_p}"/>
+<img src="https://latex.codecogs.com/svg.image?\tilde{z}_M(\mathrm{k_n})=\sum_{\mathrm{r_p}\in%20M}z_M(\mathrm{r_p})e^{-i\mathrm{k_n}\cdot\mathrm{r_p}"/>
 </div>
 
 The reciprical space term of the potential is then given by:
