@@ -108,12 +108,12 @@ namespace math
 	T fastexp(T x) noexcept
 	// based on the fundamental limit:
 	// (1 + x/n)^n -> e^x for n -> inf
-	// and the exponentiation by squaring,
+	// and exponentiation by squaring,
 	// with n = 2^exponent
 	// if exponent is too big, underflows/truncation errors are likely to occur
 	// if it is too small, the result will be inaccurate for big values of |x|.
 	// These limitations make this algorithm not suited to obtain a correct
-	// result up to machine epsilon, but it is really fast
+	// result up to machine precision, but it is really fast
 	{
 		x = 1 + x / (1ull << exponent);
 		for (std::size_t i = 0; i < exponent; ++i)
@@ -180,8 +180,9 @@ namespace math
 
 	template <typename T>
 	T clamp(T x, T a, T b) noexcept
+	// clamp x between a and b
 	{
-		return x>b?b:x<a?a:x;
+		return x>b?b:x<a?a:x; // c:
 	}
 
 }
