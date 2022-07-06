@@ -41,6 +41,7 @@ References:
   * [Ewald summation](#ewald-summation)
   * [PPPM method](#pppm-method)
   * [Nosé-Hoover thermostat](#nosé-hoover-thermostat)
+  * [Integration schemes](#integration-schemes)
 * [The code](#the-code)
   * [Dependencies](#dependencies)
   * [Compilation](#compilation)
@@ -133,7 +134,7 @@ References:
 
 ### Nosé-Hoover thermostat
 
-Simulating a system by integrating the Hamiltonian equations of motion will naturally result in a microcanonical (NVE) ensemble, in which the total energy is conserved. In many applications, the internal energy of the system is not known a priori and it is more useful to control the temperature, and, in particular, one is interested in simulating a canonical (NVT) ensemble. One way to control the temperature is to employ isokinetic equations of motions, which are derived to constrain the kinetic energy to be conserved through a friction coefficient <img src="https://latex.codecogs.com/svg.image?\xi"/>:
+Simulating a system by integrating the Hamilton's equations of motion will naturally result in a microcanonical (NVE) ensemble, in which the total energy is conserved. In many applications, the internal energy of the system is not known a priori and it is more useful to control the temperature, and, in particular, one is interested in simulating a canonical (NVT) ensemble. One way to control the temperature is to employ isokinetic equations of motions, which are derived to constrain the kinetic energy to be conserved through a friction coefficient <img src="https://latex.codecogs.com/svg.image?\xi"/>:
 
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\dot{\mathrm{r}}_i=\frac{\mathrm{p}_i}{m_i}%2C\qquad\dot{\mathrm{p}}_i=\mathrm{f}_i-\xi\mathrm{p}_i\\"/>
@@ -153,10 +154,10 @@ The Nosé-Hoover thermostat equations, instead, are (without scaling, given by H
 <img src="https://latex.codecogs.com/svg.image?\dot{\eta}=\frac{p_{\eta}}{Q}%2C\qquad\dot{p}_{\eta}=\sum_i\frac{p_i^2}{m_i}-gk_BT"/>
 </div>
 
-where <img src="https://latex.codecogs.com/svg.image?g"/> is the number of degrees of freedom while <img src="https://latex.codecogs.com/svg.image?Q"/> is a thermal intertia. These equations allow small oscillations in instantaneous temperature (whose magnitude depends on the number of the degrees of freedom), but, at equilibrium, they are able to sample the canonical ensemble for both configurations and momenta. They conserve an energy-like quantity:
+where <img src="https://latex.codecogs.com/svg.image?g"/> is the number of degrees of freedom while <img src="https://latex.codecogs.com/svg.image?Q"/> is a thermal intertia. These equations allow small oscillations in instantaneous temperature (whose magnitude depends on the number of the degrees of freedom), but, at equilibrium, they are able to sample the canonical ensemble for both configurations and momenta. They conserve an energy-like quantity, corresponding to the total Hamiltonian of the system containing the particles and the thermostat:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\mathcal{H}=\mathcal{T}%2B\mathcal{V}%2B\frac{p_{\eta}^2}{2Q}%2Bgk_BT\eta"/>
+<img src="https://latex.codecogs.com/svg.image?\mathcal{H}_{tot}=\mathcal{T}%2B\mathcal{V}%2B\frac{p_{\eta}^2}{2Q}%2Bgk_BT\eta"/>
 </div>
 
 For systems with few degrees of freedom, the system shows lack of ergodicity and the Nosé-Hoover thermostat shows problems in sampling the equilibrium distribution. It is possible, in this case, to use a thermostats chain:
@@ -180,7 +181,7 @@ where the driving forces are defined as:
 and the conserved quantity is then:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\mathcal{H}=\mathcal{T}%2B\mathcal{V}%2B\sum_{j=1}^M\frac{p_{\eta_j}^2}{2Q_j}%2Bgk_BT\eta_1%2B\sum_{j=2}^Mk_BT\eta_j"/>
+<img src="https://latex.codecogs.com/svg.image?\mathcal{H}_{tot}=\mathcal{T}%2B\mathcal{V}%2B\sum_{j=1}^M\frac{p_{\eta_j}^2}{2Q_j}%2Bgk_BT\eta_1%2B\sum_{j=2}^Mk_BT\eta_j"/>
 </div>
 
 while <img src="https://latex.codecogs.com/svg.image?M"/> is number of thermostats.
@@ -189,8 +190,19 @@ References:
 * S. Nosé, *A unified formulation of the constant temperature molecular-dynamics methods*, Journal of Chemical Physics, 81 (1): pp. 511-519, 1984
 * W. G. Hoover, *Canonical dynamics: equilibrium phase-space distributions*, Physical Review A, 31, pp. 1695-1697, 1985
 * G. J. Martyna, M. L. Klein, *Nosé-Hoover chains: The canonical ensemble via continuous dynamics*, Journal of Chemical Physics, 97, 2635, 1992
-* S. G. Itoh, T. Morishita, H. Okumura, *Decomposition-order effects of time integrator on ensemble averages for the Nosé-Hoover thermostat*, The Journal of Chemical Physics, 139, 2013
 * I. Fukuda, K. Moritsugu, *Coupled Nosé-Hoover equations of motions without time scaling*, Journal of Physics A, 50, 015002, 2016
+
+### Integration schemes
+
+Differential equations can be integrated using various integration schemes. In particular, for a dynamical Hamiltonian system, symplectic integrators can be used. Leapfrog method is the most widely used integrator for molecular dynamics, which has the symplectic and time-reversibility properties. An accurate symplectic fourth-order method with 4 stages can be constructed (Omelyan et al., 2002). However, to simulate a canonical ensemble, Nosé-Hoover equations need to be integrated. Although the same numerical schemes can be used for this purpose, specialized second-order integrators might be more appropriate and efficient (Itoh et al., 2013). Higher-order methods can be constructed starting from a second-order one through structure-preserving composition schemes (Kahan and Li, 1997). Unfortunately, composition methods cannot be used to accelerate most molecular dynamics simulation since the time-step must be smaller than a certain threshold to maintain stability (however they can be employed to get more reliable simulations).
+Since the main sources of instability in a molecular dynamics simulation are the bonded terms of the potential (due to having much higher frequency than non-bonded terms), a way to accelerate simulations is to use different time-steps for bonded terms and non-bonded ones, since the computation of long-range forces require a considerable amount of time in the evaluation of the force field.
+
+References:
+* I. P. Omelyan, I. M. Mryglod, R. Folk, *Optimized Forest-Ruth- and Suzuki-like algorithms for integration of motion in many-body systems*, Computer Physics Communications, 2002
+* W. Kahan, R.-C. Li, *Composition constants for raising the orders of unconventional schemes for ordinary differential equations*, Mathematics of Computation 66(219), pp. 1089-1099, 1997
+* E. Hairer, G. Wanner, C. Lubich, *Geometric Numerical Integration. Structure-Preserving Algorithms for Ordinary Differential Equations*, Springer Series in Computational Mathematics, 2006
+* [Mathematics Source Library C & ASM, Runge-Kutta Methods](http://www.mymathlib.com/diffeq/runge-kutta/)
+* S. G. Itoh, T. Morishita, H. Okumura, *Decomposition-order effects of time integrator on ensemble averages for the Nosé-Hoover thermostat*, The Journal of Chemical Physics, 139, 2013
 
 ## The code
 The code makes use of C++ templates and concepts (thus it requires C++20) and is organised in many header files, that can be included from one or more compilation units. It is organised in the following way:
