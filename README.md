@@ -195,6 +195,7 @@ References:
 ### Integration schemes
 
 Differential equations can be integrated using various integration schemes. In particular, for a dynamical Hamiltonian system, symplectic integrators can be used. Leapfrog method is the most widely used integrator for molecular dynamics, which has the symplectic and time-reversibility properties. An accurate symplectic fourth-order method with 4 stages can be constructed (Omelyan et al., 2002). However, to simulate a canonical ensemble, Nosé-Hoover equations need to be integrated. Although the same numerical schemes can be used for this purpose, specialized second-order integrators might be more appropriate and efficient (Itoh et al., 2013). Higher-order methods can be constructed starting from a second-order one through structure-preserving composition schemes (Kahan and Li, 1997). Unfortunately, composition methods cannot be used to accelerate most molecular dynamics simulation since the time-step must be smaller than a certain threshold to maintain stability (however they can be employed to get more reliable simulations).
+
 Since the main sources of instability in a molecular dynamics simulation are the bonded terms of the potential (due to having much higher frequency than non-bonded terms), a way to accelerate simulations is to use different time-steps for bonded terms and non-bonded ones, since the computation of long-range forces require a considerable amount of time in the evaluation of the force field.
 
 References:
