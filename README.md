@@ -35,6 +35,17 @@ References:
 * M. P. Allen, D. J. Tildesley, *Computer Simulation of Liquids*, Oxford University Press, 2017
 * P. Spijker, B. Markvoort, P. Hilbers, *Parallel Utility for Modeling of Molecular Aggregation*, Biomodeling and bioinformatics, Eindhoven University of Technology, 2007
 
+#### Table of contents
+
+* [Molecular dynamics](#molecular-dynamics)
+  * [Ewald summation](#ewald-summation)
+  * [PPPM method](#pppm-method)
+  * [Nosé-Hoover thermostat](#nosé-hoover-thermostat)
+* [The code](#the-code)
+  * [Dependencies](#dependencies)
+  * [Compilation](#compilation)
+  * [Basic usage](#basic-usage)
+
 ![Animation of a system of water molecules](animation.gif)
 
 ### Ewald summation
@@ -112,13 +123,13 @@ where <img src="https://latex.codecogs.com/svg.image?\tilde{U}(\mathrm{k})=\tild
 <img src="https://latex.codecogs.com/svg.image?\tilde{\mathrm{R}}(\mathrm{k})=-i\mathrm{k}\tilde{g}(k)\tilde{\gamma}(k)"/>
 </div>
 
-Note that the influence function does not depend on the particles positions and thus can be calculated just once at the beginning of the simulation, as long as the volume of the simulation box does not vary. The series are highly convergent and can usually be truncated at <img src="https://latex.codecogs.com/svg.image?|\mathrm{n}|=2"/>. Note also that the same steps can be performed for the calculation of the dispersion forces (i.e. the ones arising from
+Note that the influence function does not depend on the particles positions and thus can be calculated just once at the beginning of the simulation, as long as the volume of the simulation box does not vary. The series are highly convergent and can usually be truncated at <img src="https://latex.codecogs.com/svg.image?|\mathrm{m}|=2"/>. Note also that the same steps can be performed for the calculation of the dispersion forces (i.e. the ones arising from
 <img src="https://latex.codecogs.com/svg.image?1/r^6"/> part of the Lennard-Jones potential or the Buckingham potential).
 
 References:
 * R. W. Hockney, J. W. Eastwood, *Computer Simulation Using Particles*, Bristol: Adam Hilger, 1988
-* M. Deserno, C. Holm, *How to mesh up Ewald sums (I): A theoretical and numerical comparison of various particle mesh routines*, Max-Planck-Institut fur Polymerforschung, Ackermannweg, Germany, 1998
-* R. E. Isele-Holder, W. Mitchell, A. E. Ismail, *Development and application of a particle-particle particle-mesh Ewald method for dispersion interactions*, Faculty of Mechanical Engineering, AICES Graduate School, RWTH Aachen University, Aachen, Germany, Loyola University, New Orleans, Louisiana, 2013
+* M. Deserno, C. Holm, *How to mesh up Ewald sums (I): A theoretical and numerical comparison of various particle mesh routines*, Journal of Chemical Physics, 109, 7678-7693, 1998
+* R. E. Isele-Holder, W. Mitchell, A. E. Ismail, *Development and application of a particle-particle particle-mesh Ewald method for dispersion interactions*, Journal of Chemical Physics, 137, 174107, 2012
 
 ### Nosé-Hoover thermostat
 
@@ -179,19 +190,19 @@ References:
 * W. G. Hoover, *Canonical dynamics: equilibrium phase-space distributions*, Physical Review A, 31, pp. 1695-1697, 1985
 * G. J. Martyna, M. L. Klein, *Nosé-Hoover chains: The canonical ensemble via continuous dynamics*, Journal of Chemical Physics, 97, 2635, 1992
 * S. G. Itoh, T. Morishita, H. Okumura, *Decomposition-order effects of time integrator on ensemble averages for the Nosé-Hoover thermostat*, The Journal of Chemical Physics, 139, 2013
-* I. Fukuda, K. Moritsugu, *Coupled Nosé-Hoover equations of motions without time scaling*, Institute for Protein Research, Osaka University, Japan, Graduate School of Medical Life Science, Yokohama City University, Japan, 2016
+* I. Fukuda, K. Moritsugu, *Coupled Nosé-Hoover equations of motions without time scaling*, Journal of Physics A, 50, 015002, 2016
 
 ## The code
-The code makes use of C++ templates and concepts (thus it requires C++20) and is organised in many header files, that can be included from a single compilation unit. It is organised in the following way:
+The code makes use of C++ templates and concepts (thus it requires C++20) and is organised in many header files, that can be included from one or more compilation units. It is organised in the following way:
 * `math`: directory which contains helper functions and FFT implementation
   * `dft.hpp`: contains the `dft` class which implements a simple radix-2 FFT algorithm for both real and complex inputs, and also multidimensional variants.
   * `helper.hpp`: some math helper functions.
 * `physics`: directory which contains part of code relevant to the resolution of the physical/numerical problem.
   * `ewald.hpp`: Ewald summation and PPPM method for fast calculation of long-range forces.
-  * `integrator.hpp`: classes and concepts for integration of classical (hamiltonian and not) dynamical systems.
+  * `integrator.hpp`: classes and concepts for integration of (hamiltonian and not) dynamical systems.
   * `molecule.hpp`: classes, methods and other utilites for managing molecular systems (for now, you have only water molecules, also the dihedral potential part must be added).
   * `physics.hpp`: mainly a header file that includes everything.
-  * `point.hpp`: classes, aliases and data structures for use in generic dynamical systems.
+  * `point.hpp`: classes, aliases and data structures for vectors, matrices and tensors with some helper function.
 * `shaders`: directory which contains shaders for the rendering of impostors (for fast rendering of spheres), post-processing filters (fast approximate anti-aliasing, blue noise dithering) and text.
 * `utils`: directory which contains some utilities used in this project.
   * `parallel_sort.hpp`: multi-threaded parallel sorting algorithm based on `std::sort`, `std::inplace_merge` and `utils::thread_pool`.
@@ -220,11 +231,11 @@ These dependencies are required only for these header files:
 
 To compile the program, simply do (with MinGW):
 
-    g++ main.cpp -o mold -std=c++20 -I <includes> -L <libs> -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -O3
+    g++ main.cpp -o mold -std=c++20 -I <includes> -L <libs> -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast
 
 On Linux, the library names could be different:
 
-    g++ main.cpp -o mold -std=c++20 -I <includes> -L <libs> -lopengl -lglu -lglew -lglfw3 -lfreetype -Wall -Wextra -pedantic -O3
+    g++ main.cpp -o mold -std=c++20 -I <includes> -L <libs> -lopengl -lglu -lglew -lglfw3 -lfreetype -Wall -Wextra -pedantic -Ofast
 
 where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files (if required). The executable will be called `mold`.
 

@@ -23,7 +23,7 @@
 #include <functional> // function
 #include <algorithm> // fill, copy
 #include <complex>
-#include <stdexcept> // runtime_error
+#include <stdexcept> // invalid_argument
 
 #include "point.hpp"
 #include "../math/helper.hpp" // fasterfc, fastexp, mod
@@ -405,9 +405,9 @@ namespace physics
 			if (s.n < 2)
 				return;
 			if (order < 1)
-				throw std::runtime_error("Error: minimum PPPM order is 1");
+				throw std::invalid_argument("Error: minimum PPPM order is 1");
 			if (order > pppm_max_order)
-				throw std::runtime_error("Error: maximum PPPM order is 7");
+				throw std::invalid_argument("Error: maximum PPPM order is 7");
 
 			size_t num_cells = 1ull << size_t(std::round(std::log2(s.n)/3));
 			size_t m = num_cells*num_cells*num_cells;

@@ -26,6 +26,7 @@
 #include <cmath> // sqrt, atan2, pow
 #include <random> // mt19937_64, normal_distribution
 #include <thread>
+#include <stdexcept> // runtime_error
 
 #include "../math/helper.hpp" // deg2rad
 
@@ -195,7 +196,7 @@ namespace physics
 			using std::sqrt;
 
 			if (n + mol.n > max_atoms)
-				throw("Error: Exceeded maximum number of atoms");
+				throw std::runtime_error("Error: Exceeded maximum number of atoms");
 			state<T, 3> x_tmp = x, p_tmp = p, v_tmp = v, f_tmp = f;
 			x.resize(n + mol.n);
 			p.resize(n + mol.n);

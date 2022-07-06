@@ -23,7 +23,7 @@
 #include <complex>
 #include <numbers> // numbers::pi_v
 #include <concepts> // convertible_to
-#include <stdexcept> // runtime_error
+#include <stdexcept> // invalid_argument
 
 #include "../utils/thread_pool.hpp"
 
@@ -67,7 +67,7 @@ namespace math
 		using std::size_t;
 		size_t n = std::distance(first, last);
 		if ((n&(n-1)) != 0)
-			throw std::runtime_error("number of elements is not a power of 2!");
+			throw std::invalid_argument("number of elements is not a power of 2!");
 		size_t n_bits = num_bits(n-1);
 		for (size_t i = 0; i < n; ++i)
 		{
@@ -96,7 +96,7 @@ namespace math
 			size_t n = std::distance(first, last);
 			bit_reversal_permutation(first, last);
 			if ((n&(n-1)) != 0 || !n)
-				throw std::runtime_error("n is not a power of 2!");
+				throw std::invalid_argument("n is not a power of 2!");
 			for (size_t i = 1; i <= n/2; i *= 2)
 			{
 				T ki = -std::numbers::pi_v<T> / i;
