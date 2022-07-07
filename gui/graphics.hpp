@@ -32,7 +32,7 @@
 
 #include "shader.hpp"
 #include "controls.hpp"
-#include "physics/molecule.hpp"
+#include "../physics/molecule.hpp"
 
 #define USE_POINT
 #include "Font.hpp"
@@ -431,7 +431,7 @@ class graphics
 			glGenTextures(1, &texBlueNoise);
 			glBindTexture(GL_TEXTURE_2D, texBlueNoise);
 			int bnw, bnh, bnc;
-			unsigned char *blueNoiseData = stbi_load("LDR_RGB1_0.png", &bnw, &bnh, &bnc, 3);
+			unsigned char *blueNoiseData = stbi_load("gui/LDR_RGB1_0.png", &bnw, &bnh, &bnc, 3);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, bnw, bnh, 0, GL_RGB, GL_UNSIGNED_BYTE, blueNoiseData);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -442,14 +442,14 @@ class graphics
 
 			std::free(blueNoiseData); // was allocated with malloc() and not new[]
 
-			progFXAAID = loadShader("shaders/vertexpost.vsh", "shaders/fragmentfxaa.fsh");
+			progFXAAID = loadShader("gui/shaders/vertexpost.vsh", "gui/shaders/fragmentfxaa.fsh");
 
-			progID = loadShader("shaders/vertex.vsh", "shaders/fragment.fsh");
+			progID = loadShader("gui/shaders/vertex.vsh", "gui/shaders/fragment.fsh");
 
 			if (!progID || !progFXAAID)
 				return -1;
 
-			font = new Font("LiberationSans-Regular.ttf", 24, w, h);
+			font = new Font("gui/LiberationSans-Regular.ttf", 24, w, h);
 
 			if (!font -> good())
 				return -1;

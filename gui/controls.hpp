@@ -20,7 +20,7 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#include "math/helper.hpp"
+#include "../math/helper.hpp"
 
 namespace controls
 {
@@ -124,17 +124,17 @@ inline void updateControls(GLFWwindow* window, int w, int h, double dt)
 
 	vel -= vel * (friction * dt);
 
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
 		vel += horDir * (dt * acc);
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
 		vel -= horDir * (dt * acc);
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
 		vel += right * (dt * acc);
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
 		vel -= right * (dt * acc);
 	if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
 		vel += up * (dt * acc);
-	if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+	if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS)
 		vel -= up * (dt * acc);
 
 	pos += vel * dt;
@@ -142,6 +142,7 @@ inline void updateControls(GLFWwindow* window, int w, int h, double dt)
 	if (glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS)
 	{
 		// namespace controls needed to avoid compilation error
+		// for some compilers
 		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
 			controls::gamma += dt * strengthSpeed;
 		if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)

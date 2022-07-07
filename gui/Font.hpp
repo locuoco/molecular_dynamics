@@ -34,7 +34,7 @@
 
 #ifdef USE_POINT
 
-#include "physics/point.hpp"
+#include "../physics/point.hpp"
 
 #else
 
@@ -138,7 +138,7 @@ class Font
 		Font(const char* FontFile, const unsigned int font_size, const int wscreen, const int hscreen)
 			: precCol(1,1,1,1), w(wscreen), h(hscreen), init(false)
 		{
-			prog = loadShader("shaders/vertexfont.vsh", "shaders/fragmentfont.fsh");
+			prog = loadShader("gui/shaders/vertexfont.vsh", "gui/shaders/fragmentfont.fsh");
 
 			if (!prog)
 			{

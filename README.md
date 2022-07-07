@@ -207,7 +207,14 @@ References:
 
 ## The code
 The code makes use of C++ templates and concepts (thus it requires C++20) and is organised in many header files, that can be included from one or more compilation units. It is organised in the following way:
-* `math`: directory which contains helper functions and FFT implementation
+* `gui`: directory which contains the management of the GUI (Graphical User Interface).
+  * `shaders`: directory which contains shaders for the rendering of impostors (for fast rendering of spheres), post-processing filters (fast approximate anti-aliasing, blue noise dithering) and text.
+  * `controls.hpp`: includes a function to manage keyboard and mouse controls.
+  * `Font.hpp`: class for drawing text on the window.
+  * `graphics.hpp`: class that manages the graphics used in this specific program.
+  * `shader.hpp`: some functions to load shaders from file.
+  * `stb_image.h`: a single-header file, public domain library for loading images (taken from [here](https://github.com/nothings/stb/blob/master/stb_image.h)).
+* `math`: directory which contains helper functions and FFT implementation.
   * `dft.hpp`: contains the `dft` class which implements a simple radix-2 FFT algorithm for both real and complex inputs, and also multidimensional variants.
   * `helper.hpp`: some math helper functions.
 * `physics`: directory which contains part of code relevant to the resolution of the physical/numerical problem.
@@ -216,14 +223,9 @@ The code makes use of C++ templates and concepts (thus it requires C++20) and is
   * `molecule.hpp`: classes, methods and other utilites for managing molecular systems (for now, you have only water molecules, also the dihedral potential part must be added).
   * `physics.hpp`: mainly a header file that includes everything.
   * `point.hpp`: classes, aliases and data structures for vectors, matrices and tensors with some helper function.
-* `shaders`: directory which contains shaders for the rendering of impostors (for fast rendering of spheres), post-processing filters (fast approximate anti-aliasing, blue noise dithering) and text.
 * `utils`: directory which contains some utilities used in this project.
   * `parallel_sort.hpp`: multi-threaded parallel sorting algorithm based on `std::sort`, `std::inplace_merge` and `utils::thread_pool`.
   * `thread_pool.hpp`: a simple multi-queue thread pool based on `std::jthread`. It reuses threads for many tasks instead of creating and destroying them continuously and thus avoids some overhead.
-* `controls.hpp`: includes a function to manage keyboard and mouse controls.
-* `Font.hpp`: class for drawing text on the window.
-* `graphics.hpp`: class that manages the graphics used in this specific program.
-* `shader.hpp`: some functions to load shaders from file.
 * `main.cpp`: it just contains the main loop and some basic initialization of the system (it can be ignored or modified).
 
 ### Dependencies
@@ -251,7 +253,7 @@ On Linux, the library names could be different:
 
     g++ main.cpp -o mold -std=c++20 -I <includes> -L <libs> -lGL -lGLU -lGLEW -lglfw -lfreetype -Wall -Wextra -pedantic -Ofast
 
-where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files (if required). The executable will be called `mold`. If GCC is used for compilation, version 10+ is required for full C++20 support. Running the graphic part of the program requires OpenGL 3.3+.
+where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files (if required). The executable will be called `mold`. If GCC is used for compilation, version 10+ is required for full C++20 support. Running the graphical part of the program requires OpenGL 3.3+.
 
 To compile on Ubuntu, you can also run the shell script `compile.sh`.
 

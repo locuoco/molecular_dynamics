@@ -25,7 +25,7 @@ g++ main.cpp -o mold -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\Us
 */
 
 #include "physics/physics.hpp"
-#include "graphics.hpp"
+#include "gui/graphics.hpp"
 
 int main(const int, const char**)
 {

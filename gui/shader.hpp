@@ -36,7 +36,10 @@ std::string loadCode(const char* shaderPath)
 		shstream.close();
 	}
 	else
+	{
 		std::cerr << "Cannot open " << shaderPath << '.' << std::endl;
+		throw;
+	}
 	return shaderCode;
 }
 
