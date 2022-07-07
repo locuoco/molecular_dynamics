@@ -14,8 +14,8 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef SHADER_H
-#define SHADER_H
+#ifndef GUI_SHADER_H
+#define GUI_SHADER_H
 
 #include <iostream>
 #include <fstream>
@@ -61,6 +61,8 @@ void compileCode(GLuint shader, const std::string &code)
 		std::clog << mess << std::endl;
 		delete[] mess;
 	}
+	if (!st)
+		std::cerr << "Error in compiling " << code << '.' << std::endl;
 }
 
 void programLog(GLuint prog)
@@ -77,6 +79,8 @@ void programLog(GLuint prog)
 		std::clog << mess << std::endl;
 		delete[] mess;
 	}
+	if (!st)
+		std::cerr << "Error with linking program :(" << std::endl;
 }
 
 GLuint loadShader(const char* vsPath, const char* fsPath)
@@ -145,7 +149,7 @@ GLuint loadShaderTessellation(const char* vsPath, const char* tcsPath, const cha
 	return prog;
 }
 
-#endif
+#endif // GUI_SHADER_H
 
 
 

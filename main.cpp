@@ -75,7 +75,6 @@ int main(const int, const char**)
 		//molsys.temperature_fixed = end_temp + (molsys.temperature_fixed - end_temp) * 0.9999;
 		for (int i = 0; i < 2; ++i)
 			molsys.step(1e-3);
-		//std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		window.draw(molsys);
 	}
 

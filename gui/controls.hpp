@@ -14,8 +14,8 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef CONTROLS_H
-#define CONTROLS_H
+#ifndef GUI_CONTROLS_H
+#define GUI_CONTROLS_H
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -32,6 +32,7 @@ namespace controls
 	double vertVel = 0;
 	double horAngle = math::pi<double>();
 	double vertAngle = 0;
+	double last_xpos = 0, last_ypos = 0;
 	double FoV = 90;
 	double gamma = 2.2+1./30;
 	bool cursor_disabled = false;
@@ -65,20 +66,23 @@ inline void updateControls(GLFWwindow* window, int w, int h, double dt)
 	{
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-		glfwSetCursorPos(window, w/2, h/2);
+		last_xpos = xpos;
+		last_ypos = ypos;
 
 		cursor_disabled = true;
 	}
 	else if (rightBPressed && cursor_disabled)
 	{
-		horVel += mouseAcc * (w/2 - xpos);
-		vertVel += mouseAcc * (h/2 - ypos);
+		horVel += mouseAcc * (last_xpos - xpos);
+		vertVel += mouseAcc * (last_ypos - ypos);
 
-		glfwSetCursorPos(window, w/2, h/2);
+		last_xpos = xpos;
+		last_ypos = ypos;
 	}
 	else if (!rightBPressed && cursor_disabled)
 	{
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		glfwSetCursorPos(window, w/2, h/2);
 
 		cursor_disabled = false;
 	}
@@ -160,10 +164,9 @@ inline void updateControls(GLFWwindow* window, int w, int h, double dt)
     Proj = physics::mat4d(
 		f / aspect, 0, 0, 0,
 		0, f, 0, 0,
-		0, 0, 0, -1,
-		0, 0, 1.e-4, 0
+		0, 0, 0, 1.e-6,
+		0, 0, -1, 0
 	); // perspective projection with infinite far plane for reverse depth buffer
-	transpose(Proj);
 	View = physics::look_at(
 		pos,		// position
 		pos + dir,	// target
@@ -171,7 +174,7 @@ inline void updateControls(GLFWwindow* window, int w, int h, double dt)
 	);
 }
 
-#endif
+#endif // GUI_CONTROLS_H
 
 
 

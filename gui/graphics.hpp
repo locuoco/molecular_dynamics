@@ -14,8 +14,8 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef GRAPHICS_H
-#define GRAPHICS_H
+#ifndef GUI_GRAPHICS_H
+#define GUI_GRAPHICS_H
 
 #include <iostream>
 #include <fstream>
@@ -30,7 +30,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-#include "shader.hpp"
+#include "shader.hpp" // loadShader
 #include "controls.hpp"
 #include "../physics/molecule.hpp"
 
@@ -46,6 +46,18 @@
 #else
 #define EXPORT
 #endif
+
+#define CHECK_GL_ERROR() checkGlError(__FILE__, __LINE__)
+
+inline void checkGlError(const char *file, int line)
+{
+	if (GLenum err = glGetError(); err != GL_NO_ERROR)
+	{
+		std::cerr << "Error with code: " << err << '\n';
+		std::cerr << "Error message: " << gluErrorString(err) << ' ' << file << ' ' << line << std::endl;
+		exit(err);
+	}
+}
 
 // enable optimus, which chooses dedicated GPU if present
 extern "C"
@@ -132,17 +144,33 @@ class graphics
 		}
 
 		template <typename MolSys>
-		void draw(const MolSys& molsys)
+		void draw(const MolSys& molsys, bool testtt = false)
 		{
 			using std::remainder;
-			atomPosType.resize(4*molsys.n);
-
-			for (unsigned i = 0; i < molsys.n; ++i)
+			if (testtt)
 			{
-				atomPosType[i*4+0] = remainder(molsys.x[i][0], molsys.side);
-				atomPosType[i*4+1] = remainder(molsys.x[i][1], molsys.side);
-				atomPosType[i*4+2] = remainder(molsys.x[i][2], molsys.side);
-				atomPosType[i*4+3] = physics::atom_number[int(molsys.id[i])];
+				unsigned n_side = 100, n = 0;
+				atomPosType.resize(4*n_side*n_side*n_side);
+				for (unsigned i = 0; i < n_side; ++i)
+					for (unsigned j = 0; j < n_side; ++j)
+						for (unsigned k = 0; k < n_side; ++k)
+						{
+							atomPosType[n++] = 2*i;
+							atomPosType[n++] = 2*j;
+							atomPosType[n++] = 2*k;
+							atomPosType[n++] = 0;
+						}
+			}
+			else
+			{
+				atomPosType.resize(4*molsys.n);
+				for (unsigned i = 0; i < molsys.n; ++i)
+				{
+					atomPosType[i*4+0] = remainder(molsys.x[i][0], molsys.side);
+					atomPosType[i*4+1] = remainder(molsys.x[i][1], molsys.side);
+					atomPosType[i*4+2] = remainder(molsys.x[i][2], molsys.side);
+					atomPosType[i*4+3] = physics::atom_number[int(molsys.id[i])];
+				}
 			}
 
 			glfwPollEvents();
@@ -162,7 +190,8 @@ class graphics
 			glDepthFunc(GL_GEQUAL);
 			glClearDepth(0);
 
-			glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
+			//glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE); // requires OpenGL 4.5!!!
+			glDepthRange(-1, 1);
 
 			glEnable(GL_CULL_FACE);
 			glFrontFace(GL_CCW);
@@ -206,12 +235,12 @@ class graphics
 				nullptr		// array buffer offset
 			);
 
-			if (molsys.n > 0)
+			if (molsys.n > 0 || testtt)
 			{
 				glEnableVertexAttribArray(10);
 				glBindBuffer(GL_ARRAY_BUFFER, pb_inst);
 				glBufferData(GL_ARRAY_BUFFER, physics::molecular_system<float>::max_atoms*4*sizeof(float), nullptr, GL_STREAM_DRAW);
-				glBufferSubData(GL_ARRAY_BUFFER, 0, molsys.n*4*sizeof(float), atomPosType.data());
+				glBufferSubData(GL_ARRAY_BUFFER, 0, atomPosType.size()*sizeof(float), atomPosType.data());
 				glVertexAttribPointer(
 					10,			// location id in vertex shader
 					4,			// size
@@ -231,12 +260,14 @@ class graphics
 					GL_TRIANGLE_STRIP,	// type of primitive
 					0,					// offset
 					mesh_size/3,		// number of vertices
-					molsys.n
+					atomPosType.size()/4
 				);
 			}
 
 			glDisableVertexAttribArray(0);
 			glDisableVertexAttribArray(10);
+
+			CHECK_GL_ERROR();
 
 			// POST-PROCESSING
 
@@ -267,6 +298,8 @@ class graphics
 			glBindTexture(GL_TEXTURE_2D, texBlueNoise);
 
 			renderQuad();
+
+			CHECK_GL_ERROR();
 
 			// TEXT (render on same framebuffer)
 
@@ -304,12 +337,7 @@ class graphics
 			
 			glfwSwapBuffers(window);
 
-			GLenum err;
-			if ((err = glGetError()) != GL_NO_ERROR)
-			{
-				std::cerr << "Error with code: " << err << std::endl;
-				throw;
-			}
+			CHECK_GL_ERROR();
 
 			double nextTime = glfwGetTime();
 			dt = nextTime - lastTime;
@@ -352,6 +380,11 @@ class graphics
 			std::cerr << message << std::endl;
 		}
 
+		static void ErrorCallback(int, const char* description)
+		{
+			std::cout << description << std::endl;
+		}
+
 		int Init(const int w, const int h)
 		{
 			glewExperimental = GL_TRUE;
@@ -364,14 +397,16 @@ class graphics
 			}
 
 			glEnable(GL_DEBUG_OUTPUT);
-			glPatchParameteri(GL_PATCH_VERTICES, 3);
+			glDebugMessageCallback(DbgMessage, nullptr); // requires OpenGL 4.3
 
-			glDebugMessageCallback(DbgMessage, nullptr);
+			CHECK_GL_ERROR();
 
 			std::clog << "GLEW version: " << glewGetString(GLEW_VERSION) << std::endl;
 
 			glGenVertexArrays(1, &va);
 			glBindVertexArray(va);
+
+			CHECK_GL_ERROR();
 
 			mesh_size = 4*3;
 			float verts[]
@@ -386,9 +421,13 @@ class graphics
 			glBindBuffer(GL_ARRAY_BUFFER, vb_atom);
 			glBufferData(GL_ARRAY_BUFFER, mesh_size*sizeof(float), verts, GL_STATIC_DRAW);
 
+			CHECK_GL_ERROR();
+
 			glGenBuffers(1, &pb_inst);
 			glBindBuffer(GL_ARRAY_BUFFER, pb_inst);
 			glBufferData(GL_ARRAY_BUFFER, physics::molecular_system<float>::max_atoms*4*sizeof(float), nullptr, GL_STREAM_DRAW);
+
+			CHECK_GL_ERROR();
 
 			GLfloat square[12]
 			{
@@ -428,6 +467,8 @@ class graphics
 
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+			CHECK_GL_ERROR();
+
 			glGenTextures(1, &texBlueNoise);
 			glBindTexture(GL_TEXTURE_2D, texBlueNoise);
 			int bnw, bnh, bnc;
@@ -440,7 +481,9 @@ class graphics
 
 			glBindTexture(GL_TEXTURE_2D, 0);
 
-			std::free(blueNoiseData); // was allocated with malloc() and not new[]
+			CHECK_GL_ERROR();
+
+			stbi_image_free(blueNoiseData);
 
 			progFXAAID = loadShader("gui/shaders/vertexpost.vsh", "gui/shaders/fragmentfxaa.fsh");
 
@@ -454,23 +497,24 @@ class graphics
 			if (!font -> good())
 				return -1;
 
+			CHECK_GL_ERROR();
+
 			mvID = glGetUniformLocation(progID, "MV");
 			projID = glGetUniformLocation(progID, "Proj");
 			normalMatID = glGetUniformLocation(progID, "NormalMat");
 			lightPosID = glGetUniformLocation(progID, "lightPos");
 			gammaID = glGetUniformLocation(progID, "gamma");
 
+			CHECK_GL_ERROR();
+
 			rgbMaxID = glGetUniformLocation(progFXAAID, "rgbMax");
 			frameID = glGetUniformLocation(progFXAAID, "frame");
 			sceneID = glGetUniformLocation(progFXAAID, "screenTex");
 			blueNoiseID = glGetUniformLocation(progFXAAID, "blueNoiseTex");
 
-			return 0;
-		}
+			CHECK_GL_ERROR();
 
-		static void ErrorCallback(int, const char* description)
-		{
-			std::cout << description << std::endl;
+			return 0;
 		}
 
 		void renderQuad()
@@ -493,7 +537,7 @@ class graphics
 
 };
 
-#endif // GRAPHICS_H
+#endif // GUI_GRAPHICS_H
 
 
 

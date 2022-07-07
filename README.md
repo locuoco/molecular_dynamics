@@ -184,7 +184,7 @@ and the conserved quantity is then:
 <img src="https://latex.codecogs.com/svg.image?\mathcal{H}_{tot}=\mathcal{T}%2B\mathcal{V}%2B\sum_{j=1}^M\frac{p_{\eta_j}^2}{2Q_j}%2Bgk_BT\eta_1%2B\sum_{j=2}^Mk_BT\eta_j"/>
 </div>
 
-while <img src="https://latex.codecogs.com/svg.image?M"/> is number of thermostats.
+while <img src="https://latex.codecogs.com/svg.image?M"/> is number of thermostats. This effectively adds <img src="https://latex.codecogs.com/svg.image?M"/> degrees of freedom to the system, which may be useful to achieve ergodicity.
 
 References:
 * S. Nosé, *A unified formulation of the constant temperature molecular-dynamics methods*, Journal of Chemical Physics, 81 (1): pp. 511-519, 1984

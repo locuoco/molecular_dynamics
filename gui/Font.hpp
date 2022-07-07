@@ -14,8 +14,8 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef FONT_H
-#define FONT_H
+#ifndef GUI_FONT_H
+#define GUI_FONT_H
 
 #ifdef ENABLE_TEST
 #define TEST(x) GLenum _err_ = glGetError(); if (_err_) std::cerr << _err_ << " in " << x << std::endl
@@ -394,7 +394,7 @@ class Font
 		}
 };
 
-#endif
+#endif // GUI_FONT_H
 
 
 
