@@ -1,0 +1,1 @@
+g++ dft.cpp -o dft -std=c++2a -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1

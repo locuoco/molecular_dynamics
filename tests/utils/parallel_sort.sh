@@ -1,0 +1,1 @@
+g++ parallel_sort.cpp -o parallel_sort -std=c++2a -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1

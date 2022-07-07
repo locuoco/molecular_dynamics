@@ -30,7 +30,7 @@ g++ dft.cpp -o dft -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-erro
 
 */
 
-#include "../dft.hpp"
+#include "../../math/dft.hpp"
 
 void test_bit_reversal()
 // test basic properties of bit reversal of an incrementing sequence

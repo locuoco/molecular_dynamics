@@ -141,12 +141,13 @@ inline void updateControls(GLFWwindow* window, int w, int h, double dt)
 
 	if (glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS)
 	{
+		// namespace controls needed to avoid compilation error
 		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
-			gamma += dt * strengthSpeed;
+			controls::gamma += dt * strengthSpeed;
 		if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
-			gamma -= dt * strengthSpeed;
+			controls::gamma -= dt * strengthSpeed;
 
-		gamma = clamp(gamma, 1., 5.);
+		controls::gamma = clamp(controls::gamma, 1., 5.);
 	}
 
 	double aspect = (double)w / (double)h;

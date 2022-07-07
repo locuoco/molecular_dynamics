@@ -28,8 +28,8 @@ g++ parallel_sort.cpp -o parallel_sort -std=c++20 -Wall -Wextra -pedantic -Ofast
 
 */
 
-#include "../thread_pool.hpp"
-#include "../parallel_sort.hpp"
+#include "../../utils/thread_pool.hpp"
+#include "../../utils/parallel_sort.hpp"
 
 utils::thread_pool tp;
 std::mt19937 mersenne_twister;

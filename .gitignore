@@ -1,3 +1,9 @@
+# Ignore all files without extension, except LICENSE
+*
+!*.*
+!*/
+!LICENSE
+
 # Temporary/backup files
 *.bak
 

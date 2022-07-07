@@ -232,13 +232,14 @@ The graphics part has some dependencies on public libraries that enable the usag
 * [GLFW 3](https://www.glfw.org/) (Graphics Library Framework 3): an open source, multi-platform API for creating windows, contexts and managing input and events.
 * [GLEW](http://glew.sourceforge.net/) (OpenGL Extension Wrangler): a cross-platform library that include core and extended OpenGL functionalities.
 * [FreeType](https://freetype.org/): an OpenGL library to render fonts (used in `Font.hpp`).
-* [STB Image](https://github.com/nothings/stb/blob/master/stb_image.h): a single-header file, public domain library for loading images.
 
 These dependencies are required only for these header files:
 * `graphics.hpp`
 * `Font.hpp` (included in `graphics.hpp`)
 * `shader.hpp` (included in `graphics.hpp`)
 * `controls.hpp` (included in `graphics.hpp`)
+
+To install all dependencies at once on Ubuntu, you can run the shell script `dependencies_ubuntu.sh`.
 
 ### Compilation
 
@@ -248,9 +249,11 @@ To compile the program, simply do (with MinGW):
 
 On Linux, the library names could be different:
 
-    g++ main.cpp -o mold -std=c++20 -I <includes> -L <libs> -lopengl -lglu -lglew -lglfw3 -lfreetype -Wall -Wextra -pedantic -Ofast
+    g++ main.cpp -o mold -std=c++20 -I <includes> -L <libs> -lGL -lGLU -lGLEW -lglfw -lfreetype -Wall -Wextra -pedantic -Ofast
 
-where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files (if required). The executable will be called `mold`.
+where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files (if required). The executable will be called `mold`. If GCC is used for compilation, version 10+ is required for full C++20 support. Running the graphic part of the program requires OpenGL 3.3+.
+
+To compile on Ubuntu, you can also run the shell script `compile.sh`.
 
 ### Basic usage
 
