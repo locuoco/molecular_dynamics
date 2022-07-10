@@ -33,6 +33,7 @@
 #include "point.hpp"
 #include "integrator.hpp"
 #include "ewald.hpp"
+#include "pppm.hpp"
 #include "../utils/thread_pool.hpp"
 
 namespace physics

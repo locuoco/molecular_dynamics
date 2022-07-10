@@ -16,7 +16,7 @@
 
 #include <iostream> // cout, endl
 #include <vector>
-#include <random>
+#include <random> // mt19937, uniform_real_distribution
 #include <algorithm> // generate, is_permutation
 #include <cassert>
 #include <valarray>
@@ -87,6 +87,11 @@ void test_fft_ifft()
 			nlist[i] = n;
 			nN *= n;
 		}
+		if constexpr (N > 1)
+		{
+			nlist[N-1] /= 2;
+			nlist[N-2] *= 2;
+		}
 		std::valarray<std::complex<double>> xref(nN), x;
 
 		std::generate(begin(xref), end(xref), gen<double>);
@@ -110,7 +115,7 @@ void test_fft_ifft()
 
 		double mse = sqrt((x-xref).apply(sqr).sum().real())/nN;
 		if constexpr (N == 1)
-			std::cout << "n = "; 
+			std::cout << "n = ";
 		else
 			std::cout << "n^" << N << " = ";
 		std::cout << nN << " -- MSE = " << mse << std::endl;

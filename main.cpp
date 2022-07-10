@@ -41,13 +41,13 @@ int main(const int, const char**)
 	double init_temp = 298.15, end_temp = 220;
 	std::cout << "Nmol = " << Nmol << ", dist = " << dist << std::endl;
 
-	physics::molecular_system<double, physics::nose_hoover> molsys(
+	physics::molecular_system<double, physics::multi_timestep_leapfrog> molsys(
 		dist*side,
 		init_temp,
 		physics::DW5<>
 	);
 
-	std::mt19937_64 oliver_twist(0);
+	std::mt19937_64 mersenne_twister(0);
 	std::uniform_real_distribution<double> u_dist(0, 1);
 	double angles[3];
 	physics::mat3<double> rot;
@@ -59,9 +59,9 @@ int main(const int, const char**)
 				physics::molecule w = physics::water_tip3p<>;
 				physics::point3<double> p = {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist};
 				for (int l = 0; l < 3; ++l)
-					p[l] += (u_dist(oliver_twist) - 0.5) * (dist - 2);
+					p[l] += (u_dist(mersenne_twister) - 0.5) * (dist - 2);
 				for (int l = 0; l < 3; ++l)
-					angles[l] = u_dist(oliver_twist)*math::two_pi<double>();
+					angles[l] = u_dist(mersenne_twister)*math::two_pi<double>();
 				rot = physics::rotation_yaw_pitch_roll(angles[0], angles[1], angles[2]);
 				for (int l = 0; l < 3; ++l)
 					w.x[l] = rot % w.x[l];

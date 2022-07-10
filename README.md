@@ -127,9 +127,12 @@ where <img src="https://latex.codecogs.com/svg.image?\tilde{U}(\mathrm{k})=\tild
 Note that the influence function does not depend on the particles positions and thus can be calculated just once at the beginning of the simulation, as long as the volume of the simulation box does not vary. The series are highly convergent and can usually be truncated at <img src="https://latex.codecogs.com/svg.image?|\mathrm{m}|=2"/>. Note also that the same steps can be performed for the calculation of the dispersion forces (i.e. the ones arising from
 <img src="https://latex.codecogs.com/svg.image?1/r^6"/> part of the Lennard-Jones potential or the Buckingham potential).
 
+To obtain the forces, two schemes can be used depending on the application: in the *ik*-differentiation scheme the gradient is computed analytically in Fourier space, while in the *ad*-differentiation scheme the gradient is calculated in real space. The first method conserves the total momentum but not the energy and it is preferred in canonical ensembles because it is more accurate, while the second method conserves the energy but not the momentum, which is preferred in microcanonical ensembles (Ballenegger et al., 2012).
+
 References:
 * R. W. Hockney, J. W. Eastwood, *Computer Simulation Using Particles*, Bristol: Adam Hilger, 1988
 * M. Deserno, C. Holm, *How to mesh up Ewald sums (I): A theoretical and numerical comparison of various particle mesh routines*, Journal of Chemical Physics, 109, 7678-7693, 1998
+* V. Ballenegger, J. J. Cerdà, C. Holm, *How to Convert SPME to P3M: Influence Functions and Error Estimates*, Journal of Chemical Theory and Computation, 2012
 * R. E. Isele-Holder, W. Mitchell, A. E. Ismail, *Development and application of a particle-particle particle-mesh Ewald method for dispersion interactions*, Journal of Chemical Physics, 137, 174107, 2012
 
 ### Nosé-Hoover thermostat
@@ -184,7 +187,7 @@ and the conserved quantity is then:
 <img src="https://latex.codecogs.com/svg.image?\mathcal{H}_{tot}=\mathcal{T}%2B\mathcal{V}%2B\sum_{j=1}^M\frac{p_{\eta_j}^2}{2Q_j}%2Bgk_BT\eta_1%2B\sum_{j=2}^Mk_BT\eta_j"/>
 </div>
 
-while <img src="https://latex.codecogs.com/svg.image?M"/> is number of thermostats. This effectively adds <img src="https://latex.codecogs.com/svg.image?M"/> degrees of freedom to the system, which may be useful to achieve ergodicity.
+while <img src="https://latex.codecogs.com/svg.image?M"/> is number of thermostats. This effectively adds <img src="https://latex.codecogs.com/svg.image?2M"/> degrees of freedom to the system, which may be useful to achieve ergodicity.
 
 References:
 * S. Nosé, *A unified formulation of the constant temperature molecular-dynamics methods*, Journal of Chemical Physics, 81 (1): pp. 511-519, 1984
