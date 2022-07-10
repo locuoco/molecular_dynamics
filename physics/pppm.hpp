@@ -215,9 +215,11 @@ namespace physics
 			first_inds.resize(m);
 			n_part_cell.resize(m);
 			zMG.resize(m/2);
+			// reinterpreting complex<T> as T[2] is well-defined per C++ standard
 			zMG_real = reinterpret_cast<T*>(zMG.data());
 			G.resize(m/2);
 			W.resize(num_threads*order);
+			dW.resize(num_threads*order);
 			for (size_t i = 0; i < 3; ++i)
 				electric_field[i].resize(m/2);
 			for (size_t i = 0; i < 3; ++i)
@@ -288,7 +290,7 @@ namespace physics
 			{
 				// calculate (approximate) optimal Ewald parameter
 				T cutoff2 = cutoff*cutoff;
-				T prev_kappa;
+				T prev_kappa, errF;
 				unsigned counter = 0, max_counter = 1000;
 				do
 				{
@@ -320,18 +322,20 @@ namespace physics
 					T factor = 2*order + 1 + 2 * expans1/expans;
 					T errFk1 = errFk*factor/(2*kappa); // 1st derivative
 					T errFk2 = (errFk1/(2*kappa) - errFk/(2*k2))*factor + 2*errFk/k2*(expans*expans2 - expans1*expans1)/(expans*expans); // 2nd derivative
+					errF = errFr + errFk;
 					T errF1 = errFr1 + errFk1;
 					T errF2 = errFr2 + errFk2;
 					kappa -= errF1/errF2;
-					std::cout << "k = " << kappa << '\n'; // debug
+					//std::cout << "k = " << kappa << '\n'; // debug
 					++counter;
 				}
 				while (fabs(kappa-prev_kappa) / fabs(kappa) > 1e-3 && counter < max_counter);
 				if (counter == max_counter)
 					std::clog << "Warning: Ewald parameter optimization not converged!\n";
-				std::clog << "ewald par: " << kappa << '\n';
+				std::clog << "ewald par (A): " << kappa << '\n';
+				std::clog << "estimated force error (kcal/(mol A)): " << errF << '\n';
 				std::clog << "N_M: " << num_cells << '\n';
-				std::clog << "h: " << cell_size << '\n';
+				std::clog << "h (A): " << cell_size << '\n';
 			}
 
 			// calculate real-space contribution to force/energy
@@ -354,9 +358,9 @@ namespace physics
 									if (min_r2 > cutoff2)
 										continue; // all particles inside the cell are too far away
 									size_t other_k = vec2index(cell + kkk);
-									size_t first_ind = first_inds[other_k], npc = n_part_cell[other_k];
+									size_t first_ind = first_inds[other_k], last_ind = first_ind+n_part_cell[other_k];
 									// iterating through all particles in the cell
-									for (size_t j = first_ind; j < first_ind+npc; ++j)
+									for (size_t j = first_ind; j < last_ind; ++j)
 										if (i != j)
 										{
 											size_t sj = sorted_inds[j];
@@ -510,7 +514,7 @@ namespace physics
 				tp.wait();
 				update = false;
 			}
-			// calculate energy
+			// calculate reciprocal-space contribution to energy
 			std::array<size_t, 3> nlist{num_cells, num_cells, num_cells/2};
 			dft.template rfftn<3>(zMG, nlist, tp);
 			{
@@ -521,28 +525,33 @@ namespace physics
 				s.U += u;
 				s.virial += u;
 			}
-			// calculate forces
+			// calculate reciprocal-space contribution to forces
 			for (size_t i = 0; i < m/2; ++i)
 				zMG[i] *= G[i] / cell_size3;
-			point3<size_t> nnn;
-			point3<T> kvec;
-			for (nnn[0] = 0; nnn[0] < num_cells; ++nnn[0])
-				for (nnn[1] = 0; nnn[1] < num_cells; ++nnn[1])
-					for (nnn[2] = 0; nnn[2] < num_cells/2; ++nnn[2])
-					{
-						size_t index = (nnn[0]*num_cells + nnn[1])*(num_cells/2) + nnn[2];
-						point3<ptrdiff_t> nvec(nnn);
-						for (size_t j = 0; j < 2; ++j)
-							if (nvec[j] == ptrdiff_t(num_cells/2))
-								nvec[j] = 0;
-						nvec -= ptrdiff_t(num_cells)*(2*nvec/ptrdiff_t(num_cells));
-						kvec = twopi_L * point3<T>(nvec);
-						std::complex<T> zGi = zMG[index] * std::complex<T>(0, 1);
-						for (size_t j = 0; j < 3; ++j)
-							electric_field[j][index] = kvec[j] * zGi;
-					}
-			for (size_t j = 0; j < 3; ++j)
-				dft.template irfftn<3>(electric_field[j], nlist, tp);
+			if (use_ik)
+			{
+				point3<size_t> nnn;
+				point3<T> kvec;
+				for (nnn[0] = 0; nnn[0] < num_cells; ++nnn[0])
+					for (nnn[1] = 0; nnn[1] < num_cells; ++nnn[1])
+						for (nnn[2] = 0; nnn[2] < num_cells/2; ++nnn[2])
+						{
+							size_t index = (nnn[0]*num_cells + nnn[1])*(num_cells/2) + nnn[2];
+							point3<ptrdiff_t> nvec(nnn);
+							for (size_t j = 0; j < 2; ++j)
+								if (nvec[j] == ptrdiff_t(num_cells/2))
+									nvec[j] = 0;
+							nvec -= ptrdiff_t(num_cells)*(2*nvec/ptrdiff_t(num_cells));
+							kvec = twopi_L * point3<T>(nvec);
+							std::complex<T> zGi = zMG[index] * std::complex<T>(0, 1);
+							for (size_t j = 0; j < 3; ++j)
+								electric_field[j][index] = kvec[j] * zGi;
+						}
+				for (size_t j = 0; j < 3; ++j)
+					dft.template irfftn<3>(electric_field[j], nlist, tp);
+			}
+			else
+				dft.template irfftn<3>(zMG, nlist, tp);
 			auto eval_f_k = [this, num_threads, cell_size, num_cells, vec2index, charge_assignment_center, &s] (size_t idx)
 				{
 					size_t block = (s.n-1)/num_threads + 1;
@@ -556,6 +565,10 @@ namespace physics
 						for (size_t k = 0; k < order; ++k)
 							for (size_t j = 0; j < 3; ++j)
 								W[order*idx + k][j] = charge_assignment_function(x_prime[j], k, order);
+						if (!use_ik)
+							for (size_t k = 0; k < order; ++k)
+								for (size_t j = 0; j < 3; ++j)
+									dW[order*idx + k][j] = charge_assignment_function_der(x_prime[j], k, order);
 						point3<T> ei(0);
 						point3<ptrdiff_t> kkk, cell(mod(center, T(num_cells)));
 						ptrdiff_t half_order = (order-1)/2;
@@ -565,9 +578,21 @@ namespace physics
 								for (kkk[2] = 0; kkk[2] < ptrdiff_t(order); ++kkk[2])
 								{
 									size_t index = vec2index(cell + kkk);
-									T Wxyz = W[order*idx + kkk[0]][0] * W[order*idx + kkk[1]][1] * W[order*idx + kkk[2]][2];
-									for (size_t j = 0; j < 3; ++j)
-										ei[j] -= electric_field_real[j][index] * Wxyz;
+									if (use_ik)
+									{
+										T Wxyz = W[order*idx + kkk[0]][0] * W[order*idx + kkk[1]][1] * W[order*idx + kkk[2]][2];
+										for (size_t j = 0; j < 3; ++j)
+											ei[j] -= electric_field_real[j][index] * Wxyz;
+									}
+									else
+									{
+										point3<T> Wxyz(
+											dW[order*idx + kkk[0]][0] * W[order*idx + kkk[1]][1] * W[order*idx + kkk[2]][2],
+											W[order*idx + kkk[0]][0] * dW[order*idx + kkk[1]][1] * W[order*idx + kkk[2]][2],
+											W[order*idx + kkk[0]][0] * W[order*idx + kkk[1]][1] * dW[order*idx + kkk[2]][2]
+										);
+										ei -= zMG_real[index] * Wxyz;
+									}
 								}
 						s.f[i] += s.z[i] * ei;
 					}
@@ -581,17 +606,17 @@ namespace physics
 
 		private:
 
-			std::vector<point3<T>> W;
+			std::vector<point3<T>> W, dW;
 			std::vector<std::complex<T>> zMG, electric_field[3];
-			T *zMG_real, *electric_field_real[3];
 			std::vector<T> G, partU, partvir;
 			std::vector<unsigned> part2mesh_inds, sorted_inds, first_inds, n_part_cell;
 			math::dft<T> dft;
 			std::mt19937_64 mersenne_twister = std::mt19937_64(0);
 			std::uniform_real_distribution<T> u_dist = std::uniform_real_distribution<T>(0, 1);
-			T kappa = 0.4, cutoff = 5;
+			T *zMG_real, *electric_field_real[3];
+			T kappa = 0.4, cutoff = 6;
 			std::size_t order = 5;
-			bool update = true, use_ik = true;
+			bool update = true, use_ik = false;
 	};
 
 } // namespace physics
