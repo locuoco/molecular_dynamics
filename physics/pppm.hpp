@@ -27,7 +27,8 @@
 #include <stdexcept> // invalid_argument
 #include <random> // mt19937, uniform_real_distribution
 
-#include "ewald.hpp" // from math/helper.hpp: fasterfc, fastexp, mod
+#include "ewald.hpp" // from math/helper.hpp: fasterfc, fastexp, mod, two1_6
+	// eval_ewald_r, eval_ewald_r_6, eval_ewald_scd
 #include "../math/dft.hpp"
 
 namespace physics
@@ -152,6 +153,11 @@ namespace physics
 			}
 		}
 
+		T charge_assignment_order() const noexcept
+		{
+			return order;
+		}
+
 		void cutoff_radius(T cutoff)
 		{
 			if (this -> cutoff != cutoff)
@@ -163,12 +169,29 @@ namespace physics
 			}
 		}
 
+		T cutoff_radius() const noexcept
+		{
+			return cutoff;
+		}
+
 		void choose_diff_scheme(std::string scheme)
 		{
 			if (scheme == std::string("ik"))
-				use_ik = true;
+			{
+				if (!use_ik)
+				{
+					use_ik = true;
+					update = true;
+				}
+			}
 			else if (scheme == std::string("ad"))
-				use_ik = false;
+			{
+				if (use_ik)
+				{
+					use_ik = false;
+					update = true;
+				}
+			}
 			else
 				throw std::invalid_argument(std::string("Error: Unknown differentiation scheme: ") + scheme);
 		}
@@ -187,6 +210,7 @@ namespace physics
 			using std::sin;
 			using std::remainder;
 			using std::fabs;
+			using std::sqrt;
 			if (s.n < 2)
 				return;
 
@@ -197,7 +221,7 @@ namespace physics
 				num_cells *= 2;
 				cell_size = s.side / num_cells;
 			}*/
-			size_t num_cells = 1ull << size_t(std::round(std::log2(s.n)/3));
+			size_t num_cells = min_num_cells << size_t(std::round(std::log2(s.n)/3));
 			size_t m = num_cells*num_cells*num_cells;
 			size_t num_threads = tp.size();
 			T cell_size = s.side / num_cells, cell_size3 = cell_size*cell_size*cell_size;
@@ -218,6 +242,7 @@ namespace physics
 			// reinterpreting complex<T> as T[2] is well-defined per C++ standard
 			zMG_real = reinterpret_cast<T*>(zMG.data());
 			G.resize(m/2);
+			G_energy.resize(m/2);
 			W.resize(num_threads*order);
 			dW.resize(num_threads*order);
 			for (size_t i = 0; i < 3; ++i)
@@ -288,9 +313,12 @@ namespace physics
 
 			if (update)
 			{
-				// calculate (approximate) optimal Ewald parameter
+				// calculate (approximate) optimal Ewald parameter (Newton's method)
 				T cutoff2 = cutoff*cutoff;
-				T prev_kappa, errF;
+				T prev_kappa, errF, corr = 1;
+				if (!use_ik)
+					// empirical correction
+					corr = std::numbers::sqrt2_v<T> / std::numbers::inv_sqrtpi_v<T>;
 				unsigned counter = 0, max_counter = 1000;
 				do
 				{
@@ -302,9 +330,9 @@ namespace physics
 					}
 					prev_kappa = kappa;
 					T k2 = kappa*kappa;
-					T errFr = 2/sqrt(cutoff) * math::fastexp(-cutoff2*k2);
-					T errFr1 = -2*kappa*cutoff2*errFr; // 1st derivative
-					T errFr2 = 2*cutoff2*errFr*(2*k2*cutoff2 - 1); // 2nd derivative
+					T errFr = 4/cutoff * math::fastexp(-2*cutoff2*k2);
+					T errFr1 = -4*kappa*cutoff2*errFr; // 1st derivative
+					T errFr2 = 4*cutoff2*errFr*(4*k2*cutoff2 - 1); // 2nd derivative
 					T hk = cell_size*kappa, hk2 = hk*hk;
 					T expans = 0, expans1 = 0, expans2 = 0;
 					for (ptrdiff_t i = order-1; i >= 0; --i)
@@ -318,10 +346,10 @@ namespace physics
 					T hkP = 1;
 					for (unsigned i = 0; i < order; ++i)
 						hkP *= hk;
-					T errFk = hkP * sqrt(kappa * std::numbers::sqrt2_v<T> / std::numbers::inv_sqrtpi_v<T> * expans);
-					T factor = 2*order + 1 + 2 * expans1/expans;
-					T errFk1 = errFk*factor/(2*kappa); // 1st derivative
-					T errFk2 = (errFk1/(2*kappa) - errFk/(2*k2))*factor + 2*errFk/k2*(expans*expans2 - expans1*expans1)/(expans*expans); // 2nd derivative
+					T factor = hkP * kappa * corr * std::numbers::sqrt2_v<T> / std::numbers::inv_sqrtpi_v<T>;
+					T errFk = factor * expans;
+					T errFk1 = ((2*order+1)*errFk + 2*factor*expans1)/kappa; // 1st derivative
+					T errFk2 = (2*order+1)*(errFk1/kappa - errFk/k2) + ((2*order+1)*2*expans1+4*expans2)*factor/k2; // 2nd derivative
 					errF = errFr + errFk;
 					T errF1 = errFr1 + errFk1;
 					T errF2 = errFr2 + errFk2;
@@ -333,7 +361,7 @@ namespace physics
 				if (counter == max_counter)
 					std::clog << "Warning: Ewald parameter optimization not converged!\n";
 				std::clog << "ewald par (A): " << kappa << '\n';
-				std::clog << "estimated force error (kcal/(mol A)): " << errF << '\n';
+				std::clog << "estimated force rms error (kcal/(mol A)): " << sqrt(errF) << '\n';
 				std::clog << "N_M: " << num_cells << '\n';
 				std::clog << "h (A): " << cell_size << '\n';
 			}
@@ -428,7 +456,7 @@ namespace physics
 			auto influence_function_ik = [this, cell_size, m1_4kappa2, twopi_h, maxn_](point3<T> kvec, T den, size_t i)
 				{
 					point3<ptrdiff_t> nnn_;
-					T k2 = dot(kvec, kvec), num = 0;
+					T k2 = dot(kvec, kvec), num = 0, num_energy = 0;
 					for (nnn_[0] = -maxn_; nnn_[0] <= maxn_; ++nnn_[0])
 					{
 						point3<T> k_, s_;
@@ -447,16 +475,19 @@ namespace physics
 								for (unsigned k = 0; k < order; ++k)
 									U2 *= s_[2];
 								U2 *= U2;
-								num += dot(kvec, k_) * U2 / k_2 * math::fastexp(k_2*m1_4kappa2);
+								T factor = U2 / k_2 * math::fastexp(k_2*m1_4kappa2);
+								num += dot(kvec, k_) * factor;
+								num_energy += factor;
 							}
 						}
 					}
 					G[i] = num * 2 * math::two_pi<T>() / (k2*den*den);
+					G_energy[i] = num_energy * 2 * math::two_pi<T>() / (den*den);
 				};
 			auto influence_function_ad = [this, cell_size, m1_4kappa2, twopi_h, maxn_](point3<T> kvec, T den, size_t i)
 				{
 					point3<ptrdiff_t> nnn_;
-					T num = 0, den_ = 0;
+					T num = 0, num_energy = 0, den_ = 0;
 					for (nnn_[0] = -maxn_; nnn_[0] <= maxn_; ++nnn_[0])
 					{
 						point3<T> k_, s_;
@@ -475,12 +506,15 @@ namespace physics
 								for (unsigned k = 0; k < order; ++k)
 									U2 *= s_[2];
 								U2 *= U2;
-								num += U2 * math::fastexp(k_2*m1_4kappa2);
+								T factor = U2 * math::fastexp(k_2*m1_4kappa2);
+								num += factor;
+								num_energy += factor / k_2;
 								den_ += U2 * k_2;
 							}
 						}
 					}
 					G[i] = num * 2 * math::two_pi<T>() / (den*den_);
+					G_energy[i] = num_energy * 2 * math::two_pi<T>() / (den*den);
 				};
 			
 			auto eval_G = [this, num_threads, num_cells, cell_size, m, index2vec_complex, twopi_L, influence_function_ik, influence_function_ad](size_t idx)
@@ -491,6 +525,7 @@ namespace physics
 						if (i == 0)
 						{
 							G[i] = 0;
+							G_energy[i] = 0;
 							continue;
 						}
 						auto nvec = index2vec_complex(i);
@@ -512,7 +547,6 @@ namespace physics
 				for (size_t i = 0; i < num_threads; ++i)
 					tp.enqueue(eval_G, i);
 				tp.wait();
-				update = false;
 			}
 			// calculate reciprocal-space contribution to energy
 			std::array<size_t, 3> nlist{num_cells, num_cells, num_cells/2};
@@ -520,7 +554,7 @@ namespace physics
 			{
 				T u{};
 				for (size_t i = 0; i < m/2; ++i)
-					u += norm(zMG[i]) * G[i];
+					u += norm(zMG[i]) * G_energy[i];
 				u /= volume;
 				s.U += u;
 				s.virial += u;
@@ -602,20 +636,21 @@ namespace physics
 			tp.wait();
 			// corrections
 			eval_ewald_scd(s, kappa, volume);
+			update = false;
 		}
 
 		private:
 
 			std::vector<point3<T>> W, dW;
 			std::vector<std::complex<T>> zMG, electric_field[3];
-			std::vector<T> G, partU, partvir;
+			std::vector<T> G, G_energy, partU, partvir;
 			std::vector<unsigned> part2mesh_inds, sorted_inds, first_inds, n_part_cell;
 			math::dft<T> dft;
 			std::mt19937_64 mersenne_twister = std::mt19937_64(0);
 			std::uniform_real_distribution<T> u_dist = std::uniform_real_distribution<T>(0, 1);
 			T *zMG_real, *electric_field_real[3];
-			T kappa = 0.4, cutoff = 6;
-			std::size_t order = 5;
+			T kappa = 0.4, cutoff = 5;
+			std::size_t order = 4, min_num_cells = 1;
 			bool update = true, use_ik = false;
 	};
 

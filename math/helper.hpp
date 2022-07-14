@@ -47,9 +47,14 @@ namespace math
 		return (T)6.283185307179586476925286766559L;
 	}
 	template <typename T>
-	constexpr T sqrtpi() noexcept
+	constexpr T sqrtpi() noexcept // square root of pi
 	{
 		return (T)1.7724538509055160272981674833411L;
+	}
+	template <typename T>
+	constexpr T cbrtpi() noexcept // cube root of pi
+	{
+		return (T)1.4645918875615232630201425272638L;
 	}
 
 	template <typename T>
@@ -62,6 +67,12 @@ namespace math
 	constexpr T sqrt2_() noexcept // 1/sqrt(2)
 	{
 		return (T)0.70710678118654752440084436210485L;
+	}
+
+	template <typename T>
+	constexpr T two1_6() noexcept // 2^(1/6)
+	{
+		return (T)1.1224620483093729814335330496792L;
 	}
 
 	template <typename T>

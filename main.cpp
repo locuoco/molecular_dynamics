@@ -41,7 +41,7 @@ int main(const int, const char**)
 	double init_temp = 298.15, end_temp = 220;
 	std::cout << "Nmol = " << Nmol << ", dist = " << dist << std::endl;
 
-	physics::molecular_system<double, physics::multi_timestep_leapfrog> molsys(
+	physics::molecular_system<double, physics::nose_hoover> molsys(
 		dist*side,
 		init_temp,
 		physics::DW5<>

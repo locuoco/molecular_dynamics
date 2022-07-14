@@ -25,10 +25,10 @@
 #include <algorithm> // min, max, ranges::generate
 #include <cmath> // sqrt, atan2, pow
 #include <random> // mt19937_64, normal_distribution
-#include <thread>
 #include <stdexcept> // runtime_error
+#include <numbers> // pi_v
 
-#include "../math/helper.hpp" // deg2rad
+#include "../math/helper.hpp" // deg2rad, two1_6
 
 #include "point.hpp"
 #include "integrator.hpp"
@@ -87,17 +87,15 @@ namespace physics
 		{ {atom_type::HF, atom_type::OF, atom_type::HF}, {45.769598470363288718929254302103L, math::deg2rad(114.70L), 0, 0} }
 	};
 
-	constexpr long double two1_6 = 1.1224620483093729814335330496792L;
-
 	template <std::floating_point T> // epsilon, R/2
 	std::pair<T, T> LJ_params[] =
 	{
-		{0.046L, 0.4L*two1_6/2}, // HT
-		{0.1521L, 3.1507L*two1_6/2}, // OT
+		{0.046L, 0.4L*math::two1_6<long double>()/2}, // HT
+		{0.1521L, 3.1507L*math::two1_6<long double>()/2}, // OT
 		{0, 0}, {0, 0}, // HTL
-		{0.102L, 3.188L*two1_6/2}, // OTL
+		{0.102L, 3.188L*math::two1_6<long double>()/2}, // OTL
 		{0, 0}, {0, 0}, // HF
-		{0.18936998087954110898661567877629L, 3.1776L*two1_6/2}, // OF
+		{0.18936998087954110898661567877629L, 3.1776L*math::two1_6<long double>()/2}, // OF
 	};
 
 	template <std::floating_point T = double>
@@ -159,9 +157,9 @@ namespace physics
 		using LRSum = LRSummationT<T, state<T, 3>>;
 		using Integ = IntegT<T, state<T, 3>, IntegPars...>;
 
-		std::normal_distribution<T> n_dist;
+		std::normal_distribution<T> n_dist = std::normal_distribution<T>(0, 1);
 		mutable T kin;
-		mutable bool kin_updated;
+		mutable bool kin_updated = false;
 
 		public:
 
@@ -174,21 +172,20 @@ namespace physics
 		std::vector<atom_type> id; // identity of the atom
 		std::vector<fixed_list<max_bonds>> bonds; // bonds as an adjacency list
 		std::vector<std::array<unsigned int, 4>> impropers; // list of impropers in the whole system
-		T virial;
-		unsigned int n, dof; // total number of atoms, degrees of freedom
+		T virial, sumz = 0, sumz2 = 0, tracedisp = 0, sumdisp = 0;
+		unsigned int n = 0, dof; // total number of atoms, degrees of freedom
 		utils::thread_pool tp; // thread pool
-		LRSum lrsum; // long-range summation algorithm
 		Integ integ; // integrator
-		std::mt19937_64 mersenne_twister;
+		LRSum lrsum; // long-range summation algorithm
+		std::mt19937_64 mersenne_twister = std::mt19937_64(0);
 		T side, temperature_fixed;
-		T t, U, M, D; // time, kinetic energy, potential energy, total mass, diffusion coefficient
-		bool rescale_temperature, first_step;
+		T t = 0, U, M = 0, D; // time, kinetic energy, potential energy, total mass, diffusion coefficient
+		bool rescale_temperature = false, first_step = true;
 
 		static const std::size_t max_atoms = 2'000'000;
 
-		molecular_system(T side = 50, T temp = 298.15, T D = DW25<T>, Integ integ = Integ())
-			: n_dist(0, 1), kin_updated(false), n(0), integ(integ), mersenne_twister(0),
-			  side(side), temperature_fixed(temp), t(0), M(0), D(D), rescale_temperature(false), first_step(true)
+		molecular_system(T side = 50, T temp = 298.15, T D = DW25<T>, Integ integ = Integ(), LRSum lrsum = LRSum())
+			: integ(integ), lrsum(lrsum), side(side), temperature_fixed(temp), D(D)
 		{}
 
 		void add_molecule(const molecule<T>& mol, const point3<T>& pos = 0)
@@ -222,9 +219,32 @@ namespace physics
 			for (size_t i = 0; i < mol.n; ++i)
 				z.push_back(mol.part_q[i]*sqrtkC<long double>);
 			for (size_t i = 0; i < mol.n; ++i)
+			{
+				sumz += z[n + i];
+				sumz2 += z[n + i]*z[n + i];
+			}
+			for (size_t i = 0; i < mol.n; ++i)
 				LJ_sqrteps.push_back(sqrt(LJ_params<long double>[int(mol.id[i])].first));
 			for (size_t i = 0; i < mol.n; ++i)
 				LJ_halfR.push_back(LJ_params<T>[int(mol.id[i])].second);
+			for (size_t i = 0; i < mol.n; ++i)
+			{
+				T C6 = 2*LJ_halfR[n + i];
+				C6 *= C6;
+				C6 = C6 * C6 * C6;
+				C6 = 2 * LJ_sqrteps[n + i]*LJ_sqrteps[n + i] * C6;
+				tracedisp += C6;
+				sumdisp += C6;
+			}
+			for (size_t i = n; i < n+mol.n; ++i)
+				for (size_t j = 0; j < i; ++j)
+				{
+					T C6 = LJ_halfR[i]+LJ_halfR[j];
+					C6 *= C6;
+					C6 = C6 * C6 * C6;
+					C6 = 2 * LJ_sqrteps[i]*LJ_sqrteps[j] * C6;
+					sumdisp += 2*C6;
+				}
 			for (size_t i = 0; i < n + mol.n; ++i)
 				m[i] = atom_mass<T>[ int(id[i]) ];
 			for (size_t i = 0; i < mol.n; ++i)
@@ -247,6 +267,32 @@ namespace physics
 									 mol.impropers[i][3] + n});
 			n += mol.n;
 			dof = 3*n;
+		}
+
+		void clear()
+		{
+			x.resize(0);
+			p.resize(0);
+			v.resize(0);
+			f.resize(0);
+			m.resize(0);
+			noise.resize(0);
+			gamma.resize(0);
+			z.clear();
+			LJ_sqrteps.clear();
+			LJ_halfR.clear();
+			id.clear();
+			bonds.clear();
+			impropers.clear();
+			M = 0;
+			sumz = 0;
+			sumz2 = 0;
+			tracedisp = 0;
+			sumdisp = 0;
+			n = 0;
+			dof = 0;
+			t = 0;
+			first_step = true;
 		}
 
 		T kinetic_energy() const
@@ -279,19 +325,24 @@ namespace physics
 			return kB<T> * temperature(); // in kcal/mol
 		}
 
-		T kT_fixed() const
+		T kT_fixed() const noexcept
 		{
 			return kB<T> * temperature_fixed; // in kcal/mol
 		}
 
-		T volume() const
+		T volume() const noexcept
 		{
 			return side*side*side; // in angstrom^3 = 10^-30 m^3
 		}
 
-		T density() const
+		T density() const noexcept
 		{
 			return M / volume(); // in amu/angstrom^3
+		}
+
+		T number_density() const noexcept
+		{
+			return n / volume(); // in angstrom^-3
 		}
 
 		T pressure() const
@@ -300,7 +351,7 @@ namespace physics
 			return (2*kinetic_energy() + virial)/(3*volume());
 		}
 
-		T pressure_fixedT() const
+		T pressure_fixedT() const noexcept
 		// instantaneous pressure calculated with fixed temperature in kcal/(mol angstrom^3)
 		{
 			return (n*kT_fixed() + virial/3) / volume();
@@ -578,11 +629,12 @@ namespace physics
 			s = s * s * s;
 			T epsijs = LJ_sqrteps[i] * LJ_sqrteps[j] * s;
 			T coulomb = z[i] * z[j] * d_;
-			point3<T> fij = ((12 * epsijs * (s - 1) + coulomb) * r2_ * fact) * r;
+			T vir = (12 * epsijs * (s - 1) + coulomb) * fact;
+			point3<T> fij = (vir * r2_) * r;
 			f[i] += fij;
 			f[j] -= fij;
 			U += (epsijs * (s - 2) + coulomb) * fact;
-			virial += dot(r, fij);
+			virial += vir;
 		}
 
 		void correct_nonbonded()
@@ -624,6 +676,20 @@ namespace physics
 			correct_nonbonded();
 
 			lrsum(*this, tp);
+
+			return;
+
+			T cutoff = lrsum.cutoff_radius();
+			if (cutoff)
+			{
+				T cutoff3 = cutoff*cutoff*cutoff;
+				T disp_average = 0;
+				if (n > 1)
+					disp_average = (sumdisp - tracedisp) / (n * (n-1));
+				T factor = 2 * std::numbers::pi_v<T> * n * number_density() * disp_average / cutoff3;
+				U -= factor/3;
+				virial -= 2*factor;
+			}
 		}
 
 		void elastic_confining(point3<T> k)
