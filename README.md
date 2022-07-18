@@ -269,6 +269,8 @@ To create a molecular system use the following:
 int main()
 {
     physics::molecular_system my_system;
+
+    return 0;
 }
 ```
 To add a molecule to the system, use the method `add_molecule`:
@@ -290,14 +292,23 @@ To advance the system by one step, do:
 ```c++
     my_system.step();
 ```
-It is possible to change the floating point type and the numerical integrator to be used for the simulation:
+It is possible to set the algorithm used for the summation of long-range forces:
 ```c++
-    physics::molecular_system<long double, physics::pefrl> my_system;
+    physics::molecular_system<long double, physics::ewald> my_system;
 ```
-By default, the floating point type is `double` (64-bit floating point) and the integrator is `physics::leapfrog`. Some currently available numerical integrators are:
+It is also possible to change the floating point type and the numerical integrator to be used for the simulation:
+```c++
+    physics::molecular_system<long double, physics::pppm, physics::pefrl> my_system;
+```
+By default, the floating point type is `double` (64-bit floating point), the summation algorithm is `physics::pppm` and the integrator is `physics::leapfrog`. Currently available summation algorithms are:
+
+* `physics::ewald`: Ewald summation, O(N^2) complexity, more accurate
+* `physics::pppm`: Particle-particle, particle-mesh method, O(N log N) complexity, faster, speed and accuracy depend on parameters
+
+Some currently available numerical integrators are:
 
 * `physics::symplectic_euler`: Symplectic Euler method (1st order, 1 stage)
-* `physics::leapfrog`: Leapfrog method (2nd order, 1 stage)
+* `physics::leapfrog`: Leapfrog method (2nd order, 1 stage), *default*
 * `physics::multi_timestep_leapfrog`: Multi-timestep leapfrog method (2nd order, 1 stage for long-range forces)
 * `physics::stochastic_leapfrog`: Stochastic "leapfrog" method (1 stage)
 * `physics::damped_leapfrog`: Damped "leapfrog" method (1 stage)
@@ -331,8 +342,7 @@ int main()
 {
     graphics my_window;
 
-    while (!my_window.should_close())
-    {}
+    return 0;
 }
 ```
 To draw a frame of our system inside it, call the method:

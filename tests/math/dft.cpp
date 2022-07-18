@@ -60,10 +60,78 @@ std::mt19937 mersenne_twister;
 template <typename T>
 std::uniform_real_distribution<T> dist(-1, 1);
 
+double error_threshold = 1e-15;
+
 template <typename T>
 auto gen()
 {
 	return std::complex<T>(dist<T>(mersenne_twister), dist<T>(mersenne_twister));
+}
+
+template <bool b_real = false>
+void test_fft_impulse()
+// test DFT of unit impulse (Kronecker delta)
+{
+	using std::sqrt;
+	using std::sin;
+	using std::cos;
+	using std::size_t;
+	using std::ptrdiff_t;
+	math::dft<double> dft;
+	size_t nmin = 1 << 10, nmax = 1ull << 20;
+	for (size_t n = nmin; n <= nmax; n <<= 1)
+	{
+		std::vector<std::complex<double>> x(n);
+		double *x_real = reinterpret_cast<double*>(x.data());
+		size_t j;
+
+		if constexpr (!b_real)
+		{
+			std::uniform_int_distribution<size_t> idist(0, n-1);
+			j = idist(mersenne_twister);
+			for (size_t i = 0; i < n; ++i)
+				x[i] = (i == j);
+		}
+		else
+		{
+			std::uniform_int_distribution<size_t> idist(0, 2*n-1);
+			j = idist(mersenne_twister);
+			for (size_t i = 0; i < 2*n; ++i)
+				x_real[i] = (i == j);
+		}
+
+		x = dft.bfft<false, b_real>(x);
+
+		double rmse = 0;
+		if constexpr (!b_real)
+		{
+			for (size_t i = 0; i < n; ++i)
+			{
+				double k = -2*double((i*j) % n)*std::numbers::pi/n;
+				double diff = norm(x[i]-std::complex<double>(cos(k), sin(k)));
+				rmse += diff;
+			}
+			rmse /= n;
+		}
+		else
+		{
+			double diff = x[0].real()-1;
+			rmse += diff*diff;
+			diff = x[0].imag()-(1-2*(ptrdiff_t(j)%2));
+			rmse += diff*diff;
+			for (size_t i = 1; i < n; ++i)
+			{
+				double k = -double((i*j) % (2*n))*std::numbers::pi/n;
+				diff = norm(x[i]-std::complex<double>(cos(k), sin(k)));
+				rmse += diff;
+			}
+			rmse /= n+1;
+		}
+		rmse = sqrt(rmse);
+		std::cout << "n = " << n << " -- RMSE = " << rmse << std::endl;
+
+		assert(rmse < error_threshold);
+	}
 }
 
 template <std::size_t N = 1, bool b_real = false>
@@ -78,6 +146,7 @@ void test_fft_ifft()
 		nmin = 1 << 10, nmax = 1ull << 20;
 	else
 		nmin = 1 << 2, nmax = 1ull << 25;
+	dft.compute_twiddle_factors(nmax >> N);
 	for (size_t n = nmin; (nN << N) <= nmax; n <<= 1)
 	{
 		std::array<size_t, N> nlist;
@@ -113,14 +182,14 @@ void test_fft_ifft()
 				return std::complex<double>(norm(z), 0);
 			};
 
-		double mse = sqrt((x-xref).apply(sqr).sum().real())/nN;
+		double rmse = sqrt((x-xref).apply(sqr).sum().real()/nN);
 		if constexpr (N == 1)
 			std::cout << "n = ";
 		else
 			std::cout << "n^" << N << " = ";
-		std::cout << nN << " -- MSE = " << mse << std::endl;
+		std::cout << nN << " -- RMSE = " << rmse << std::endl;
 
-		assert(mse < 1e-12);
+		assert(rmse < error_threshold);
 	}
 }
 
@@ -131,12 +200,13 @@ void test_fft_perf()
 	using std::size_t;
 	math::dft<double> dft;
 	size_t n_loops = 10;
-	size_t nN = 1, nmin;
+	size_t nN = 1, nmin, nmax = (1ull << 22);
 	if constexpr (N == 1)
 		nmin = 1 << 4;
 	else
 		nmin = 1 << 2;
-	for (size_t n = nmin; (nN << N) <= (1ull << 22); n <<= 1)
+	dft.compute_twiddle_factors(nmax >> N);
+	for (size_t n = nmin; (nN << N) <= nmax; n <<= 1)
 	{
 		std::array<size_t, N> nlist;
 		nN = 1;
@@ -176,7 +246,12 @@ void test_fft_perf()
 
 int main()
 {
+	std::cout << "=== Bit-reversal test ===\n";
 	test_bit_reversal();
+	std::cout << "=== FFT impulse test ===\n";
+	test_fft_impulse();
+	test_fft_impulse<true>();
+	std::cout << "=== FFT-IFFT test ===\n";
 	test_fft_ifft();
 	test_fft_ifft<1, true>();
 	test_fft_ifft<2>();
@@ -185,6 +260,7 @@ int main()
 	test_fft_ifft<3, true>();
 	test_fft_ifft<4>();
 	test_fft_ifft<4, true>();
+	std::cout << "=== FFT performance test ===\n";
 	test_fft_perf();
 	test_fft_perf<2>();
 	test_fft_perf<3>();

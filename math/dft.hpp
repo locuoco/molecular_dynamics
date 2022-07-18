@@ -66,7 +66,7 @@ namespace math
 	{
 		using std::size_t;
 		size_t n = std::distance(first, last);
-		if ((n&(n-1)) != 0)
+		if ((n&(n-1)) != 0 || !n)
 			throw std::invalid_argument("number of elements is not a power of 2!");
 		size_t n_bits = num_bits(n-1);
 		for (size_t i = 0; i < n; ++i)
@@ -80,10 +80,56 @@ namespace math
 	template <typename T>
 	struct dft // discrete Fourier transform
 	{
-		template <std::random_access_iterator It>
-		requires requires (It it)
+		constexpr void compute_twiddle_factors(std::size_t n)
+		// twiddle_factor[j][k] = exp(-2 pi i k/(2^j)), where i = imaginary unit
+		// precomputed twiddle factors are needed to achieve optimal O(sqrt(log(N))) RMS rounding error
+		// without sacrificing computation speed (since sin, cos are relatively slow)
+		{
+			using std::size_t;
+			using std::sin;
+			using std::cos;
+			if ((n&(n-1)) != 0 || !n)
+				throw std::invalid_argument(std::string("number of elements is not a power of 2: ") + std::to_string(n));
+			size_t n_bits = num_bits(n);
+			if (n_bits > twiddle_factors.size())
 			{
-				{*it} -> std::convertible_to<std::complex<T>>;
+				twiddle_factors.resize(n_bits);
+				size_t n_elems = 1;
+				for (size_t i = 0; i < n_bits; ++i)
+				{
+					if (twiddle_factors[i].size() != n_elems)
+					{
+						twiddle_factors[i].resize(n_elems);
+						T half_n = n_elems/2;
+						twiddle_factors[i][0] = 1;
+						if (n_elems > 1)
+							twiddle_factors[i][n_elems/2] = -1;
+						if (n_elems >= 4)
+							twiddle_factors[i][n_elems/4] = std::complex<T>(0, -1);
+						for (size_t j = 1; j < n_elems/4; j += 2)
+						{
+							T k = -std::numbers::pi_v<T> * (j/half_n);
+							twiddle_factors[i][j] = std::complex<T>(cos(k), sin(k));
+						}
+						for (size_t j = 2; j < n_elems/4; j += 2)
+							twiddle_factors[i][j] = twiddle_factors[i-1][j >> 1];
+						for (size_t j = n_elems/4+1; j < n_elems/2; ++j)
+						{
+							std::complex<T> t(twiddle_factors[i][n_elems/2-j]);
+							twiddle_factors[i][j] = std::complex<T>(-t.real(), t.imag());
+						}
+						for (size_t j = n_elems/2+1; j < n_elems; ++j)
+							twiddle_factors[i][j] = conj(twiddle_factors[i][n_elems-j]);
+					}
+					n_elems *= 2;
+				}
+			}
+		}
+
+		template <std::random_access_iterator It>
+		requires requires (It it, std::complex<T> z)
+			{
+				{z} -> std::convertible_to<decltype(*it)>;
 			}
 		constexpr void fft(It first, It last)
 		// fast Fourier transform: radix-2 (in-place) algorithm
@@ -91,28 +137,22 @@ namespace math
 		// requires It to be a random access iterator to std::complex<T>
 		{
 			using std::size_t;
-			using std::sin;
-			using std::cos;
+			using std::ptrdiff_t;
 			size_t n = std::distance(first, last);
+			compute_twiddle_factors(n);
 			bit_reversal_permutation(first, last);
-			if ((n&(n-1)) != 0 || !n)
-				throw std::invalid_argument("n is not a power of 2!");
-			for (size_t i = 1; i <= n/2; i *= 2)
-			{
-				T ki = -std::numbers::pi_v<T> / i;
-				std::complex<T> wi = std::complex<T>(cos(ki), sin(ki));
+			size_t m = 1;
+			for (size_t i = 1; i <= n/2; ++m, i *= 2)
 				for (size_t j = 0; j < n; j += i*2)
 				{
-					std::complex<T> w = 1;
+					auto twiddle = twiddle_factors[m].begin();
 					for (size_t k = j; k < j+i; ++k)
 					{
-						std::complex<T> x0 = *(first + k), x1 = w*(*(first + (i+k)));
+						std::complex<T> x0 = *(first + k), x1 = (*twiddle++)*(*(first + (i+k)));
 						*(first + k) = x0 + x1;
 						*(first + (i+k)) = x0 - x1;
-						w *= wi;
 					}
 				}
-			}
 		}
 
 		template <std::random_access_iterator It>
@@ -128,23 +168,29 @@ namespace math
 		}
 
 		template <std::random_access_iterator It>
-		constexpr void rfft_dit(It first, It last, T sign)
+		constexpr void rfft_dit(It first, It last, std::ptrdiff_t sign)
 		{
+			using std::size_t;
+			size_t half_n = std::distance(first, last);
 			++first;
 			--last;
-			size_t half_n = std::distance(first, last);
-			T k1 = sign * std::numbers::pi_v<T> / half_n;
-			std::complex<T> w1(cos(k1), sin(k1)), w(0, sign);
+			size_t n_bits = num_bits(half_n);
+			decltype(twiddle_factors[0].begin()) twiddle;
+			compute_twiddle_factors(half_n*2);
+			if (sign > 0)
+				twiddle = twiddle_factors[n_bits].end() - half_n/2;
+			else
+				twiddle = twiddle_factors[n_bits].begin() + half_n/2;
 			for (; first != last; ++first, --last)
 			{
-				w *= w1;
+				twiddle -= sign;
 				std::complex<T> zk = *first/T(2), znk = *last/T(2);
 				std::complex<T> zkc = conj(zk), znkc = conj(znk);
 				std::complex<T> xe = zk + znkc, xo = zk - znkc;
 				std::complex<T> xen = znk + zkc, xon = znk - zkc;
 
-				*first = xe + xo * w;
-				*last = xen + xon * conj(w);
+				*first = xe + xo * (*twiddle);
+				*last = xen + xon * conj(*twiddle);
 			}
 			first -> imag(-first -> imag());
 		}
@@ -157,8 +203,9 @@ namespace math
 		{
 			fft(first, last);
 			T xe = first -> real();
-			first -> real(xe + first -> imag());
-			first -> imag(xe - first -> imag());
+			T xo = first -> imag();
+			first -> real(xe + xo);
+			first -> imag(xe - xo);
 			// ^ the first and the last elements are on the first complex number,
 			// since they are both real
 			rfft_dit(first, last, -1);
@@ -171,8 +218,9 @@ namespace math
 		// the first and the last elements are on the first complex number
 		{
 			T xe = first -> real();
-			first -> real((xe + first -> imag())/2);
-			first -> imag((xe - first -> imag())/2);
+			T xo = first -> imag();
+			first -> real((xe + xo)/2);
+			first -> imag((xe - xo)/2);
 			rfft_dit(first, last, 1);
 			ifft(first, last);
 		}
@@ -310,12 +358,17 @@ namespace math
 			{
 				if constexpr (!b_inverse)
 				{
+					if constexpr (b_real)
+						compute_twiddle_factors(2*n[N-1]);
+					else
+						compute_twiddle_factors(n[N-1]);
 					for (size_t i = 0; i < num_threads; ++i)
 						tp.enqueue(eval_last, i);
 					tp.wait();
 				}
 				for (int pos = N-2; pos >= 0; --pos)
 				{
+					compute_twiddle_factors(n[pos]);
 					for (size_t i = 0; i < num_threads; ++i)
 						tmp[i].resize(n[pos]);
 					for (size_t i = 0; i < num_threads; ++i)
@@ -324,6 +377,10 @@ namespace math
 				}
 				if constexpr (b_inverse)
 				{
+					if constexpr (b_real)
+						compute_twiddle_factors(2*n[N-1]);
+					else
+						compute_twiddle_factors(n[N-1]);
 					for (size_t i = 0; i < num_threads; ++i)
 						tp.enqueue(eval_last, i);
 					tp.wait();
@@ -360,6 +417,7 @@ namespace math
 
 			std::vector<std::vector<std::complex<T>>> tmp;
 			// a vector of std::complex<T> for each thread, to minimize chances of false sharing
+			std::vector<std::vector<std::complex<T>>> twiddle_factors;
 	};
 
 }

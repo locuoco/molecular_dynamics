@@ -174,7 +174,17 @@ namespace physics
 			return cutoff;
 		}
 
-		void choose_diff_scheme(std::string scheme)
+		void cell_multiplier(std::ptrdiff_t ch_num_cells) noexcept
+		{
+			this -> ch_num_cells = ch_num_cells;
+		}
+
+		std::ptrdiff_t cell_multiplier() const noexcept
+		{
+			return ch_num_cells;
+		}
+
+		void set_diff_scheme(std::string scheme)
 		{
 			if (scheme == std::string("ik"))
 			{
@@ -194,6 +204,14 @@ namespace physics
 			}
 			else
 				throw std::invalid_argument(std::string("Error: Unknown differentiation scheme: ") + scheme);
+		}
+
+		void ewald_par(T kappa)
+		{
+			if (kappa <= 0)
+				throw std::invalid_argument("Error: Ewald parameter must be positive");
+			this -> kappa = kappa;
+			manual = true;
 		}
 
 		T ewald_par() const noexcept
@@ -221,7 +239,7 @@ namespace physics
 				num_cells *= 2;
 				cell_size = s.side / num_cells;
 			}*/
-			size_t num_cells = min_num_cells << size_t(std::round(std::log2(s.n)/3));
+			size_t num_cells = 1 << size_t(std::round(std::log2(s.n)/3) + ch_num_cells);
 			size_t m = num_cells*num_cells*num_cells;
 			size_t num_threads = tp.size();
 			T cell_size = s.side / num_cells, cell_size3 = cell_size*cell_size*cell_size;
@@ -229,7 +247,7 @@ namespace physics
 			if (cutoff > s.side/2)
 			{
 				cutoff = s.side/2;
-				std::clog << "Set cutoff to " << s.side/2 << '\n';
+				std::clog << "Set cutoff radius to " << s.side/2 << '\n';
 			}
 
 			partU.resize(num_threads);
@@ -239,21 +257,80 @@ namespace physics
 			first_inds.resize(m);
 			n_part_cell.resize(m);
 			zMG.resize(m/2);
-			// reinterpreting complex<T> as T[2] is well-defined per C++ standard
+			// reinterpreting complex<T> as T[2] is well-defined as per C++ standard
 			zMG_real = reinterpret_cast<T*>(zMG.data());
 			G.resize(m/2);
 			G_energy.resize(m/2);
 			W.resize(num_threads*order);
 			dW.resize(num_threads*order);
+			cell_rel_r.resize(s.n);
 			for (size_t i = 0; i < 3; ++i)
 				electric_field[i].resize(m/2);
 			for (size_t i = 0; i < 3; ++i)
 				electric_field_real[i] = reinterpret_cast<T*>(electric_field[i].data());
 
+			if (update)
+			{
+				// calculate (approximate) optimal Ewald parameter (Newton's method)
+				T cutoff2 = cutoff*cutoff;
+				T prev_kappa, errF, corr = 1;
+				if (!use_ik)
+					// empirical correction
+					corr = 10;
+				unsigned counter = 0, max_counter = 1000;
+				do
+				{
+					if (!manual)
+						if ((counter % 10 == 0 && counter < max_counter-25) || kappa <= 0)
+						{
+							do
+								kappa = u_dist(mersenne_twister);
+							while (kappa <= 0);
+						}
+					prev_kappa = kappa;
+					T k2 = kappa*kappa;
+					T errFr = 4/cutoff * math::fastexp(-2*cutoff2*k2);
+					T errFr1 = -4*kappa*cutoff2*errFr; // 1st derivative
+					T errFr2 = 4*cutoff2*errFr*(4*k2*cutoff2 - 1); // 2nd derivative
+					T hk = cell_size*kappa, hk2 = hk*hk;
+					T expans = 0, expans1 = 0, expans2 = 0;
+					for (ptrdiff_t i = order-1; i >= 0; --i)
+						expans = expans * hk2 + error_expansion_coeff<T>[order-1][i];
+					for (ptrdiff_t i = order-1; i >= 1; --i)
+						expans1 = expans1 * hk2 + i*error_expansion_coeff<T>[order-1][i];
+					expans1 *= hk2;
+					for (ptrdiff_t i = order-1; i >= 1; --i)
+						expans2 = expans2 * hk2 + (i*i)*error_expansion_coeff<T>[order-1][i];
+					expans2 *= hk2;
+					T hk2P = 1;
+					for (unsigned i = 0; i < 2*order; ++i)
+						hk2P *= hk;
+					T factor = hk2P * kappa * corr * std::numbers::sqrt2_v<T> / std::numbers::inv_sqrtpi_v<T>;
+					T errFk = factor * expans;
+					T errFk1 = ((2*order+1)*errFk + 2*factor*expans1)/kappa; // 1st derivative
+					T errFk2 = (2*order+1)*(errFk1/kappa - errFk/k2) + ((2*order+1)*2*expans1+4*expans2)*factor/k2; // 2nd derivative
+					errF = errFr + errFk;
+					T errF1 = errFr1 + errFk1;
+					T errF2 = errFr2 + errFk2;
+					if (!manual)
+						kappa -= errF1/errF2;
+					//std::cout << "k = " << kappa << '\n'; // debug
+					++counter;
+				}
+				while (fabs(kappa-prev_kappa) / fabs(kappa) > 1e-3 && counter < max_counter && !manual);
+				if (counter == max_counter)
+					std::clog << "Warning: Ewald parameter optimization not converged!\n";
+				std::clog << "ewald par (A): " << kappa << '\n';
+				std::clog << "estimated electrostatic force rms error (kcal/(mol A)): " << s.Z2 * sqrt(errF / (s.n * volume)) << '\n';
+				std::clog << "N_M: " << num_cells << '\n';
+				std::clog << "h (A): " << cell_size << '\n';
+				std::clog << "r_max (A): " << cutoff << '\n';
+			}
+
 			auto nearestmesh = [num_cells, &s](size_t i)
 				{
 					//return trunc((remainder(s.x[i] + T(0.5)/num_cells, s.side) / s.side + T(0.5))*num_cells/(1+eps));
-					return mod(round(s.x[i]/s.side*num_cells), num_cells);
+					return mod(point3<ptrdiff_t>(round(s.x[i]/s.side*num_cells)), ptrdiff_t(num_cells));
 				};
 
 			auto index2vec = [num_cells](size_t index)
@@ -278,10 +355,10 @@ namespace physics
 					return vec;
 				};
 
-			auto vec2index = [num_cells](point3<ptrdiff_t> vec)
+			auto vec2index = [num_cells](const point3<ptrdiff_t>& vec)
 				{
-					return (math::mod(vec[0], ptrdiff_t(num_cells))*ptrdiff_t(num_cells) +
-							math::mod(vec[1], ptrdiff_t(num_cells)))*ptrdiff_t(num_cells) +
+					return (math::mod(vec[0], ptrdiff_t(num_cells))*num_cells +
+							math::mod(vec[1], ptrdiff_t(num_cells)))*num_cells +
 						math::mod(vec[2], ptrdiff_t(num_cells));
 				};
 
@@ -311,92 +388,51 @@ namespace physics
 				n_part_cell[k] = first_inds[k+1] - first_inds[k];
 			n_part_cell[m-1] = s.n - first_inds[m-1];
 
-			if (update)
+			for (size_t i = 0; i < s.n; ++i)
 			{
-				// calculate (approximate) optimal Ewald parameter (Newton's method)
-				T cutoff2 = cutoff*cutoff;
-				T prev_kappa, errF, corr = 1;
-				if (!use_ik)
-					// empirical correction
-					corr = std::numbers::sqrt2_v<T> / std::numbers::inv_sqrtpi_v<T>;
-				unsigned counter = 0, max_counter = 1000;
-				do
-				{
-					if ((counter % 10 == 0 && counter < max_counter-25) || kappa <= 0)
-					{
-						do
-							kappa = u_dist(mersenne_twister);
-						while (kappa <= 0);
-					}
-					prev_kappa = kappa;
-					T k2 = kappa*kappa;
-					T errFr = 4/cutoff * math::fastexp(-2*cutoff2*k2);
-					T errFr1 = -4*kappa*cutoff2*errFr; // 1st derivative
-					T errFr2 = 4*cutoff2*errFr*(4*k2*cutoff2 - 1); // 2nd derivative
-					T hk = cell_size*kappa, hk2 = hk*hk;
-					T expans = 0, expans1 = 0, expans2 = 0;
-					for (ptrdiff_t i = order-1; i >= 0; --i)
-						expans = expans * hk2 + error_expansion_coeff<T>[order-1][i];
-					for (ptrdiff_t i = order-1; i >= 1; --i)
-						expans1 = expans1 * hk2 + i*error_expansion_coeff<T>[order-1][i];
-					expans1 *= hk2;
-					for (ptrdiff_t i = order-1; i >= 1; --i)
-						expans2 = expans2 * hk2 + (i*i)*error_expansion_coeff<T>[order-1][i];
-					expans2 *= hk2;
-					T hkP = 1;
-					for (unsigned i = 0; i < order; ++i)
-						hkP *= hk;
-					T factor = hkP * kappa * corr * std::numbers::sqrt2_v<T> / std::numbers::inv_sqrtpi_v<T>;
-					T errFk = factor * expans;
-					T errFk1 = ((2*order+1)*errFk + 2*factor*expans1)/kappa; // 1st derivative
-					T errFk2 = (2*order+1)*(errFk1/kappa - errFk/k2) + ((2*order+1)*2*expans1+4*expans2)*factor/k2; // 2nd derivative
-					errF = errFr + errFk;
-					T errF1 = errFr1 + errFk1;
-					T errF2 = errFr2 + errFk2;
-					kappa -= errF1/errF2;
-					//std::cout << "k = " << kappa << '\n'; // debug
-					++counter;
-				}
-				while (fabs(kappa-prev_kappa) / fabs(kappa) > 1e-3 && counter < max_counter);
-				if (counter == max_counter)
-					std::clog << "Warning: Ewald parameter optimization not converged!\n";
-				std::clog << "ewald par (A): " << kappa << '\n';
-				std::clog << "estimated force rms error (kcal/(mol A)): " << sqrt(errF) << '\n';
-				std::clog << "N_M: " << num_cells << '\n';
-				std::clog << "h (A): " << cell_size << '\n';
+				point3<T> cell_r(index2vec(part2mesh_inds[i]));
+				cell_r *= cell_size;
+				cell_rel_r[i] = remainder(s.x[i] - cell_r, cell_size);
 			}
 
 			// calculate real-space contribution to force/energy
-			auto eval_r = [this, num_threads, cell_size, num_cells, ki, index2vec, vec2index, &s](size_t idx)
+			f = s.f;
+			auto eval_r = [this, num_threads, cell_size, num_cells, index2vec, vec2index, &s](size_t idx)
 				{
 					T uC = 0, u = 0, v = 0;
 					T cutoff2 = cutoff*cutoff;
+					ptrdiff_t cell_dist = ceil(cutoff/cell_size);
 					size_t block = (s.n-1)/num_threads + 1;
 					for (size_t i = idx*block; (i < s.n) && (i < (idx+1)*block); ++i)
 					{
-						size_t si = sorted_inds[i];
-						ptrdiff_t cell_dist = ceil(cutoff/cell_size);
-						point3<ptrdiff_t> cell(index2vec(part2mesh_inds[si])), kkk;
+						point3<ptrdiff_t> cell(index2vec(part2mesh_inds[i])), kkk;
 						// iterating through neighbor cells
 						for (kkk[0] = -cell_dist; kkk[0] <= cell_dist; ++kkk[0])
 							for (kkk[1] = -cell_dist; kkk[1] <= cell_dist; ++kkk[1])
 								for (kkk[2] = -cell_dist; kkk[2] <= cell_dist; ++kkk[2])
 								{
-									T min_r2 = (dot(kkk, kkk) - 3) * cell_size*cell_size;
+									size_t other_k = vec2index(cell + kkk);
+									if (n_part_cell[other_k] == 0)
+										continue; // there are no particles in this cell
+									point3<T> cell_displ(kkk); // cell displacement vector
+									cell_displ *= -cell_size;
+									T min_r2 = dot(cell_displ, cell_displ) - 12 * cell_size*cell_size;
 									if (min_r2 > cutoff2)
 										continue; // all particles inside the cell are too far away
-									size_t other_k = vec2index(cell + kkk);
 									size_t first_ind = first_inds[other_k], last_ind = first_ind+n_part_cell[other_k];
+									cell_displ += cell_rel_r[i]; // distance between particle i and cell other_k
 									// iterating through all particles in the cell
-									for (size_t j = first_ind; j < last_ind; ++j)
+									for (size_t sj = first_ind; sj < last_ind; ++sj)
+									{
+										size_t j = sorted_inds[sj];
 										if (i != j)
 										{
-											size_t sj = sorted_inds[j];
-											auto r = remainder(s.x[si] - s.x[sj], s.side);
+											point3<T> r = cell_displ - cell_rel_r[j];
 											T r2 = dot(r, r);
 											if (r2 <= cutoff2)
-												eval_ewald_r(s, u, uC, v, kappa, si, sj, r, r2);
+												eval_ewald_r(s, u, uC, v, kappa, i, j, r, r2);
 										}
+									}
 								}
 					}
 					partU[idx] = (u + uC)/2;
@@ -636,12 +672,15 @@ namespace physics
 			tp.wait();
 			// corrections
 			eval_ewald_scd(s, kappa, volume);
+			f = s.f - f;
 			update = false;
 		}
 
+		state<T, 3> f;
+
 		private:
 
-			std::vector<point3<T>> W, dW;
+			std::vector<point3<T>> W, dW, cell_rel_r;
 			std::vector<std::complex<T>> zMG, electric_field[3];
 			std::vector<T> G, G_energy, partU, partvir;
 			std::vector<unsigned> part2mesh_inds, sorted_inds, first_inds, n_part_cell;
@@ -650,8 +689,9 @@ namespace physics
 			std::uniform_real_distribution<T> u_dist = std::uniform_real_distribution<T>(0, 1);
 			T *zMG_real, *electric_field_real[3];
 			T kappa = 0.4, cutoff = 5;
-			std::size_t order = 4, min_num_cells = 1;
-			bool update = true, use_ik = false;
+			std::size_t order = 6;
+			std::ptrdiff_t ch_num_cells = 0;
+			bool update = true, use_ik = false, manual = false;
 	};
 
 } // namespace physics

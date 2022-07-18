@@ -92,9 +92,9 @@ namespace physics
 	{
 		{0.046L, 0.4L*math::two1_6<long double>()/2}, // HT
 		{0.1521L, 3.1507L*math::two1_6<long double>()/2}, // OT
-		{0, 0}, {0, 0}, // HTL
+		{0, 0}, // HTL
 		{0.102L, 3.188L*math::two1_6<long double>()/2}, // OTL
-		{0, 0}, {0, 0}, // HF
+		{0, 0}, // HF
 		{0.18936998087954110898661567877629L, 3.1776L*math::two1_6<long double>()/2}, // OF
 	};
 
@@ -147,8 +147,8 @@ namespace physics
 
 	template <
 		std::floating_point T = double,
-		template <typename, typename, template <typename...> typename...> typename IntegT = leapfrog,
 		template <typename, typename> typename LRSummationT = pppm,
+		template <typename, typename, template <typename...> typename...> typename IntegT = leapfrog,
 		template <typename...> typename ... IntegPars
 	>
 	requires integrator<IntegT<T, state<T, 3>, IntegPars...>, T, state<T, 3>>
@@ -158,7 +158,7 @@ namespace physics
 		using Integ = IntegT<T, state<T, 3>, IntegPars...>;
 
 		std::normal_distribution<T> n_dist = std::normal_distribution<T>(0, 1);
-		mutable T kin;
+		mutable T kin; // kinetic energy
 		mutable bool kin_updated = false;
 
 		public:
@@ -168,18 +168,21 @@ namespace physics
 		state<T, 3> x, p, v, f; // position, momentum, velocity, force
 		state<T, 3> noise; // gaussian noise
 		std::valarray<T> m, gamma; // mass, damping factor
+		std::vector<point3<T>> x_tmp, p_tmp, v_tmp, f_tmp; // used for initialization
+		std::vector<T> m_tmp; // used for initialization
 		std::vector<T> z, LJ_sqrteps, LJ_halfR; // normalized partial charges + Lennard-Jones parameters
 		std::vector<atom_type> id; // identity of the atom
 		std::vector<fixed_list<max_bonds>> bonds; // bonds as an adjacency list
 		std::vector<std::array<unsigned int, 4>> impropers; // list of impropers in the whole system
-		T virial, sumz = 0, sumz2 = 0, tracedisp = 0, sumdisp = 0;
-		unsigned int n = 0, dof; // total number of atoms, degrees of freedom
+		T M = 0, Z = 0, Z2 = 0, tracedisp = 0, sumdisp = 0;
+			// total mass, total charge, sum of charges^2, trace of dispersion matrix, sum of all dispersion terms coefficients
+		unsigned int n = 0, dof = 0; // total number of atoms, degrees of freedom
 		utils::thread_pool tp; // thread pool
 		Integ integ; // integrator
 		LRSum lrsum; // long-range summation algorithm
 		std::mt19937_64 mersenne_twister = std::mt19937_64(0);
 		T side, temperature_fixed;
-		T t = 0, U, M = 0, D; // time, kinetic energy, potential energy, total mass, diffusion coefficient
+		T t = 0, U, virial, D; // time, potential energy, virial, diffusion coefficient
 		bool rescale_temperature = false, first_step = true;
 
 		static const std::size_t max_atoms = 2'000'000;
@@ -188,40 +191,55 @@ namespace physics
 			: integ(integ), lrsum(lrsum), side(side), temperature_fixed(temp), D(D)
 		{}
 
+		void copy_to_vector()
+		{
+			x_tmp.resize(n); p_tmp.resize(n);
+			v_tmp.resize(n); f_tmp.resize(n);
+			m_tmp.resize(n);
+			copy(begin(x), end(x), begin(x_tmp));
+			copy(begin(p), end(p), begin(p_tmp));
+			copy(begin(v), end(v), begin(v_tmp));
+			copy(begin(f), end(f), begin(f_tmp));
+			copy(begin(m), end(m), begin(m_tmp));
+		}
+
+		void copy_to_valarray()
+		{
+			x.resize(n); p.resize(n);
+			v.resize(n); f.resize(n);
+			m.resize(n);
+			noise.resize(n); gamma.resize(n);
+			copy(begin(x_tmp), end(x_tmp), begin(x));
+			copy(begin(p_tmp), end(p_tmp), begin(p));
+			copy(begin(v_tmp), end(v_tmp), begin(v));
+			copy(begin(f_tmp), end(f_tmp), begin(f));
+			copy(begin(m_tmp), end(m_tmp), begin(m));
+		}
+
 		void add_molecule(const molecule<T>& mol, const point3<T>& pos = 0)
 		{
 			using std::size_t;
 			using std::sqrt;
 
+			if (!first_step)
+				copy_to_vector();
+
 			if (n + mol.n > max_atoms)
 				throw std::runtime_error("Error: Exceeded maximum number of atoms");
-			state<T, 3> x_tmp = x, p_tmp = p, v_tmp = v, f_tmp = f;
-			x.resize(n + mol.n);
-			p.resize(n + mol.n);
-			v.resize(n + mol.n);
-			f.resize(n + mol.n);
-			m.resize(n + mol.n);
-			noise.resize(n + mol.n);
-			gamma.resize(n + mol.n);
-			for (size_t i = 0; i < n; ++i)
-				x[i] = x_tmp[i];
-			for (size_t i = 0; i < n; ++i)
-				p[i] = p_tmp[i];
-			for (size_t i = 0; i < n; ++i)
-				v[i] = v_tmp[i];
-			for (size_t i = 0; i < n; ++i)
-				f[i] = f_tmp[i];
+			x_tmp.resize(n + mol.n); p_tmp.resize(n + mol.n);
+			v_tmp.resize(n + mol.n); f_tmp.resize(n + mol.n);
+			m_tmp.resize(n + mol.n);
 
 			for (size_t i = 0; i < mol.n; ++i)
-				x[n + i] = mol.x[i] + pos;
+				x_tmp[n + i] = mol.x[i] + pos;
 			for (size_t i = 0; i < mol.n; ++i)
 				id.push_back(mol.id[i]);
 			for (size_t i = 0; i < mol.n; ++i)
 				z.push_back(mol.part_q[i]*sqrtkC<long double>);
 			for (size_t i = 0; i < mol.n; ++i)
 			{
-				sumz += z[n + i];
-				sumz2 += z[n + i]*z[n + i];
+				Z += z[n + i];
+				Z2 += z[n + i]*z[n + i];
 			}
 			for (size_t i = 0; i < mol.n; ++i)
 				LJ_sqrteps.push_back(sqrt(LJ_params<long double>[int(mol.id[i])].first));
@@ -245,12 +263,12 @@ namespace physics
 					C6 = 2 * LJ_sqrteps[i]*LJ_sqrteps[j] * C6;
 					sumdisp += 2*C6;
 				}
-			for (size_t i = 0; i < n + mol.n; ++i)
-				m[i] = atom_mass<T>[ int(id[i]) ];
 			for (size_t i = 0; i < mol.n; ++i)
-				M += m[n + i];
+				m_tmp[n + i] = atom_mass<T>[ int(id[n + i]) ];
 			for (size_t i = 0; i < mol.n; ++i)
-				p[n + i] = gen_gaussian() * sqrt(m[n + i] * kT_fixed());
+				M += m_tmp[n + i];
+			for (size_t i = 0; i < mol.n; ++i)
+				p_tmp[n + i] = gen_gaussian() * sqrt(m_tmp[n + i] * kT_fixed());
 
 			for (size_t i = 0; i < mol.n; ++i)
 			{
@@ -267,32 +285,8 @@ namespace physics
 									 mol.impropers[i][3] + n});
 			n += mol.n;
 			dof = 3*n;
-		}
-
-		void clear()
-		{
-			x.resize(0);
-			p.resize(0);
-			v.resize(0);
-			f.resize(0);
-			m.resize(0);
-			noise.resize(0);
-			gamma.resize(0);
-			z.clear();
-			LJ_sqrteps.clear();
-			LJ_halfR.clear();
-			id.clear();
-			bonds.clear();
-			impropers.clear();
-			M = 0;
-			sumz = 0;
-			sumz2 = 0;
-			tracedisp = 0;
-			sumdisp = 0;
-			n = 0;
-			dof = 0;
-			t = 0;
 			first_step = true;
+			kin_updated = false;
 		}
 
 		T kinetic_energy() const
@@ -366,6 +360,8 @@ namespace physics
 
 		void step(T dt = 1e-3L) // picoseconds
 		{
+			if (first_step)
+				copy_to_valarray();
 			integ.step(*this, T(dt * 20.4548282844073286665866518779L), first_step); // picoseconds to AKMA time unit
 			first_step = false;
 
@@ -390,7 +386,7 @@ namespace physics
 				force_nonbonded();
 
 				if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
-					diff_box_confining(5);
+					diff_box_confining(2);
 
 				kin_updated = false;
 			}
@@ -426,7 +422,7 @@ namespace physics
 				virial = dot(x, f);
 
 				if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
-					diff_box_confining(5);
+					diff_box_confining(2);
 
 				kin_updated = false;
 			}
@@ -464,6 +460,42 @@ namespace physics
 			}*/
 		}
 
+		bool check_vicinity(std::size_t i, std::size_t i0) const noexcept
+		{
+			using std::size_t;
+
+			if (i0 == i)
+				return true;
+			//atom_type idi = id[i];
+			for (size_t mj = 0; mj < bonds[i].n; ++mj)
+			{
+				size_t j = bonds[i][mj];
+				//atom_type idj = id[j];
+				if (i0 == j)
+					return true;
+				else
+					for (size_t mk = 0; mk < bonds[j].n; ++mk)
+					{
+						size_t k = bonds[j][mk];
+						//atom_type idk = id[k];
+						if (i0 == k)
+							return true;
+						/*else
+							for (size_t ml = 0; ml < bonds[k].n; ++ml)
+							{
+								size_t l = bonds[k][ml];
+								atom_type idl = id[l];
+								if (i0 == l)
+									if (get<0>(dihedral_params<T>[{ idi, idj, idk, idl }]) != 0)
+										return true;
+									else
+										return false;
+							}*/
+					}
+			}
+			return false;
+		}
+
 		private:
 
 		void rescale_temp()
@@ -490,7 +522,6 @@ namespace physics
 		void force_bonds()
 		{
 			using std::size_t;
-			using std::sqrt;
 
 			for (size_t i = 0; i < n; ++i)
 				for (size_t k = 0; k < bonds[i].n; ++k)
@@ -556,7 +587,7 @@ namespace physics
 
 						rik = (2 * get<2>(par) * diffUB * dik_) * rik;
 
-						f[i] += (rkj - rijt) * Kanglesinden; - rik;
+						f[i] += (rkj - rijt) * Kanglesinden - rik;
 						f[j] += (rijt + rkjt - rij - rkj) * Kanglesinden;
 						f[k] += (rij - rkjt) * Kanglesinden + rik;
 						U += get<0>(par) * diff*diff + get<2>(par) * diffUB*diffUB;
@@ -580,42 +611,6 @@ namespace physics
 				const auto& par = improper_params<T>[{ idi, idj, idk, idl }];
 				// TODO
 			}*/
-		}
-
-		bool check_vicinity(std::size_t i, std::size_t i0) const noexcept
-		{
-			using std::size_t;
-
-			if (i0 == i)
-				return true;
-			//atom_type idi = id[i];
-			for (size_t mj = 0; mj < bonds[i].n; ++mj)
-			{
-				size_t j = bonds[i][mj];
-				//atom_type idj = id[j];
-				if (i0 == j)
-					return true;
-				else
-					for (size_t mk = 0; mk < bonds[j].n; ++mk)
-					{
-						size_t k = bonds[j][mk];
-						//atom_type idk = id[k];
-						if (i0 == k)
-							return true;
-						/*else
-							for (size_t ml = 0; ml < bonds[k].n; ++ml)
-							{
-								size_t l = bonds[k][ml];
-								atom_type idl = id[l];
-								if (i0 == l)
-									if (get<0>(dihedral_params<T>[{ idi, idj, idk, idl }]) != 0)
-										return true;
-									else
-										return false;
-							}*/
-					}
-			}
-			return false;
 		}
 
 		void eval_nonbonded(std::size_t i, std::size_t j, T fact = 1) noexcept
@@ -677,8 +672,6 @@ namespace physics
 
 			lrsum(*this, tp);
 
-			return;
-
 			T cutoff = lrsum.cutoff_radius();
 			if (cutoff)
 			{
@@ -737,6 +730,129 @@ namespace physics
 					U += (-hside - x[i][2])*steepness;
 				}
 			}
+		}
+
+		public:
+
+		// constructors and utilities that occupy lots of space and thus they are put at the end
+
+		void clear()
+		{
+			x.resize(0); p.resize(0);
+			v.resize(0); f.resize(0);
+			m.resize(0);
+			noise.resize(0); gamma.resize(0);
+			x_tmp.clear(); p_tmp.clear();
+			v_tmp.clear(); f_tmp.clear();
+			m_tmp.clear();
+			z.clear();
+			LJ_sqrteps.clear();
+			LJ_halfR.clear();
+			id.clear();
+			bonds.clear();
+			impropers.clear();
+			M = Z = Z2 = 0;
+			tracedisp = sumdisp = 0;
+			n = dof = 0;
+			t = 0;
+			first_step = true;
+			kin_updated = false;
+		}
+
+		molecular_system(const molecular_system& other)
+			: x(other.x), p(other.p), v(other.v), f(other.f), noise(other.noise), m(other.m), gamma(other.gamma),
+			x_tmp(other.x_tmp), p_tmp(other.p_tmp), v_tmp(other.v_tmp), f_tmp(other.f_tmp), m_tmp(other.m_tmp),
+			z(other.z), LJ_sqrteps(other.LJ_sqrteps), LJ_halfR(other.LJ_halfR), id(other.id), bonds(other.bonds), impropers(other.impropers),
+			M(other.M), Z(other.Z), Z2(other.Z2), tracedisp(other.tracedisp), sumdisp(other.sumdisp), n(other.n), dof(other.dof),
+			mersenne_twister(other.mersenne_twister), side(other.side), temperature_fixed(other.temperature_fixed),
+			t(other.t), U(other.U), virial(other.virial), D(other.D), first_step(other.first_step)
+		{}
+
+		template <
+			template <typename, typename, template <typename...> typename...> typename IntegU,
+			template <typename, typename> typename LRSummationU,
+			template <typename...> typename ... IntegPars2
+		>
+		molecular_system(const molecular_system<T, IntegU, LRSummationU, IntegPars2...>& other)
+			: x(other.x), p(other.p), v(other.v), f(other.f), noise(other.noise), m(other.m), gamma(other.gamma),
+			x_tmp(other.x_tmp), p_tmp(other.p_tmp), v_tmp(other.v_tmp), f_tmp(other.f_tmp), m_tmp(other.m_tmp),
+			z(other.z), LJ_sqrteps(other.LJ_sqrteps), LJ_halfR(other.LJ_halfR), id(other.id), bonds(other.bonds), impropers(other.impropers),
+			M(other.M), Z(other.Z), Z2(other.Z2), tracedisp(other.tracedisp), sumdisp(other.sumdisp), n(other.n), dof(other.dof),
+			mersenne_twister(other.mersenne_twister), side(other.side), temperature_fixed(other.temperature_fixed),
+			t(other.t), U(other.U), virial(other.virial), D(other.D), first_step(other.first_step)
+		{}
+
+		molecular_system& operator=(const molecular_system& other)
+		{
+			x = other.x; p = other.p;
+			v = other.v; f = other.f;
+			noise = other.noise;
+			m = other.m;
+			gamma = other.gamma;
+			x_tmp = other.x_tmp; p_tmp = other.p_tmp;
+			v_tmp = other.v_tmp; f_tmp = other.f_tmp;
+			m_tmp = other.m_tmp;
+			z = other.z;
+			LJ_sqrteps = other.LJ_sqrteps;
+			LJ_halfR = other.LJ_halfR;
+			id = other.id;
+			bonds = other.bonds;
+			impropers = other.impropers;
+			M = other.M;
+			Z = other.Z;
+			Z2 = other.Z2;
+			tracedisp = other.tracedisp;
+			sumdisp = other.sumdisp;
+			n = other.n;
+			dof = other.dof;
+			mersenne_twister = other.mersenne_twister;
+			side = other.side;
+			temperature_fixed = other.temperature_fixed;
+			t = other.t;
+			U = other.U;
+			virial = other.virial;
+			D = other.D;
+			first_step = other.first_step;
+			return *this;
+		}
+
+		template <
+			template <typename, typename, template <typename...> typename...> typename IntegU,
+			template <typename, typename> typename LRSummationU,
+			template <typename...> typename ... IntegPars2
+		>
+		molecular_system& operator=(const molecular_system<T, IntegU, LRSummationU, IntegPars2...>& other)
+		{
+			x = other.x; p = other.p;
+			v = other.v; f = other.f;
+			noise = other.noise;
+			m = other.m;
+			gamma = other.gamma;
+			x_tmp = other.x_tmp; p_tmp = other.p_tmp;
+			v_tmp = other.v_tmp; f_tmp = other.f_tmp;
+			m_tmp = other.m_tmp;
+			z = other.z;
+			LJ_sqrteps = other.LJ_sqrteps;
+			LJ_halfR = other.LJ_halfR;
+			id = other.id;
+			bonds = other.bonds;
+			impropers = other.impropers;
+			M = other.M;
+			Z = other.Z;
+			Z2 = other.Z2;
+			tracedisp = other.tracedisp;
+			sumdisp = other.sumdisp;
+			n = other.n;
+			dof = other.dof;
+			mersenne_twister = other.mersenne_twister;
+			side = other.side;
+			temperature_fixed = other.temperature_fixed;
+			t = other.t;
+			U = other.U;
+			virial = other.virial;
+			D = other.D;
+			first_step = other.first_step;
+			return *this;
 		}
 	};
 

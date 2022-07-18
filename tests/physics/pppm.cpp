@@ -25,7 +25,7 @@ g++ pppm.cpp -o pppm -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-er
 
 */
 
-#include "../../physics/pppm.hpp"
+#include "../../physics/physics.hpp"
 
 std::mt19937 mersenne_twister;
 
@@ -46,14 +46,63 @@ void test_charge_assignment_function()
 			sum += physics::charge_assignment_function(x, k, order);
 
 		std::cout << "order " << order << ": "; 
-		assert(std::fabs(sum - 1) < 1.e-12);
+		assert(std::fabs(sum - 1) < 1.e-14);
 		std::cout << "ok\n";
 	}
+}
+
+void test_force_accuracy()
+{
+	using std::sqrt;
+
+	int side = 15, hside = side/2;
+	int Nmol = side*side*side;
+	double volume = (Nmol*18.0154)/0.602214076;
+	double dist = std::cbrt(volume)/side;
+
+	physics::molecular_system<double, physics::pppm, physics::leapfrog> sys(dist*side);
+	physics::molecular_system<double, physics::ewald, physics::leapfrog> sys_ref;
+
+	std::mt19937_64 mersenne_twister(0);
+	std::uniform_real_distribution<double> u_dist(0, 1);
+
+	sys.lrsum.cutoff_radius(9);
+	sys.lrsum.charge_assignment_order(7);
+	sys.lrsum.set_diff_scheme("ik");
+	sys.lrsum.cell_multiplier(0);
+
+	for (int i = 0; i < side; ++i)
+		for (int j = 0; j < side; ++j)
+			for (int k = 0; k < side; ++k)
+			{
+				physics::molecule w = physics::water_tip3p<>;
+				physics::point3<double> p {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist};
+				for (int l = 0; l < 3; ++l)
+					p[l] += (u_dist(mersenne_twister) - 0.5) * 0.1;
+				sys.add_molecule(w, p);
+			}
+
+	sys_ref = sys;
+
+	sys.step(0);
+	sys_ref.step(0);
+
+	auto sqr = [](physics::point3d x) { return x*x; };
+	auto sum_coords = [](physics::point3d x) { return x[0]+x[1]+x[2]; };
+
+	double rmse = sqrt(sum_coords((sys.f - sys_ref.f).apply(sqr).sum()) / sys.n);
+	double rms_elec = sqrt(sum_coords(sys_ref.lrsum.f.apply(sqr).sum()) / sys.n);
+	double rms_tot = sqrt(sum_coords(sys_ref.f.apply(sqr).sum()) / sys.n);
+
+	std::cout << "Calculated total RMS error = " << rmse << '\n';
+	std::cout << "Force electrostatic RMS = " << rms_elec << '\n';
+	std::cout << "Total force RMS (excluded intra-molecular pairs) = " << rms_tot << '\n';
 }
 
 int main()
 {
 	test_charge_assignment_function();
+	test_force_accuracy();
 
 	return 0;
 }

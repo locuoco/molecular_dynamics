@@ -269,7 +269,7 @@ namespace physics
 			t[i] = t[i] - round(t[i]/modulo)*modulo;
 		return t;
 	}
-	template <std::floating_point T, std::size_t ... Ns>
+	template <typename T, std::size_t ... Ns>
 	constexpr tens<T, Ns...> mod(tens<T, Ns...> t, typename tens<T, Ns...>::value_type modulo)
 	{
 		using math::mod;

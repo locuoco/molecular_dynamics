@@ -17,6 +17,7 @@
 #ifndef PHYSICS_EWALD_H
 #define PHYSICS_EWALD_H
 
+#include <type_traits> // add_const_t, remove_reference_t
 #include <cmath> // round, ceil, log2, sqrt, sin, cos, fabs, remainder
 #include <numbers>
 
@@ -148,7 +149,7 @@ namespace physics
 
 	template <typename T, typename S>
 	void eval_ewald_r(S& s, T& u, T& uC, T& v, T kappa, std::size_t i, std::size_t j,
-		decltype(S::x[i])& r, T r2)
+		std::add_const_t<std::remove_reference_t<decltype(S::x[i])>>& r, T r2)
 	// real space summation
 	{
 		T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
@@ -172,7 +173,7 @@ namespace physics
 
 	template <typename T, typename S>
 	void eval_ewald_r_6(S& s, T& u, T& uC, T& uD, T& v, T kappa, std::size_t i, std::size_t j,
-		decltype(S::x[i])& r, T r2)
+		std::add_const_t<std::remove_reference_t<decltype(S::x[i])>>& r, T r2)
 	// real space summation for Ewald summation for both Coulomb and dispersion interactions
 	{
 		T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
@@ -213,8 +214,8 @@ namespace physics
 	template <typename S, typename T>
 	requires requires(S& s, T x)
 		{
-			x += s.sumz;
-			x += s.sumz2;
+			x += s.Z;
+			x += s.Z2;
 		}
 	void eval_ewald_scd(S& s, T kappa, T volume, T dielectric = 1)
 	// self-energy, charged system and dipole corrections
@@ -224,7 +225,7 @@ namespace physics
 		for (size_t i = 0; i < s.n; ++i)
 			xsum += s.z[i] * s.x[i];
 		T fact = math::two_pi<T>()/((1+2*dielectric)*volume);
-		T u = fact * dot(xsum, xsum) - kappa*std::numbers::inv_sqrtpi_v<T> * s.sumz2 - std::numbers::pi_v<T>/(2*kappa*kappa*volume)*s.sumz*s.sumz;
+		T u = fact * dot(xsum, xsum) - kappa*std::numbers::inv_sqrtpi_v<T> * s.Z2 - std::numbers::pi_v<T>/(2*kappa*kappa*volume)*s.Z*s.Z;
 		s.U += u;
 		s.virial += u;
 		xsum *= fact*2;
@@ -241,8 +242,18 @@ namespace physics
 			return cutoff;
 		}
 
+		void max_n(std::size_t maxn) noexcept
+		{
+			this -> maxn = maxn;
+		}
+
+		std::size_t max_n() const noexcept
+		{
+			return maxn;
+		}
+
 		template <coulomb_and_LJ_periodic<T, State> S>
-		void operator()(S& s, utils::thread_pool& tp, std::size_t maxn = 6)
+		void operator()(S& s, utils::thread_pool& tp)
 		{
 			using std::sqrt;
 			using std::sin;
@@ -252,9 +263,9 @@ namespace physics
 			constexpr bool b_dispersion = false; // Ewald summation for dispersion forces is still TODO
 			size_t maxn1 = maxn+1, maxn3 = maxn1*maxn1*maxn1;
 			T volume = s.side * s.side * s.side;
-			T kappa = maxn/s.side;
 			cutoff = s.side/2;
 			T cutoff2 = cutoff*cutoff;
+			T kappa = 3/cutoff;
 
 			auto num_threads = tp.size();
 			partU.resize(num_threads);
@@ -324,6 +335,7 @@ namespace physics
 						}
 					}
 				};
+			f = s.f;
 			for (size_t i = 0; i < num_threads; ++i)
 				tp.enqueue(eval_1, i);
 			tp.wait();
@@ -336,14 +348,18 @@ namespace physics
 				s.virial += partvir[i];
 			}
 			eval_ewald_scd(s, kappa, volume);
+			f = s.f - f;
 		}
+
+		state<T, 3> f;
 
 		private:
 
 			std::vector<point3<T>> k;
 			std::vector<T> partU, partvir;
 			std::vector<T> factor, factor6, csum, ssum;
-			T cutoff;
+			T cutoff = 0;
+			std::size_t maxn = 6;
 	};
 
 } // namespace physics
