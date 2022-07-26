@@ -17,10 +17,10 @@
 #ifndef GUI_FONT_H
 #define GUI_FONT_H
 
-#ifdef ENABLE_TEST
-#define TEST(x) GLenum _err_ = glGetError(); if (_err_) std::cerr << _err_ << " in " << x << std::endl
+#ifdef ENABLE_DBG
+#define DBG_GL(x) GLenum err_ = glGetError(); if (err_) std::cerr << err_ << " in " << x << std::endl
 #else
-#define TEST(x)
+#define DBG_GL(x)
 #endif
 
 #include <iostream> // cerr, endl
@@ -32,12 +32,14 @@
 #include <ft2build.h> // Compile with -lfreetype
 #include FT_FREETYPE_H
 
-#ifdef USE_POINT
+#include "shader.hpp" // load_shader
 
-#include "../physics/point.hpp"
+#ifdef USE_PHYSICS
+// if USE_PHYSICS is defined, then `physics/tensor.hpp` must be available
+#include "../physics/tensor.hpp"
 
 #else
-
+// if USE_PHYSICS is undefined, then OpenGL Mathematics library must be available
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -47,12 +49,12 @@
 
 #endif
 
-class Font
+class font
 {
-#ifdef USE_POINT
-		using vec2i = physics::point2i;
-		using vec3f = physics::point3f;
-		using vec4f = physics::point4f;
+#ifdef USE_PHYSICS
+		using vec2i = physics::vec2i;
+		using vec3f = physics::vec3f;
+		using vec4f = physics::vec4f;
 		using mat4f = physics::mat4f;
 #else
 		using vec2i = glm::ivec2;
@@ -61,22 +63,23 @@ class Font
 		using mat4f = glm::mat4;
 #endif
 
-		struct Character {
-			GLuint ID;
-			vec2i Size;
-			vec2i Bearing;
-			GLint Advance;
+		struct character
+		{
+			GLuint id;
+			vec2i sz;
+			vec2i bearing;
+			GLint advance;
 		};
 
-		std::map<wchar_t, Character> characters;
-		mutable vec4f precCol;
+		std::map<wchar_t, character> characters;
+		mutable vec4f prev_color;
 
 		unsigned int w, h;
 		static constexpr unsigned int tab = 64, margin = 16;
-		GLuint vb, transf, col, prog;
-		char init;
+		GLuint va, vb, transf_id, color_id, prog;
+		bool init;
 		
-		void LoadChar(FT_Face ff, FT_ULong c)
+		void load_char(FT_Face ff, FT_ULong c)
 		{
 			if (FT_Load_Char(ff, c, FT_LOAD_RENDER))
 			{
@@ -106,39 +109,34 @@ class Font
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-			Character ch = {
+			character ch = {
 				texture, 
 				vec2i(gs -> bitmap.width, gs -> bitmap.rows),
 				vec2i(gs -> bitmap_left, gs -> bitmap_top),
 				(GLint)gs -> advance.x
 			};
-			characters.insert(std::pair<wchar_t, Character>(c, ch));
+			characters.insert(std::pair<wchar_t, character>(c, ch));
 		}
 
-		bool coleq(float r, float g, float b, float a) const
+		bool color_equal(float r, float g, float b, float a) const
 		{
-			if (r == precCol[0] && g == precCol[1] && b == precCol[2] && a == precCol[3])
-				return true;
-			return false;
+			return (r == prev_color[0] && g == prev_color[1] && b == prev_color[2] && a == prev_color[3]);
 		}
-		bool coleq(const vec4f& c) const
+
+		bool color_equal(const vec4f& c) const
 		{
-			if (c == precCol)
-				return true;
-			return false;
+			return c == prev_color;
 		}
 
 	public:
 
-		Font() : init(false)
-		{
+		font() : init(false)
+		{}
 
-		}
-
-		Font(const char* FontFile, const unsigned int font_size, const int wscreen, const int hscreen)
-			: precCol(1,1,1,1), w(wscreen), h(hscreen), init(false)
+		font(const char* FontFile, const unsigned int font_size, const int wscreen, const int hscreen)
+			: prev_color(1,1,1,1), w(wscreen), h(hscreen), init(false)
 		{
-			prog = loadShader("gui/shaders/vertexfont.vsh", "gui/shaders/fragmentfont.fsh");
+			prog = load_shader("gui/shaders/vertexfont.vsh", "gui/shaders/fragmentfont.fsh");
 
 			if (!prog)
 			{
@@ -175,123 +173,14 @@ class Font
 
 			FT_Set_Pixel_Sizes(ff, 0, font_size);
 
-			glGenBuffers(1, &vb);
+			glGenVertexArrays(1, &va);
+			glBindVertexArray(va);
 
+			glGenBuffers(1, &vb);
 			glBindBuffer(GL_ARRAY_BUFFER, vb);
 			glBufferData(GL_ARRAY_BUFFER, 24*sizeof(GLfloat), nullptr, GL_DYNAMIC_DRAW);
 
-			transf = glGetUniformLocation(prog, "Pmat");
-			col = glGetUniformLocation(prog, "col");
-
-			glUseProgram(prog);
-#ifdef USE_POINT
-			mat4f m_Pmat = physics::orthographic_projection(0., double(w), 0., double(h));
-			glUniformMatrix4fv(transf, 1, GL_TRUE, &m_Pmat(0, 0));
-#else
-			mat4f m_Pmat = glm::ortho(0., double(w), 0., double(h));
-			glUniformMatrix4fv(transf, 1, GL_FALSE, &m_Pmat[0][0]);
-#endif
-
-			glPixelStorei(GL_UNPACK_ALIGNMENT, GL_TRUE);
-
-			for (wchar_t c = 0x0000; c < 0x0080; ++c)
-				LoadChar(ff, c);
-
-			for (wchar_t c = 0x0391; c < 0x03CA; ++c) // Greek characters
-				LoadChar(ff, c);
-
-			FT_Done_Face(ff);
-			FT_Done_FreeType(ft);
-
-			TEST("Font::Font(const char*, unsigned int, int, int, GLuint)");
-
-			init = true;
-		}
-
-		Font(const Font&) = delete;
-		Font& operator=(const Font&) = delete;
-
-		Font(Font&& font) :
-			characters(std::move(font.characters)), precCol(font.precCol), w(font.w), h(font.h), vb(font.vb), transf(font.transf), col(font.col),
-			prog(font.prog), init(font.init)
-		{
-			font.vb = 0;
-			font.transf = 0;
-			font.col = 0;
-			font.prog = 0;
-			font.init = false;
-		}
-
-		Font& operator=(Font&& font)
-		{
-			if (this != &font)
-			{
-				characters = std::move(font.characters);
-				precCol = font.precCol;
-				w = font.w;
-				h = font.h;
-				vb = font.vb;
-				transf = font.transf;
-				col = font.col;
-				prog = font.prog;
-				init = font.init;
-				font.vb = 0;
-				font.transf = 0;
-				font.col = 0;
-				font.prog = 0;
-				font.init = false;
-			}
-			return *this;
-		}
-
-		~Font()
-		{
-			glDeleteProgram(prog);
-			glDeleteBuffers(1, &vb);
-		}
-
-		bool good() const
-		{
-			return (bool)init;
-		}
-
-		void Color(float r, float g, float b, float a) const
-		{
-			if (!coleq(r, g, b, a))
-			{
-				glUniform4f(col, r, g, b, a);
-				precCol = vec4f(r, g, b, a);
-				TEST("Font::Color(float, float, float, float)");
-			}
-		}
-
-		void Color(float r, float g, float b) const
-		{
-			Color(r,g,b,1.f);
-		}
-
-		void Color(const vec3f& color) const
-		{
-			Color(color[0],color[1],color[2],1.f);
-		}
-
-		void Color(const vec4f& color) const
-		{
-			if (!coleq(color))
-			{
-				glUniform4fv(col, 1, &color[0]);
-				precCol = color;
-				TEST("Font::Color(const vec4f&)");
-			}
-		}
-
-		void Begin() const
-		{
-			glUseProgram(prog);
-			glActiveTexture(GL_TEXTURE0);
-
 			glEnableVertexAttribArray(0);
-			glBindBuffer(GL_ARRAY_BUFFER, vb);
 			glVertexAttribPointer(
 				0,
 				4,
@@ -300,17 +189,134 @@ class Font
 				0,
 				(void*)0
 			);
-			TEST("Font::Begin()");
+
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+			glBindVertexArray(0);
+
+			transf_id = glGetUniformLocation(prog, "Pmat");
+			color_id = glGetUniformLocation(prog, "col");
+
+			glUseProgram(prog);
+#ifdef USE_PHYSICS
+			mat4f m_Pmat = physics::orthographic_projection(0., double(w), 0., double(h));
+			glUniformMatrix4fv(transf_id, 1, GL_TRUE, &m_Pmat(0, 0));
+#else
+			mat4f m_Pmat = glm::ortho(0., double(w), 0., double(h));
+			glUniformMatrix4fv(transf_id, 1, GL_FALSE, &m_Pmat[0][0]);
+#endif
+
+			glPixelStorei(GL_UNPACK_ALIGNMENT, GL_TRUE);
+
+			for (wchar_t c = 0x0000; c < 0x0080; ++c)
+				load_char(ff, c);
+
+			for (wchar_t c = 0x0391; c < 0x03CA; ++c) // Greek characters
+				load_char(ff, c);
+
+			FT_Done_Face(ff);
+			FT_Done_FreeType(ft);
+
+			DBG_GL("font::font(const char*, unsigned int, int, int, GLuint)");
+
+			init = true;
 		}
 
-		void End() const
+		font(const font&) = delete;
+		font& operator=(const font&) = delete;
+
+		font(font&& f) :
+			characters(std::move(f.characters)), prev_color(f.prev_color), w(f.w), h(f.h), vb(f.vb), transf_id(f.transf_id), color_id(f.color_id),
+			prog(f.prog), init(f.init)
+		{
+			f.vb = 0;
+			f.transf_id = 0;
+			f.color_id = 0;
+			f.prog = 0;
+			f.init = false;
+		}
+
+		font& operator=(font&& f)
+		{
+			if (this != &f)
+			{
+				characters = std::move(f.characters);
+				prev_color = f.prev_color;
+				w = f.w;
+				h = f.h;
+				vb = f.vb;
+				transf_id = f.transf_id;
+				color_id = f.color_id;
+				prog = f.prog;
+				init = f.init;
+				f.vb = 0;
+				f.transf_id = 0;
+				f.color_id = 0;
+				f.prog = 0;
+				f.init = false;
+			}
+			return *this;
+		}
+
+		~font()
+		{
+			glDeleteProgram(prog);
+			glDeleteBuffers(1, &vb);
+		}
+
+		bool good() const
+		{
+			return init;
+		}
+
+		void color(float r, float g, float b, float a) const
+		{
+			if (!color_equal(r, g, b, a))
+			{
+				glUniform4f(color_id, r, g, b, a);
+				prev_color = vec4f(r, g, b, a);
+				DBG_GL("font::color(float, float, float, float)");
+			}
+		}
+
+		void color(float r, float g, float b) const
+		{
+			color(r,g,b,1.f);
+		}
+
+		void color(const vec3f& col) const
+		{
+			color(col[0],col[1],col[2],1.f);
+		}
+
+		void color(const vec4f& col) const
+		{
+			if (!color_equal(col))
+			{
+				glUniform4fv(color_id, 1, &col[0]);
+				prev_color = col;
+				DBG_GL("font::color(const vec4f&)");
+			}
+		}
+
+		void begin() const
+		{
+			glBindVertexArray(va);
+			glBindBuffer(GL_ARRAY_BUFFER, vb);
+			glUseProgram(prog);
+			glActiveTexture(GL_TEXTURE0);
+
+			DBG_GL("font::begin()");
+		}
+
+		void end() const
 		{
 			glBindTexture(GL_TEXTURE_2D, 0);
-			glDisableVertexAttribArray(0);
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+			glBindVertexArray(0);
 		}
 
-		template<typename T>
-		void Draw(const std::basic_string<T>& text, float x, float y, const float scale) const
+		template <typename T>
+		void draw(const std::basic_string<T>& text, float x, float y, const float scale) const
 		// valid for string and wstring
 		{
 			if (!text.length())
@@ -323,8 +329,8 @@ class Font
 				{
 					case '\n':
 					{
-						GLint t = characters.at('A').Size[1];
-						t += characters.at('g').Bearing[1];
+						GLint t = characters.at('A').sz[1];
+						t += characters.at('g').bearing[1];
 						x = xi;
 						y -= t * scale;
 						break;
@@ -341,8 +347,8 @@ class Font
 							}
 						}
 						{
-							GLint t = characters.at('A').Size[1];
-							t += characters.at('g').Bearing[1];
+							GLint t = characters.at('A').sz[1];
+							t += characters.at('g').bearing[1];
 							x = xi;
 							y -= t * scale;
 						}
@@ -352,11 +358,11 @@ class Font
 					case ' ':
 					{
 						if (x < w - margin)
-							x += (characters.at(*i).Advance >> 6) * scale;
+							x += (characters.at(*i).advance >> 6) * scale;
 						else
 						{
-							GLint t = characters.at('A').Size[1];
-							t += characters.at('g').Bearing[1];
+							GLint t = characters.at('A').sz[1];
+							t += characters.at('g').bearing[1];
 							x = xi;
 							y -= t * scale;
 						}
@@ -364,12 +370,12 @@ class Font
 					}
 					default:
 					{
-						Character ch = characters.at(*i);
+						character ch = characters.at(*i);
 
-						float xpos = x + ch.Bearing[0] * scale;
-						float xl = xpos + ch.Size[0] * scale;
-						float yh = y + ch.Bearing[1] * scale;
-						float ypos = yh - ch.Size[1] * scale;
+						float xpos = x + ch.bearing[0] * scale;
+						float xl = xpos + ch.sz[0] * scale;
+						float yh = y + ch.bearing[1] * scale;
+						float ypos = yh - ch.sz[1] * scale;
 
 						float vertices[24] =
 						{
@@ -381,14 +387,14 @@ class Font
 							xl,   yh,   1.f, 0.f,
 						};
 
-						glBindTexture(GL_TEXTURE_2D, ch.ID);
+						glBindTexture(GL_TEXTURE_2D, ch.id);
 						glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
 
 						glDrawArrays(GL_TRIANGLES, 0, 6);
 
-						TEST("Font::Draw(const std::basic_string<T>&, float, float, float)");
+						DBG_GL("font::draw(const std::basic_string<T>&, float, float, float)");
 
-						x += (ch.Advance >> 6) * scale;
+						x += (ch.advance >> 6) * scale;
 					}
 				}
 		}

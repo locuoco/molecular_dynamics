@@ -38,7 +38,10 @@ namespace utils
 
 	template <typename Func>
 	class task_wrapper : public task_base
-	// for type erasure
+	// needed for type erasure, so that the `task` class is not a template class
+	// the advantage of this is that a std::vector of tasks may be created independently
+	// of the number of parameters that need to be stored in each object.
+	// to achieve this, dynamical polymorphism is required
 	{
 			template <typename T>
 			struct args_tuple {};
@@ -90,15 +93,20 @@ namespace utils
 
 			template <typename F, typename ... Args>
 			task(F&& f, Args&& ... args)
+			// add a task by storing a function object `f` and its arguments `args`
 				: pt(std::make_unique<task_wrapper<F>>(std::forward<F>(f), std::forward<Args>(args)...))
 			{}
 
 			void perform()
+			// perform the task
+			// undefined behaviour if `pt` is nullptr
+			// throws std::bad_function_call if `pt` is a std::function object with no target callable
 			{
-				pt -> perform();
+				pt->perform();
 			}
 
 			operator bool()
+			// check if pt is callable
 			{
 				return pt && bool(*pt);
 			}
@@ -244,6 +252,8 @@ namespace utils
 		public:
 
 			thread_pool(std::size_t num_threads = std::thread::hardware_concurrency())
+			// constructor:
+			// `num_threads` is the number of threads to launch and use
 			{
 				resize(num_threads);
 			}
@@ -267,6 +277,8 @@ namespace utils
 			template <typename F, typename ... Args>
 			void enqueue(F&& f, Args&& ... args)
 			// put a new task in a queue to be performed by one thread
+			// `f` is a function object (either a function pointer or a lambda)
+			// `args...` are the arguments (if any)
 			{
 				auto i = index++; // index is atomic so that enqueue can be called by any thread (it is thread-safe)
 				for (unsigned j = 0; j < size(); ++j)

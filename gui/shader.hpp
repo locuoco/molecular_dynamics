@@ -17,33 +17,31 @@
 #ifndef GUI_SHADER_H
 #define GUI_SHADER_H
 
-#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <exception> // runtime_error
 
 #include <GL/glew.h>
 
-std::string loadCode(const char* shaderPath)
+std::string load_code(const char* shader_path)
 {
-	std::string shaderCode;
-	std::ifstream shstream(shaderPath, std::ios::in);
+	std::string shader_code;
+	std::ifstream shstream(shader_path, std::ios::in);
 	if (shstream)
 	{
 		std::stringstream sstr;
 		sstr << shstream.rdbuf();
-		shaderCode = sstr.str();
+		shader_code = sstr.str();
 		shstream.close();
 	}
 	else
-	{
-		std::cerr << "Cannot open " << shaderPath << '.' << std::endl;
-		throw;
-	}
-	return shaderCode;
+		throw std::runtime_error(std::string("Error: Cannot open ") + shader_path + ".\n"
+			"Check that the working directory is set to the root folder of the repository.");
+	return shader_code;
 }
 
-void compileCode(GLuint shader, const std::string &code)
+void compile_code(GLuint shader, const std::string &code)
 {
 	GLint st;
 	int n;
@@ -62,10 +60,10 @@ void compileCode(GLuint shader, const std::string &code)
 		delete[] mess;
 	}
 	if (!st)
-		std::cerr << "Error in compiling " << code << '.' << std::endl;
+		throw std::runtime_error(std::string("Error in compiling:\n") + code + '\n');
 }
 
-void programLog(GLuint prog)
+void program_log(GLuint prog)
 {
 	GLint st;
 	int n;
@@ -80,26 +78,26 @@ void programLog(GLuint prog)
 		delete[] mess;
 	}
 	if (!st)
-		std::cerr << "Error with linking program :(" << std::endl;
+		throw std::runtime_error("Error with linking program :(\n");
 }
 
-GLuint loadShader(const char* vsPath, const char* fsPath)
+GLuint load_shader(const char* vs_path, const char* fs_path)
 {
 	GLuint vs = glCreateShader(GL_VERTEX_SHADER);
 	GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
 
-	std::string vsCode = loadCode(vsPath);
-	std::string fsCode = loadCode(fsPath);
+	std::string vs_code = load_code(vs_path);
+	std::string fs_code = load_code(fs_path);
 
-	compileCode(vs, vsCode);
-	compileCode(fs, fsCode);
+	compile_code(vs, vs_code);
+	compile_code(fs, fs_code);
 
 	GLuint prog = glCreateProgram();
 	glAttachShader(prog, vs);
 	glAttachShader(prog, fs);
 	glLinkProgram(prog);
 
-	programLog(prog);
+	program_log(prog);
 
 	glDetachShader(prog, vs);
 	glDetachShader(prog, fs);
@@ -110,22 +108,22 @@ GLuint loadShader(const char* vsPath, const char* fsPath)
 	return prog;
 }
 
-GLuint loadShaderTessellation(const char* vsPath, const char* tcsPath, const char* tesPath, const char* fsPath)
+GLuint load_shader_tessellation(const char* vs_path, const char* tcs_path, const char* tes_path, const char* fs_path)
 {
 	GLuint vs = glCreateShader(GL_VERTEX_SHADER);
 	GLuint tcs = glCreateShader(GL_TESS_CONTROL_SHADER);
 	GLuint tes = glCreateShader(GL_TESS_EVALUATION_SHADER);
 	GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
 
-	std::string vsCode = loadCode(vsPath);
-	std::string tcsCode = loadCode(tcsPath);
-	std::string tesCode = loadCode(tesPath);
-	std::string fsCode = loadCode(fsPath);
+	std::string vs_code = load_code(vs_path);
+	std::string tcs_code = load_code(tcs_path);
+	std::string tes_code = load_code(tes_path);
+	std::string fs_code = load_code(fs_path);
 
-	compileCode(vs, vsCode);
-	compileCode(tcs, tcsCode);
-	compileCode(tes, tesCode);
-	compileCode(fs, fsCode);
+	compile_code(vs, vs_code);
+	compile_code(tcs, tcs_code);
+	compile_code(tes, tes_code);
+	compile_code(fs, fs_code);
 
 	GLuint prog = glCreateProgram();
 	glAttachShader(prog, vs);
@@ -134,7 +132,7 @@ GLuint loadShaderTessellation(const char* vsPath, const char* tcsPath, const cha
 	glAttachShader(prog, fs);
 	glLinkProgram(prog);
 
-	programLog(prog);
+	program_log(prog);
 
 	glDetachShader(prog, vs);
 	glDetachShader(prog, tcs);

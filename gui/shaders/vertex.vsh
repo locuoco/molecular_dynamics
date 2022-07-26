@@ -17,7 +17,7 @@
 #version 330 core
 
 // Input vertex, same code will be called for each vertex
-layout(location = 0) in vec3 pos;
+layout(location = 0) in vec2 pos;
 
 layout(location = 10) in vec4 inst_pos;
 
@@ -66,6 +66,7 @@ void main()
 	}
 	else
 	{
+		// use default color and size
 		fragCol = atom_pars[0].xyz;
 		fragSize = atom_pars[0].w;
 	}
@@ -76,7 +77,7 @@ void main()
 	vec3 xAxis = normalize(cross(vec3(0, 1, 0), zAxis));
 	vec3 yAxis = cross(zAxis, xAxis);
 	mat3 lookAtCamera = mat3(xAxis, yAxis, zAxis);
-	pos0 = vec4(lookAtCamera*(pos*boxScal), 0) + pos0; // position of the square impostor vertex in view space
+	pos0 += vec4(lookAtCamera*(vec3(pos*boxScal, 0)), 0); // position of the square impostor vertex in view space
 
 	fragPos = pos0.xyz;
 

@@ -17,124 +17,69 @@
 #ifndef MATH_HELPER_H
 #define MATH_HELPER_H
 
-#include <limits> // numeric_limits
+#include <concepts> // floating_point
 #include <cmath> // sqrt, fmod, sin
 #include <type_traits> // is_integral_v
+#include <numbers> // numbers::pi_v
 
 namespace math
 {
 	template <typename T>
-	constexpr T pi() noexcept // in C++20 we have std::numbers::pi_v<T>
-	{
-		return (T)3.1415926535897932384626433832795L;
-	}
+	constexpr T half_pi = 1.5707963267948966192313216916398L; // pi/2
 
 	template <typename T>
-	constexpr T half_pi() noexcept
-	{
-		return (T)1.5707963267948966192313216916398L;
-	}
+	constexpr T pi_4 = 0.78539816339744830961566084581988L; // pi/4
 
 	template <typename T>
-	constexpr T pi_4() noexcept // pi/4
-	{
-		return (T)0.78539816339744830961566084581988L;
-	}
+	constexpr T two_pi = 6.283185307179586476925286766559L; // 2 pi
 
 	template <typename T>
-	constexpr T two_pi() noexcept
-	{
-		return (T)6.283185307179586476925286766559L;
-	}
-	template <typename T>
-	constexpr T sqrtpi() noexcept // square root of pi
-	{
-		return (T)1.7724538509055160272981674833411L;
-	}
-	template <typename T>
-	constexpr T cbrtpi() noexcept // cube root of pi
-	{
-		return (T)1.4645918875615232630201425272638L;
-	}
+	constexpr T sqrtpi = 1.7724538509055160272981674833411L; // square root of pi
 
 	template <typename T>
-	constexpr T sqrt2() noexcept // in C++20 we have std::numbers::sqrt2_v<T>
-	{
-		return (T)1.4142135623730950488016887242097L;
-	}
+	constexpr T cbrtpi = 1.4645918875615232630201425272638L; // cube root of pi
 
 	template <typename T>
-	constexpr T sqrt2_() noexcept // 1/sqrt(2)
-	{
-		return (T)0.70710678118654752440084436210485L;
-	}
+	constexpr T inv_sqrt2 = 0.70710678118654752440084436210485L; // 1/sqrt(2)
 
 	template <typename T>
-	constexpr T two1_6() noexcept // 2^(1/6)
-	{
-		return (T)1.1224620483093729814335330496792L;
-	}
+	constexpr T two1_6 = 1.1224620483093729814335330496792L; // 2^(1/6)
 
-	template <typename T>
-	constexpr T eps() noexcept
-	{
-		return std::numeric_limits<T>::epsilon();
-	}
-
-	template <typename T>
-	constexpr T one_minus_eps() noexcept
-	{
-		return 1 - std::numeric_limits<T>::epsilon();
-	}
-
-	template <typename T>
-	constexpr T one_plus_eps() noexcept
-	{
-		return 1 + std::numeric_limits<T>::epsilon();
-	}
-
-	template <typename T>
-	void quadratic_solver(T &x1, T &x2, T a, T b, T c) noexcept
-	{
-		using std::sqrt;
-		T sign = b > 0 ? 1 : b < 0 ? -1 : 0;
-		T u = -b - sign * sqrt(b * b - 4 * a * c);
-		x1 = u / (2 * a);
-		x2 = 2 * c / u;
-	}
-
-	template <typename T>
+	template <std::floating_point T>
 	constexpr T deg2rad(T deg) noexcept
+	// convert degrees to radians
 	{
-		return deg*pi<T>()/180;
+		return deg*std::numbers::pi_v<T>/180;
 	}
 
-	template <typename T>
+	template <std::floating_point T>
 	constexpr T rad2deg(T rad) noexcept
+	// convert radians to degrees
 	{
-		return rad/pi<T>()*180;
+		return rad*180/std::numbers::pi_v<T>;
 	}
 
-	template <typename T, std::size_t exponent = sizeof(T)*4>
+	template <std::floating_point T, std::size_t Exponent = sizeof(T)*4>
 	T fastexp(T x) noexcept
 	// based on the fundamental limit:
 	// (1 + x/n)^n -> e^x for n -> inf
 	// and exponentiation by squaring,
-	// with n = 2^exponent
-	// if exponent is too big, underflows/truncation errors are likely to occur
+	// with n = 2^Exponent
+	// if `Exponent` is too big, underflows/truncation errors are likely to occur
 	// if it is too small, the result will be inaccurate for big values of |x|.
 	// These limitations make this algorithm not suited to obtain a correct
-	// result up to machine precision, but it is really fast
+	// result up to machine precision, but it is much faster than std::exp
 	{
-		x = 1 + x / (1ull << exponent);
-		for (std::size_t i = 0; i < exponent; ++i)
+		x = 1 + x / (1ull << Exponent);
+		for (std::size_t i = 0; i < Exponent; ++i)
 			x *= x;
 		return x;
 	}
 
-	template <typename T>
+	template <std::floating_point T>
 	T fasterfc(T x) noexcept
 	// From Abramowitz and Stegun (1964)
+	// calculate the complementary error function
 	// max relative error should be around 10^-7
 	{
 		if (x < 0)
@@ -158,17 +103,21 @@ namespace math
 		return 1/res;
 	}
 
-	template <typename T>
+	template <std::floating_point T>
 	T fasterf(T x) noexcept
+	// calculate the error function
+	// max relative error should be around 10^-7
 	{
 		return 1 - fasterfc(x);
 	}
 
 	template <typename T>
 	T mod(T x, T y) noexcept
-	// Note that x % y = n such that x = trunc(x/y)*y + n
-	// on the other hand, x mod y = n such that x = floor(x/y)*y + n
-	// the value returned by this function is thus always positive
+	// remaps x in the [0, y) range, i.e.:
+	//	res = x mod y
+	// Note that x % y = n such that x = trunc(x/y)*y + n.
+	// On the other hand, x mod y = n such that x = floor(x/y)*y + n.
+	// The value returned by this function is thus always positive
 	// (fmod behaves as % but with floating-point types)
 	{
 		using std::fmod;
@@ -180,6 +129,9 @@ namespace math
 
 	template <typename T>
 	T sinc(T x) noexcept
+	// calculate cardinal sine function:
+	// sinc(0) = 1
+	// sinc(x) = sin(x)/x  for x != 0
 	{
 		using std::sin;
 		return x*x == 0 ? 1 : sin(x)/x;
@@ -191,9 +143,9 @@ namespace math
 
 	template <typename T>
 	T clamp(T x, T a, T b) noexcept
-	// clamp x between a and b
+	// clamp `x` between `a` and `b`
 	{
-		return x>b?b:x<a?a:x; // c:
+		return x>b?b:x<a?a:x;
 	}
 
 }

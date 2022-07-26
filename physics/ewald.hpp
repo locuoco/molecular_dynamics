@@ -1,4 +1,4 @@
-//  Ewald summation methods
+//  Ewald summation method
 //  Copyright (C) 2022 Alessandro Lo Cuoco (alessandro.locuoco@gmail.com)
 
 //  This program is free software: you can redistribute it and/or modify
@@ -18,141 +18,35 @@
 #define PHYSICS_EWALD_H
 
 #include <type_traits> // add_const_t, remove_reference_t
-#include <cmath> // round, ceil, log2, sqrt, sin, cos, fabs, remainder
-#include <numbers>
+#include <cmath> // sqrt, sin, cos, remainder
+#include <numbers> // numbers::inv_sqrtpi_v, numbers::pi_v
 
-#include "point.hpp"
-#include "integrator.hpp" // physical_system
-#include "../math/helper.hpp" // fasterfc, fastexp, two1_6
+#include "tensor.hpp" // remainder
+#include "physical_system.hpp"
+#include "direct.hpp" // coulomb_and_lj
+#include "../math/helper.hpp" // fasterfc, fastexp
 #include "../utils/thread_pool.hpp"
-#include "../utils/parallel_sort.hpp"
 
 namespace physics
 {
-	template <typename S, typename T, typename State>
-	concept coulomb_and_LJ = physical_system<S, T, State>
-		&& requires(S& s, T t, std::size_t i)
-		{
-			i < s.n;
-			t += s.z[i];
-			t += s.LJ_sqrteps[i];
-			t += s.LJ_halfR[i];
-			s.f[i] += s.x[i] - s.x[i];
-			s.U += t;
-			s.virial += dot(s.x[i], s.x[i]);
-		};
-
-	template <typename S, typename T, typename State>
-	concept coulomb_and_LJ_periodic = coulomb_and_LJ<S, T, State>
-		&& requires(S& s, std::size_t i)
+	template <typename System, typename T, typename State>
+	concept coulomb_and_lj_periodic = coulomb_and_lj<System, T, State>
+		&& requires(System& s, std::size_t i)
+	// A `coulomb_and_lj_periodic` system `s` is a `coulomb_and_lj` system so that the following
+	// instructions are well-formed (compilable).
+	// `side` is the side of the simulation box.
 		{
 			s.f[i] += remainder(s.x[i] - s.x[i], s.side);
 		};
 
-	template <typename T, typename State>
-	struct direct
-	// Direct summation
-	{
-		static T cutoff_radius() noexcept
-		{
-			return 0;
-		}
-
-		template <coulomb_and_LJ<T, State> S>
-		void operator()(S& s)
-		{
-			using std::sqrt;
-			using std::size_t;
-			for (size_t i = 0; i < s.n; ++i)
-				for (size_t j = i+1; j < s.n; ++j)
-				{
-					T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
-
-					auto r = s.x[i] - s.x[j];
-					T r2_ = 1/dot(r, r);
-					T d_ = sqrt(r2_);
-					T t = Rij * Rij * r2_;
-					t = t * t * t;
-					T epsijt = s.LJ_sqrteps[i] * s.LJ_sqrteps[j] * t;
-					T coulomb = s.z[i] * s.z[j] * d_;
-					T tot_virial = 12 * epsijt * (t - 1) + coulomb;
-					auto fij = (tot_virial * r2_) * r;
-					s.f[i] += fij;
-					s.f[j] -= fij;
-					s.U += epsijt * (t - 2) + coulomb;
-					s.virial += tot_virial;
-				}
-		}
-
-		template <coulomb_and_LJ<T, State> S>
-		void operator()(S& s, utils::thread_pool& tp)
-		{
-			using std::sqrt;
-			using std::size_t;
-			auto num_threads = tp.size();
-			if (num_threads == 1)
-				return operator()(s);
-			partU.resize(num_threads);
-			partvir.resize(num_threads);
-			auto eval_lambda = [this, num_threads, &s](size_t idx)
-				{
-					T u = 0, v = 0;
-					size_t block = (s.n-1)/num_threads + 1;
-					for (size_t i = idx*block; (i < s.n) && (i < (idx+1)*block); ++i)
-						for (size_t j = 0; j < s.n; ++j)
-							if (i != j)
-							{
-								T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
-
-								auto r = s.x[i] - s.x[j];
-								T r2_ = 1/dot(r, r);
-								T d_ = sqrt(r2_);
-								T t = Rij * Rij * r2_;
-								t = t * t * t;
-								T epsijt = s.LJ_sqrteps[i] * s.LJ_sqrteps[j] * t;
-								T coulomb = s.z[i] * s.z[j] * d_;
-								T tot_virial = 12 * epsijt * (t - 1) + coulomb;
-								auto fij = (tot_virial * r2_) * r;
-								s.f[i] += fij;
-								u += epsijt * (t - 2) + coulomb;
-								v += tot_virial;
-							}
-					partU[idx] = u/2;
-					partvir[idx] = v/2;
-				};
-			for (size_t i = 0; i < num_threads; ++i)
-				tp.enqueue(eval_lambda, i);
-			tp.wait();
-			for (size_t i = 0; i < num_threads; ++i)
-			{
-				s.U += partU[i];
-				s.virial += partvir[i];
-			}
-		}
-
-		private:
-
-			std::vector<T> partU, partvir;
-	};
-
-	template <typename T>
-	constexpr T dispersion_structure_factor_coeff[7] =
-		{
-			1,
-			2.4494897427831780981972840747059L, // sqrt(6)
-			3.8729833462074168851792653997824L, // sqrt(15)
-			4.4721359549995793928183473374626L, // sqrt(20)
-			3.8729833462074168851792653997824L, // sqrt(15)
-			2.4494897427831780981972840747059L, // sqrt(6)
-			1
-		};
-
-	template <typename T, typename S>
-	void eval_ewald_r(S& s, T& u, T& uC, T& v, T kappa, std::size_t i, std::size_t j,
-		std::add_const_t<std::remove_reference_t<decltype(S::x[i])>>& r, T r2)
+	template <typename T, typename System>
+	void eval_ewald_r(System& s, T& u, T& uC, T& v, T kappa, std::size_t i, std::size_t j,
+		std::add_const_t<std::remove_reference_t<decltype(System::x[i])>>& r, T r2)
 	// real space summation
 	{
-		T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
+		using std::sqrt;
+
+		T Rij = s.lj_halfR[i] + s.lj_halfR[j];
 
 		T r2_ = 1/r2;
 		T d = sqrt(r2);
@@ -160,7 +54,7 @@ namespace physics
 		T kd = kappa * d;
 		T t = Rij * Rij * r2_;
 		t = t * t * t;
-		T epsijt = s.LJ_sqrteps[i] * s.LJ_sqrteps[j] * t;
+		T epsijt = s.lj_sqrteps[i] * s.lj_sqrteps[j] * t;
 		T zij_d = s.z[i] * s.z[j] * d_;
 		T coulomb = zij_d * math::fasterfc(kd);
 		T lennard_jones = 12 * epsijt * (t - 1);
@@ -171,39 +65,8 @@ namespace physics
 		v += lennard_jones;
 	}
 
-	template <typename T, typename S>
-	void eval_ewald_r_6(S& s, T& u, T& uC, T& uD, T& v, T kappa, std::size_t i, std::size_t j,
-		std::add_const_t<std::remove_reference_t<decltype(S::x[i])>>& r, T r2)
-	// real space summation for Ewald summation for both Coulomb and dispersion interactions
-	{
-		T Rij = s.LJ_halfR[i] + s.LJ_halfR[j];
-		T epsij = s.LJ_sqrteps[i] * s.LJ_sqrteps[j];
-
-		T d = sqrt(r2);
-		T d_ = 1/d;
-		T kd = kappa * d;
-		T emkd2 = math::fastexp(-kd*kd);
-		T C6ij = Rij * Rij;
-		C6ij = C6ij * C6ij * C6ij;
-		T C12ij = C6ij * C6ij;
-		C6ij *= 2*epsij;
-		C12ij *= epsij;
-		T zij_d = s.z[i] * s.z[j] * d_;
-		T coulomb = zij_d * math::fasterfc(kd);
-		T r2_ = 1/r2, r4_ = r2_*r2_, r6_ = r4_*r2_;
-		T k2 = kappa*kappa, k4 = k2*k2;
-		T lj12 = C12ij * r6_*r6_;
-		T lennard_jones = 12 * lj12 - C6ij * (6*r6_ + 6*k2*r4_ + 3*k4*r2_ + k4*k2) * emkd2;
-		auto fij = ((lennard_jones + coulomb + zij_d * (2 * std::numbers::inv_sqrtpi_v<T>) * kd * emkd2) * r2_) * r;
-		s.f[i] += fij;
-		u += lj12;
-		uC += coulomb;
-		uD -= C6ij * (r6_ + k2*r4_ + k4*r2_/2) * emkd2;
-		v += 12 * lj12;
-	}
-
-	template <typename S, typename T>
-	void eval_ewald_r(S& s, T& u, T& uC, T& v, T kappa, std::size_t i, std::size_t j)
+	template <typename System, typename T>
+	void eval_ewald_r(System& s, T& u, T& uC, T& v, T kappa, std::size_t i, std::size_t j)
 	// real space summation
 	{
 		auto r = remainder(s.x[i] - s.x[j], s.side);
@@ -211,22 +74,22 @@ namespace physics
 		eval_ewald_r(s, u, uC, v, kappa, i, j, r, r2);
 	}
 
-	template <typename S, typename T>
-	requires requires(S& s, T x)
+	template <typename System, typename T>
+	requires requires(System& s, T x)
 		{
 			x += s.Z;
 			x += s.Z2;
 		}
-	void eval_ewald_scd(S& s, T kappa, T volume, T dielectric = 1)
+	void eval_ewald_scd(System& s, T kappa, T volume, T dielectric = 1)
 	// self-energy, charged system and dipole corrections
 	{
 		using std::size_t;
-		point3<T> xsum = 0;
+		vec3<T> xsum = 0;
 		for (size_t i = 0; i < s.n; ++i)
 			xsum += s.z[i] * s.x[i];
-		T fact = math::two_pi<T>()/((1+2*dielectric)*volume);
+		T fact = math::two_pi<T>/((1+2*dielectric)*volume);
 		T u = fact * dot(xsum, xsum) - kappa*std::numbers::inv_sqrtpi_v<T> * s.Z2 - std::numbers::pi_v<T>/(2*kappa*kappa*volume)*s.Z*s.Z;
-		s.U += u;
+		s.potential += u;
 		s.virial += u;
 		xsum *= fact*2;
 		for (size_t i = 0; i < s.n; ++i)
@@ -252,15 +115,12 @@ namespace physics
 			return maxn;
 		}
 
-		template <coulomb_and_LJ_periodic<T, State> S>
-		void operator()(S& s, utils::thread_pool& tp)
+		template <coulomb_and_lj_periodic<T, State> System>
+		void operator()(System& s, utils::thread_pool& tp)
 		{
-			using std::sqrt;
 			using std::sin;
 			using std::cos;
-			using std::fabs;
 			using std::size_t;
-			constexpr bool b_dispersion = false; // Ewald summation for dispersion forces is still TODO
 			size_t maxn1 = maxn+1, maxn3 = maxn1*maxn1*maxn1;
 			T volume = s.side * s.side * s.side;
 			cutoff = s.side/2;
@@ -268,13 +128,11 @@ namespace physics
 			T kappa = 3/cutoff;
 
 			auto num_threads = tp.size();
-			partU.resize(num_threads);
+			partpot.resize(num_threads);
 			partvir.resize(num_threads);
 
 			k.resize(maxn3);
 			factor.resize(maxn3);
-			if (b_dispersion)
-				factor6.resize(maxn3);
 			csum.resize(maxn3);
 			ssum.resize(maxn3);
 
@@ -289,12 +147,7 @@ namespace physics
 								auto r = remainder(s.x[i] - s.x[j], s.side);
 								T r2 = dot(r, r);
 								if (r2 <= cutoff2)
-								{
-									if (b_dispersion)
-										eval_ewald_r_6(s, u, uC, uD, v, kappa, i, j, r, r2);
-									else
-										eval_ewald_r(s, u, uC, v, kappa, i, j, r, r2);
-								}
+									eval_ewald_r(s, u, uC, v, kappa, i, j, r, r2);
 							}
 					u /= 2;
 					uC /= 2;
@@ -307,7 +160,7 @@ namespace physics
 						size_t nij = nijk / maxn1;
 						size_t n2 = nij % maxn1;
 						size_t n1 = nij / maxn1;
-						k[nijk-1] = math::two_pi<T>()*point3<T>{n1, n2, n3}/s.side;
+						k[nijk-1] = math::two_pi<T>*vec3<T>{n1, n2, n3}/s.side;
 						T k2 = dot(k[nijk-1], k[nijk-1]);
 						csum[nijk-1] = 0, ssum[nijk-1] = 0;
 						for (size_t i = 0; i < s.n; ++i)
@@ -316,11 +169,11 @@ namespace physics
 							csum[nijk-1] += s.z[i] * cos(dotkx);
 							ssum[nijk-1] += s.z[i] * sin(dotkx);
 						}
-						factor[nijk-1] = 4*math::two_pi<T>()*math::fastexp(-k2/(4*kappa*kappa))/(k2*volume);
+						factor[nijk-1] = 4*math::two_pi<T>*math::fastexp(-k2/(4*kappa*kappa))/(k2*volume);
 						T kspace_contrib = (csum[nijk-1]*csum[nijk-1] + ssum[nijk-1]*ssum[nijk-1])*factor[nijk-1]/2;
 						uC += kspace_contrib;
 					}
-					partU[idx] = u + uC + uD;
+					partpot[idx] = u + uC + uD;
 					partvir[idx] = v + uC + 6*uD;
 				};
 			auto eval_2 = [this, num_threads, maxn3, &s](size_t idx)
@@ -344,7 +197,7 @@ namespace physics
 			tp.wait();
 			for (size_t i = 0; i < num_threads; ++i)
 			{
-				s.U += partU[i];
+				s.potential += partpot[i];
 				s.virial += partvir[i];
 			}
 			eval_ewald_scd(s, kappa, volume);
@@ -355,9 +208,9 @@ namespace physics
 
 		private:
 
-			std::vector<point3<T>> k;
-			std::vector<T> partU, partvir;
-			std::vector<T> factor, factor6, csum, ssum;
+			std::vector<vec3<T>> k;
+			std::vector<T> partpot, partvir;
+			std::vector<T> factor, csum, ssum;
 			T cutoff = 0;
 			std::size_t maxn = 6;
 	};

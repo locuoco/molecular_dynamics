@@ -20,16 +20,17 @@
 #include <iostream> // clog
 #include <cmath> // round, ceil, log2, sqrt, sin, cos, fabs, remainder
 #include <numeric> // iota
-#include <numbers>
+#include <numbers> // numbers::sqrt2_v, numbers::sqrt3_v, numbers::pi_v
 #include <functional> // function
 #include <algorithm> // fill, copy
 #include <complex>
 #include <stdexcept> // invalid_argument
-#include <random> // mt19937, uniform_real_distribution
+#include <random> // mt19937_64, uniform_real_distribution
 
 #include "ewald.hpp" // from math/helper.hpp: fasterfc, fastexp, mod, two1_6
-	// eval_ewald_r, eval_ewald_r_6, eval_ewald_scd
+	// eval_ewald_r, eval_ewald_scd
 #include "../math/dft.hpp"
+#include "../utils/parallel_sort.hpp"
 
 namespace physics
 {
@@ -219,7 +220,7 @@ namespace physics
 			return kappa;
 		}
 
-		template <coulomb_and_LJ_periodic<T, State> S>
+		template <coulomb_and_lj_periodic<T, State> S>
 		void operator()(S& s, utils::thread_pool& tp)
 		{
 			using std::size_t;
@@ -232,13 +233,6 @@ namespace physics
 			if (s.n < 2)
 				return;
 
-			/*size_t num_cells = 2;
-			T cell_size = s.side / num_cells;
-			while (cell_size > 1)
-			{
-				num_cells *= 2;
-				cell_size = s.side / num_cells;
-			}*/
 			size_t num_cells = 1 << size_t(std::round(std::log2(s.n)/3) + ch_num_cells);
 			size_t m = num_cells*num_cells*num_cells;
 			size_t num_threads = tp.size();
@@ -247,10 +241,10 @@ namespace physics
 			if (cutoff > s.side/2)
 			{
 				cutoff = s.side/2;
-				std::clog << "Set cutoff radius to " << s.side/2 << '\n';
+				std::clog << "Set cutoff radius to " << cutoff << '\n';
 			}
 
-			partU.resize(num_threads);
+			partpot.resize(num_threads);
 			partvir.resize(num_threads);
 			part2mesh_inds.resize(s.n);
 			sorted_inds.resize(s.n);
@@ -321,7 +315,7 @@ namespace physics
 				if (counter == max_counter)
 					std::clog << "Warning: Ewald parameter optimization not converged!\n";
 				std::clog << "ewald par (A): " << kappa << '\n';
-				std::clog << "estimated electrostatic force rms error (kcal/(mol A)): " << s.Z2 * sqrt(errF / (s.n * volume)) << '\n';
+				std::clog << "estimated electrostatic force RMS error (kcal/(mol A)): " << s.Z2 * sqrt(errF / (s.n * volume)) << '\n';
 				std::clog << "N_M: " << num_cells << '\n';
 				std::clog << "h (A): " << cell_size << '\n';
 				std::clog << "r_max (A): " << cutoff << '\n';
@@ -330,12 +324,12 @@ namespace physics
 			auto nearestmesh = [num_cells, &s](size_t i)
 				{
 					//return trunc((remainder(s.x[i] + T(0.5)/num_cells, s.side) / s.side + T(0.5))*num_cells/(1+eps));
-					return mod(point3<ptrdiff_t>(round(s.x[i]/s.side*num_cells)), ptrdiff_t(num_cells));
+					return mod(vec3<ptrdiff_t>(round(s.x[i]/s.side*num_cells)), ptrdiff_t(num_cells));
 				};
 
 			auto index2vec = [num_cells](size_t index)
 				{
-					point3<ptrdiff_t> vec;
+					vec3<ptrdiff_t> vec;
 					vec[2] = index % num_cells;
 					index /= num_cells;
 					vec[1] = index % num_cells;
@@ -346,7 +340,7 @@ namespace physics
 
 			auto index2vec_complex = [num_cells](size_t index)
 				{
-					point3<ptrdiff_t> vec;
+					vec3<ptrdiff_t> vec;
 					vec[2] = index % (num_cells/2);
 					index /= num_cells/2;
 					vec[1] = index % num_cells;
@@ -355,7 +349,7 @@ namespace physics
 					return vec;
 				};
 
-			auto vec2index = [num_cells](const point3<ptrdiff_t>& vec)
+			auto vec2index = [num_cells](const vec3<ptrdiff_t>& vec)
 				{
 					return (math::mod(vec[0], ptrdiff_t(num_cells))*num_cells +
 							math::mod(vec[1], ptrdiff_t(num_cells)))*num_cells +
@@ -364,7 +358,7 @@ namespace physics
 
 			for (size_t i = 0; i < s.n; ++i)
 			{
-				point3<size_t> a(nearestmesh(i));
+				vec3<size_t> a(nearestmesh(i));
 				part2mesh_inds[i] = (a[0]*num_cells + a[1])*num_cells + a[2];
 			}
 			auto comp = [this](size_t i, size_t j)
@@ -390,7 +384,7 @@ namespace physics
 
 			for (size_t i = 0; i < s.n; ++i)
 			{
-				point3<T> cell_r(index2vec(part2mesh_inds[i]));
+				vec3<T> cell_r(index2vec(part2mesh_inds[i]));
 				cell_r *= cell_size;
 				cell_rel_r[i] = remainder(s.x[i] - cell_r, cell_size);
 			}
@@ -401,11 +395,14 @@ namespace physics
 				{
 					T uC = 0, u = 0, v = 0;
 					T cutoff2 = cutoff*cutoff;
+					T cell_cutoff = cutoff + std::numbers::sqrt3_v<T>*cell_size;
+					// taking into account particles on the border of a cell
+					T cell_cutoff2 = cell_cutoff*cell_cutoff;
 					ptrdiff_t cell_dist = ceil(cutoff/cell_size);
 					size_t block = (s.n-1)/num_threads + 1;
 					for (size_t i = idx*block; (i < s.n) && (i < (idx+1)*block); ++i)
 					{
-						point3<ptrdiff_t> cell(index2vec(part2mesh_inds[i])), kkk;
+						vec3<ptrdiff_t> cell(index2vec(part2mesh_inds[i])), kkk;
 						// iterating through neighbor cells
 						for (kkk[0] = -cell_dist; kkk[0] <= cell_dist; ++kkk[0])
 							for (kkk[1] = -cell_dist; kkk[1] <= cell_dist; ++kkk[1])
@@ -414,10 +411,9 @@ namespace physics
 									size_t other_k = vec2index(cell + kkk);
 									if (n_part_cell[other_k] == 0)
 										continue; // there are no particles in this cell
-									point3<T> cell_displ(kkk); // cell displacement vector
+									vec3<T> cell_displ(kkk); // cell displacement vector
 									cell_displ *= -cell_size;
-									T min_r2 = dot(cell_displ, cell_displ) - 12 * cell_size*cell_size;
-									if (min_r2 > cutoff2)
+									if (dot(cell_displ, cell_displ) > cell_cutoff2)
 										continue; // all particles inside the cell are too far away
 									size_t first_ind = first_inds[other_k], last_ind = first_ind+n_part_cell[other_k];
 									cell_displ += cell_rel_r[i]; // distance between particle i and cell other_k
@@ -427,7 +423,7 @@ namespace physics
 										size_t j = sorted_inds[sj];
 										if (i != j)
 										{
-											point3<T> r = cell_displ - cell_rel_r[j];
+											vec3<T> r = cell_displ - cell_rel_r[j];
 											T r2 = dot(r, r);
 											if (r2 <= cutoff2)
 												eval_ewald_r(s, u, uC, v, kappa, i, j, r, r2);
@@ -435,7 +431,7 @@ namespace physics
 									}
 								}
 					}
-					partU[idx] = (u + uC)/2;
+					partpot[idx] = (u + uC)/2;
 					partvir[idx] = (v + uC)/2;
 				};
 			for (size_t i = 0; i < num_threads; ++i)
@@ -444,31 +440,31 @@ namespace physics
 			auto charge_assignment_center = [this, cell_size, num_cells, index2vec, &s](size_t i, size_t p)
 				{
 					// calculate nearest cell
-					point3<ptrdiff_t> nearest_cell(index2vec(p));
+					vec3<ptrdiff_t> nearest_cell(index2vec(p));
 					if ((order & 1) == 0) // order is even
 					{
-						point3<ptrdiff_t> nearest_vertex = nearest_cell;
+						vec3<ptrdiff_t> nearest_vertex = nearest_cell;
 						// calculate nearest vertex
 						for (size_t j = 0; j < 3; ++j)
 							if (remainder(nearest_cell[j] * cell_size - s.x[i][j], s.side) > 0)
 								--nearest_vertex[j];
-						return point3<T>(nearest_vertex) + T(0.5);
+						return vec3<T>(nearest_vertex) + T(0.5);
 					}
 					else
-						return point3<T>(nearest_cell);
+						return vec3<T>(nearest_cell);
 				};
 			std::fill(zMG.begin(), zMG.end(), 0);
 			for (size_t i = 0; i < s.n; ++i)
 			{
 				ptrdiff_t p = part2mesh_inds[i];
-				point3<T> center(charge_assignment_center(i, p));
-				point3<T> x_prime(0);
+				vec3<T> center(charge_assignment_center(i, p));
+				vec3<T> x_prime(0);
 				if (order > 1)
 					x_prime = remainder(s.x[i]/cell_size - center, T(num_cells));
 				for (size_t k = 0; k < order; ++k)
 					for (size_t j = 0; j < 3; ++j)
 						W[k][j] = charge_assignment_function(x_prime[j], k, order);
-				point3<ptrdiff_t> kkk, cell(mod(center, T(num_cells)));
+				vec3<ptrdiff_t> kkk, cell(mod(center, T(num_cells)));
 				ptrdiff_t half_order = (order-1)/2;
 				cell -= half_order;
 				for (kkk[0] = 0; kkk[0] < ptrdiff_t(order); ++kkk[0])
@@ -482,20 +478,20 @@ namespace physics
 			tp.wait();
 			for (size_t i = 0; i < num_threads; ++i)
 			{
-				s.U += partU[i];
+				s.potential += partpot[i];
 				s.virial += partvir[i];
 			}
 			// calculate influence function
 			T m1_4kappa2 = -1/(4*kappa*kappa);
 			T pi_h = std::numbers::pi_v<T>/cell_size, twopi_h = 2*pi_h, twopi_L = twopi_h/num_cells;
 			ptrdiff_t maxn_ = 2;
-			auto influence_function_ik = [this, cell_size, m1_4kappa2, twopi_h, maxn_](point3<T> kvec, T den, size_t i)
+			auto influence_function_ik = [this, cell_size, m1_4kappa2, twopi_h, maxn_](vec3<T> kvec, T den, size_t i)
 				{
-					point3<ptrdiff_t> nnn_;
+					vec3<ptrdiff_t> nnn_;
 					T k2 = dot(kvec, kvec), num = 0, num_energy = 0;
 					for (nnn_[0] = -maxn_; nnn_[0] <= maxn_; ++nnn_[0])
 					{
-						point3<T> k_, s_;
+						vec3<T> k_, s_;
 						k_[0] = kvec[0] + twopi_h * nnn_[0];
 						s_[0] = math::sinc(k_[0]*cell_size/2);
 						for (nnn_[1] = -maxn_; nnn_[1] <= maxn_; ++nnn_[1])
@@ -517,16 +513,16 @@ namespace physics
 							}
 						}
 					}
-					G[i] = num * 2 * math::two_pi<T>() / (k2*den*den);
-					G_energy[i] = num_energy * 2 * math::two_pi<T>() / (den*den);
+					G[i] = num * 2 * math::two_pi<T> / (k2*den*den);
+					G_energy[i] = num_energy * 2 * math::two_pi<T> / (den*den);
 				};
-			auto influence_function_ad = [this, cell_size, m1_4kappa2, twopi_h, maxn_](point3<T> kvec, T den, size_t i)
+			auto influence_function_ad = [this, cell_size, m1_4kappa2, twopi_h, maxn_](vec3<T> kvec, T den, size_t i)
 				{
-					point3<ptrdiff_t> nnn_;
+					vec3<ptrdiff_t> nnn_;
 					T num = 0, num_energy = 0, den_ = 0;
 					for (nnn_[0] = -maxn_; nnn_[0] <= maxn_; ++nnn_[0])
 					{
-						point3<T> k_, s_;
+						vec3<T> k_, s_;
 						k_[0] = kvec[0] + twopi_h * nnn_[0];
 						s_[0] = math::sinc(k_[0]*cell_size/2);
 						for (nnn_[1] = -maxn_; nnn_[1] <= maxn_; ++nnn_[1])
@@ -549,8 +545,8 @@ namespace physics
 							}
 						}
 					}
-					G[i] = num * 2 * math::two_pi<T>() / (den*den_);
-					G_energy[i] = num_energy * 2 * math::two_pi<T>() / (den*den);
+					G[i] = num * 2 * math::two_pi<T> / (den*den_);
+					G_energy[i] = num_energy * 2 * math::two_pi<T> / (den*den);
 				};
 			
 			auto eval_G = [this, num_threads, num_cells, cell_size, m, index2vec_complex, twopi_L, influence_function_ik, influence_function_ad](size_t idx)
@@ -566,7 +562,7 @@ namespace physics
 						}
 						auto nvec = index2vec_complex(i);
 						nvec -= ptrdiff_t(num_cells)*(2*nvec/ptrdiff_t(num_cells));
-						point3<T> kvec = twopi_L * point3<T>(nvec), s = kvec*cell_size/2;
+						vec3<T> kvec = twopi_L * vec3<T>(nvec), s = kvec*cell_size/2;
 						for (size_t j = 0; j < 3; ++j)
 							s[j] = sin(s[j]);
 						T den = 1;
@@ -592,7 +588,7 @@ namespace physics
 				for (size_t i = 0; i < m/2; ++i)
 					u += norm(zMG[i]) * G_energy[i];
 				u /= volume;
-				s.U += u;
+				s.potential += u;
 				s.virial += u;
 			}
 			// calculate reciprocal-space contribution to forces
@@ -600,19 +596,19 @@ namespace physics
 				zMG[i] *= G[i] / cell_size3;
 			if (use_ik)
 			{
-				point3<size_t> nnn;
-				point3<T> kvec;
+				vec3<size_t> nnn;
+				vec3<T> kvec;
 				for (nnn[0] = 0; nnn[0] < num_cells; ++nnn[0])
 					for (nnn[1] = 0; nnn[1] < num_cells; ++nnn[1])
 						for (nnn[2] = 0; nnn[2] < num_cells/2; ++nnn[2])
 						{
 							size_t index = (nnn[0]*num_cells + nnn[1])*(num_cells/2) + nnn[2];
-							point3<ptrdiff_t> nvec(nnn);
+							vec3<ptrdiff_t> nvec(nnn);
 							for (size_t j = 0; j < 2; ++j)
 								if (nvec[j] == ptrdiff_t(num_cells/2))
 									nvec[j] = 0;
 							nvec -= ptrdiff_t(num_cells)*(2*nvec/ptrdiff_t(num_cells));
-							kvec = twopi_L * point3<T>(nvec);
+							kvec = twopi_L * vec3<T>(nvec);
 							std::complex<T> zGi = zMG[index] * std::complex<T>(0, 1);
 							for (size_t j = 0; j < 3; ++j)
 								electric_field[j][index] = kvec[j] * zGi;
@@ -628,8 +624,8 @@ namespace physics
 					for (size_t i = idx*block; (i < s.n) && (i < (idx+1)*block); ++i)
 					{
 						ptrdiff_t p = part2mesh_inds[i];
-						point3<T> center(charge_assignment_center(i, p));
-						point3<T> x_prime(0);
+						vec3<T> center(charge_assignment_center(i, p));
+						vec3<T> x_prime(0);
 						if (order > 1)
 							x_prime = remainder(s.x[i]/cell_size - center, T(num_cells));
 						for (size_t k = 0; k < order; ++k)
@@ -639,8 +635,8 @@ namespace physics
 							for (size_t k = 0; k < order; ++k)
 								for (size_t j = 0; j < 3; ++j)
 									dW[order*idx + k][j] = charge_assignment_function_der(x_prime[j], k, order);
-						point3<T> ei(0);
-						point3<ptrdiff_t> kkk, cell(mod(center, T(num_cells)));
+						vec3<T> ei(0);
+						vec3<ptrdiff_t> kkk, cell(mod(center, T(num_cells)));
 						ptrdiff_t half_order = (order-1)/2;
 						cell -= half_order;
 						for (kkk[0] = 0; kkk[0] < ptrdiff_t(order); ++kkk[0])
@@ -656,7 +652,7 @@ namespace physics
 									}
 									else
 									{
-										point3<T> Wxyz(
+										vec3<T> Wxyz(
 											dW[order*idx + kkk[0]][0] * W[order*idx + kkk[1]][1] * W[order*idx + kkk[2]][2],
 											W[order*idx + kkk[0]][0] * dW[order*idx + kkk[1]][1] * W[order*idx + kkk[2]][2],
 											W[order*idx + kkk[0]][0] * W[order*idx + kkk[1]][1] * dW[order*idx + kkk[2]][2]
@@ -680,16 +676,16 @@ namespace physics
 
 		private:
 
-			std::vector<point3<T>> W, dW, cell_rel_r;
+			std::vector<vec3<T>> W, dW, cell_rel_r;
 			std::vector<std::complex<T>> zMG, electric_field[3];
-			std::vector<T> G, G_energy, partU, partvir;
+			std::vector<T> G, G_energy, partpot, partvir;
 			std::vector<unsigned> part2mesh_inds, sorted_inds, first_inds, n_part_cell;
 			math::dft<T> dft;
 			std::mt19937_64 mersenne_twister = std::mt19937_64(0);
 			std::uniform_real_distribution<T> u_dist = std::uniform_real_distribution<T>(0, 1);
 			T *zMG_real, *electric_field_real[3];
 			T kappa = 0.4, cutoff = 5;
-			std::size_t order = 6;
+			std::size_t order = 4;
 			std::ptrdiff_t ch_num_cells = 0;
 			bool update = true, use_ik = false, manual = false;
 	};

@@ -1,4 +1,4 @@
-//  Molecular dynamics
+//  Molecular dynamics example
 //  Copyright (C) 2022 Alessandro Lo Cuoco (alessandro.locuoco@gmail.com)
 
 //  This program is free software: you can redistribute it and/or modify
@@ -20,29 +20,30 @@
 
 /*
 
-g++ main.cpp -o mold -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\Users\aless\Desktop\myLib\lib -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1
+g++ examples/main.cpp -o examples/mold -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\Users\aless\Desktop\myLib\lib -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1
 
 */
 
-#include "physics/physics.hpp"
-#include "gui/graphics.hpp"
+#include "../physics/physics.hpp"
+#include "../gui/graphics.hpp"
 
 int main(const int, const char**)
 {
 	graphics window;
 
-	int side = 15, hside = side/2;
+	int side = 16, hside = side/2;
 	int Nmol = side*side*side;
 	double volume = (Nmol*18.0154)/0.60043754468329832909213892745879;
 	// 0.5522 = density of ice in AKMA units
 	// 0.6022 = density of water at 4 °C
 	// 0.6004 = density of water at 25 °C
+	// 0.5901 = density of TIP3P water model
 	double dist = std::cbrt(volume)/side;
 	//dist = 7;
 	double init_temp = 298.15, end_temp = 220;
 	std::cout << "Nmol = " << Nmol << ", dist = " << dist << std::endl;
 
-	physics::molecular_system<double, physics::direct, physics::multi_timestep_leapfrog> molsys(
+	physics::molecular_system<double, physics::pppm, physics::nose_hoover> molsys(
 		dist*side,
 		init_temp
 	);
@@ -56,8 +57,8 @@ int main(const int, const char**)
 		for (int j = 0; j < side; ++j)
 			for (int k = 0; k < side; ++k)
 			{
-				physics::molecule w = physics::water_fba_eps<>;
-				physics::point3d p = {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist};
+				physics::molecule w = physics::water_tip3p_lr<>;
+				physics::vec3d p = {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist};
 				for (int l = 0; l < 3; ++l)
 					p[l] += (u_dist(mersenne_twister) - 0.5) * 0.1;
 				/*for (int l = 0; l < 3; ++l)
@@ -73,8 +74,7 @@ int main(const int, const char**)
 	while (!window.should_close())
 	{
 		//molsys.temperature_fixed = end_temp + (molsys.temperature_fixed - end_temp) * 0.9999;
-		for (int i = 0; i < 2; ++i)
-			molsys.step(1e-3);
+		molsys.step(1e-3);
 		window.draw(molsys);
 	}
 

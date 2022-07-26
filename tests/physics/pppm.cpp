@@ -21,6 +21,7 @@
 
 /*
 
+Compilation:
 g++ pppm.cpp -o pppm -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1
 
 */
@@ -28,27 +29,17 @@ g++ pppm.cpp -o pppm -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-er
 #include "../../physics/physics.hpp"
 
 std::mt19937 mersenne_twister;
+std::uniform_real_distribution<double> dist(0, 1);
 
-template <typename T>
-std::uniform_real_distribution<T> dist(0, 1);
-
-void test_charge_assignment_function()
+void test_charge_assignment_function(size_t order, double x)
 // test property of charge assignment function, i.e.:
 // sum_p W_p (x) = 1 for all x (charge must be conserved)
 {
-	using std::size_t;
-	double x = dist<double>(mersenne_twister) - 0.5, sum;
+	double sum = 0;
+	for (std::size_t k = 0; k < order; ++k)
+		sum += physics::charge_assignment_function(x, k, order);
 
-	for (size_t order = physics::pppm_min_order; order <= physics::pppm_max_order; ++order)
-	{
-		sum = 0;
-		for (size_t k = 0; k < order; ++k)
-			sum += physics::charge_assignment_function(x, k, order);
-
-		std::cout << "order " << order << ": "; 
-		assert(std::fabs(sum - 1) < 1.e-14);
-		std::cout << "ok\n";
-	}
+	assert(std::fabs(sum - 1) < 1.e-14);
 }
 
 void test_force_accuracy()
@@ -63,9 +54,6 @@ void test_force_accuracy()
 	physics::molecular_system<double, physics::pppm, physics::leapfrog> sys(dist*side);
 	physics::molecular_system<double, physics::ewald, physics::leapfrog> sys_ref;
 
-	std::mt19937_64 mersenne_twister(0);
-	std::uniform_real_distribution<double> u_dist(0, 1);
-
 	sys.lrsum.cutoff_radius(9);
 	sys.lrsum.charge_assignment_order(7);
 	sys.lrsum.set_diff_scheme("ik");
@@ -78,7 +66,7 @@ void test_force_accuracy()
 				physics::molecule w = physics::water_tip3p<>;
 				physics::point3<double> p {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist};
 				for (int l = 0; l < 3; ++l)
-					p[l] += (u_dist(mersenne_twister) - 0.5) * 0.1;
+					p[l] += (::dist(mersenne_twister) - 0.5) * 0.1;
 				sys.add_molecule(w, p);
 			}
 

@@ -1,8 +1,6 @@
 # Molecular dynamics 
 
 ![Screenshot of the program](screenshot.png)
-
-This is an interactive program for molecular dynamics using classical force fields. A force field is defined from the following potential (using CHARMM convention):
 <!---
 $V(\mathrm{r}_i)&=\sum_{i \sim j}K_{ij}^r \left(r_{ij} - r_{ij}^0\right)^2
 + \sum_{i\sim j\sim k}K_{ijk}^{\theta} \left(\theta_{ijk} - \theta_{ijk}^0\right)^2
@@ -19,6 +17,7 @@ Plus (+) = %2B
 Space = %20
 Comma (,) = %2C
 --->
+This is an interactive program for molecular dynamics using classical force fields. A force field is defined from the following potential (using CHARMM convention):
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?V=\sum_{i\sim%20j}K_{ij}^r\left(r_{ij}-r_{ij}^0\right)^2%2B\sum_{i\sim%20j\sim%20k}K_{ijk}^{\theta}%20\left(\theta_{ijk}-\theta_{ijk}^0\right)^2%2B\sum_{i\sim\cdot\sim%20k}K_{ik}^{UB}\left(r_{ik}-r_{ik}^0\right)^2\\"/>
 </div>
@@ -37,17 +36,173 @@ References:
 
 #### Table of contents
 
+* [The code](#the-code)
+  * [Dependencies](#dependencies)
+  * [Compilation](#compilation)
+  * [Basic usage](#basic-usage)
 * [Molecular dynamics](#molecular-dynamics)
   * [Ewald summation](#ewald-summation)
   * [PPPM method](#pppm-method)
   * [Nosé-Hoover thermostat](#nosé-hoover-thermostat)
   * [Integration schemes](#integration-schemes)
-* [The code](#the-code)
-  * [Dependencies](#dependencies)
-  * [Compilation](#compilation)
-  * [Basic usage](#basic-usage)
 
 ![Animation of a system of water molecules](animation.gif)
+
+## The code
+The code makes use of C++ templates and concepts (thus it requires C++20) and is organised in many header files, that can be included from one or more compilation units. The repository is structured in the following way:
+* `examples`: directory containing example code using the library.
+* `gui`: directory containing the management of the GUI (Graphical User Interface).
+  * `shaders`: directory which contains shaders for the rendering of impostors (for fast rendering of spheres), post-processing filters (fast approximate anti-aliasing, blue noise dithering) and text.
+  * `controls.hpp`: includes a function to manage keyboard and mouse controls.
+  * `font.hpp`: class for drawing text on the window.
+  * `graphics.hpp`: class that manages the graphics used in this specific program.
+  * `shader.hpp`: some functions to load shaders from file.
+  * `stb_image.h`: a single-header file, public domain library for loading images (taken from [here](https://github.com/nothings/stb/blob/master/stb_image.h)).
+* `math`: directory which contains helper functions and FFT implementation.
+  * `dft.hpp`: contains the `dft` class which implements a simple radix-2 FFT algorithm for both real and complex inputs, and also multidimensional variants.
+  * `helper.hpp`: some math helper functions.
+* `physics`: directory containing the part of code relevant to the resolution of the physical/numerical problem.
+  * `integrator`: directory containing classes and concepts for integration of (hamiltonian and not) dynamical systems.
+    * `composition_scheme.hpp`: composition scheme integrators.
+    * `integrator.hpp`: leapfrog and other integrators.
+    * `integrator_base.hpp`: base class and some concepts for integrators.
+    * `runge_kutta.hpp`: explicit Runge-Kutta methods.
+  * `ewald.hpp`: direct summation (for non-periodic systems) and Ewald summation (for periodic systems).
+  * `molecule.hpp`: classes, methods and other utilites for managing molecular systems (for now, you have only water molecules, also the dihedral potential part must be added).
+  * `physical_system.hpp`: base abstract class and some concepts for a physical system to simulate.
+  * `physics.hpp`: mainly a header file that includes everything from the `physics` directory.
+  * `pppm.hpp`: PPPM (particle-particle, particle-mesh) method for fast calculation of long-range forces for periodic systems.
+  * `tensor.hpp`: classes, aliases and data structures for vectors, matrices and tensors with some helper function.
+* `tests`: directory containing tests for some functions, methods and classes.
+* `utils`: directory containing some utilities used in this project.
+  * `parallel_sort.hpp`: multi-threaded parallel sorting algorithm based on `std::sort`, `std::inplace_merge` and `utils::thread_pool`.
+  * `thread_pool.hpp`: a simple multi-queue thread pool based on `std::jthread`. It reuses threads for many tasks instead of creating and destroying them continuously and thus avoids some overhead.
+
+### Dependencies
+
+The graphics part has some dependencies on public libraries that enable the usage of modern OpenGL (Open Graphics Library):
+* [GLFW 3](https://www.glfw.org/) (Graphics Library Framework 3): an open source, multi-platform API for creating windows, contexts and managing input and events.
+* [GLEW](http://glew.sourceforge.net/) (OpenGL Extension Wrangler): a cross-platform library that include core and extended OpenGL functionalities.
+* [FreeType](https://freetype.org/): an OpenGL library to render fonts (used in `Font.hpp`).
+
+These dependencies are required only for these header files:
+* `gui/graphics.hpp`
+* `gui/font.hpp` (included in `gui/graphics.hpp`)
+* `gui/shader.hpp` (included in `gui/graphics.hpp`)
+* `gui/controls.hpp` (included in `gui/graphics.hpp`)
+
+To install all dependencies at once on Ubuntu, you can run the shell script `dependencies_ubuntu.sh`.
+
+### Compilation
+
+To compile the program, simply do (with MinGW):
+
+    g++ <ins> -o <out> -std=c++20 -I <includes> -L <libs> -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast
+
+On Linux, the library names could be different:
+
+    g++ <ins> -o <out> -std=c++20 -I <includes> -L <libs> -lGL -lGLU -lGLEW -lglfw -lfreetype -Wall -Wextra -pedantic -Ofast
+
+where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files (if required), while `<ins>` `<out>` are the compilation units name and the output executable name respectively. If GCC is used for compilation, version 10+ is required for full C++20 support. Running the graphical part of the program requires OpenGL 3.3+.
+
+### Basic usage
+
+To create a molecular system use the following:
+```c++
+#include "physics/physics.hpp"
+
+int main()
+{
+    physics::molecular_system my_system;
+
+    return 0;
+}
+```
+To add a molecule to the system, use the method `add_molecule`:
+```c++
+    my_system.add_molecule(molecule);
+```
+Currently available molecules are:
+
+* `physics::water_tip3p<>`: Water molecule, using a flexible TIP3P model with O–H and H–H Lennard-Jones parameters
+* `physics::water_tip3p_lr<>`: Water molecule, using a flexible TIP3P model optimized for long-range interactions
+* `physics::water_fba_eps<>`: Water molecule, using the FBA/&epsilon; model
+
+To set the coordinates of the molecule:
+```c++
+    my_system.add_molecule(physics::water_tip3p<>, {1, 2, 3});
+```
+where the coordinates are given in angstrom.
+To advance the system by one step, do:
+```c++
+    my_system.step();
+```
+It is possible to set the algorithm used for the summation of long-range forces:
+```c++
+    physics::molecular_system<long double, physics::ewald> my_system;
+```
+It is also possible to change the floating point type and the numerical integrator to be used for the simulation:
+```c++
+    physics::molecular_system<long double, physics::pppm, physics::pefrl> my_system;
+```
+By default, the floating point type is `double` (64-bit floating point), the summation algorithm is `physics::pppm` and the integrator is `physics::leapfrog`. Currently available summation algorithms are:
+
+* `physics::ewald`: Ewald summation, O(N^2) complexity, more accurate
+* `physics::pppm`: Particle-particle, particle-mesh method, O(N log N) complexity, faster, speed and accuracy depend on parameters
+
+Some currently available numerical integrators are:
+
+* `physics::symplectic_euler`: Symplectic Euler method (1st order, 1 stage)
+* `physics::leapfrog`: Leapfrog method (2nd order, 1 stage), *default*
+* `physics::multi_timestep_leapfrog`: Multi-timestep leapfrog method (2nd order, 1 stage for long-range forces)
+* `physics::stochastic_leapfrog`: Stochastic "leapfrog" method (1 stage)
+* `physics::damped_leapfrog`: Damped "leapfrog" method (1 stage)
+* `physics::isokinetic_leapfrog`: Isokinetic "leapfrog" method (2nd order, 1 stage)
+* `physics::nose_hoover`: Nosé-Hoover thermostats chain integrator (2nd order, 1 stage): it approximates a canonical (NVT) ensemble
+* `physics::pefrl`: Position-extended Forest-Ruth-like method (4th order, 4 stages)
+* `physics::vefrl`: Velocity-extended Forest-Ruth-like method (4th order, 4 stages)
+* Composition schemes (they are structure-preserving, and can be used to construct higher-order, also symplectic, methods starting from 2nd order ones):
+  * `physics::forest_ruth`: Forest-Ruth method (4th order, 3 stages)
+  * `physics::suzuki4`: Suzuki method (4th order, 5 stages)
+  * `physics::yoshida6`: Yoshida method (6th order, 8 stages)
+  * `physics::suzuki8`: Suzuki method (8th order, 15 stages)
+  * `physics::kahan_li10a`: Kahan-Li method (10th order, 31 stages)
+* Explicit Runge-Kutta schemes:
+  * `physics::ralston2`: Ralston method (2th order, 2 stages)
+  * `physics::ralston4`: Ralston method (4th order, 4 stages)
+  * `physics::butcher6`: Butcher method (6th order, 7 stages)
+  * `physics::verner8`: Verner method (8th order, 11 stages)
+
+It is possible to set a custom time step (in picoseconds) by adding a parameter to the `step` method:
+```c++
+    my_system.step(5e-4);
+```
+The biggest value for the time step so that leapfrog integration is stable is `2e-3` (2 femtoseconds, 1 is the default). This value corresponds more or less to the vibration period of O–H bonds.
+
+To create a window, simply do:
+```c++
+#include "graphics.hpp"
+
+int main()
+{
+    graphics my_window;
+
+    return 0;
+}
+```
+To draw a frame of our system inside it, call the method:
+```c++
+    my_window.draw(my_system);
+```
+If we want to simulate the system until the window is closed:
+```c++
+    while (!my_window.should_close())
+    {
+        my_system.step();
+        my_window.draw(my_system);
+    }
+```
+<!--- __________________________________________________________ --->
 
 ### Ewald summation
 
@@ -207,153 +362,3 @@ References:
 * E. Hairer, G. Wanner, C. Lubich, *Geometric Numerical Integration. Structure-Preserving Algorithms for Ordinary Differential Equations*, Springer Series in Computational Mathematics, 2006
 * [Mathematics Source Library C & ASM, Runge-Kutta Methods](http://www.mymathlib.com/diffeq/runge-kutta/)
 * S. G. Itoh, T. Morishita, H. Okumura, *Decomposition-order effects of time integrator on ensemble averages for the Nosé-Hoover thermostat*, The Journal of Chemical Physics, 139, 2013
-
-## The code
-The code makes use of C++ templates and concepts (thus it requires C++20) and is organised in many header files, that can be included from one or more compilation units. It is organised in the following way:
-* `gui`: directory which contains the management of the GUI (Graphical User Interface).
-  * `shaders`: directory which contains shaders for the rendering of impostors (for fast rendering of spheres), post-processing filters (fast approximate anti-aliasing, blue noise dithering) and text.
-  * `controls.hpp`: includes a function to manage keyboard and mouse controls.
-  * `Font.hpp`: class for drawing text on the window.
-  * `graphics.hpp`: class that manages the graphics used in this specific program.
-  * `shader.hpp`: some functions to load shaders from file.
-  * `stb_image.h`: a single-header file, public domain library for loading images (taken from [here](https://github.com/nothings/stb/blob/master/stb_image.h)).
-* `math`: directory which contains helper functions and FFT implementation.
-  * `dft.hpp`: contains the `dft` class which implements a simple radix-2 FFT algorithm for both real and complex inputs, and also multidimensional variants.
-  * `helper.hpp`: some math helper functions.
-* `physics`: directory which contains part of code relevant to the resolution of the physical/numerical problem.
-  * `ewald.hpp`: Ewald summation and PPPM method for fast calculation of long-range forces.
-  * `integrator.hpp`: classes and concepts for integration of (hamiltonian and not) dynamical systems.
-  * `molecule.hpp`: classes, methods and other utilites for managing molecular systems (for now, you have only water molecules, also the dihedral potential part must be added).
-  * `physics.hpp`: mainly a header file that includes everything.
-  * `point.hpp`: classes, aliases and data structures for vectors, matrices and tensors with some helper function.
-* `utils`: directory which contains some utilities used in this project.
-  * `parallel_sort.hpp`: multi-threaded parallel sorting algorithm based on `std::sort`, `std::inplace_merge` and `utils::thread_pool`.
-  * `thread_pool.hpp`: a simple multi-queue thread pool based on `std::jthread`. It reuses threads for many tasks instead of creating and destroying them continuously and thus avoids some overhead.
-* `main.cpp`: it just contains the main loop and some basic initialization of the system (it can be ignored or modified).
-
-### Dependencies
-
-The graphics part has some dependencies on public libraries that enable the usage of modern OpenGL (Open Graphics Library):
-* [GLFW 3](https://www.glfw.org/) (Graphics Library Framework 3): an open source, multi-platform API for creating windows, contexts and managing input and events.
-* [GLEW](http://glew.sourceforge.net/) (OpenGL Extension Wrangler): a cross-platform library that include core and extended OpenGL functionalities.
-* [FreeType](https://freetype.org/): an OpenGL library to render fonts (used in `Font.hpp`).
-
-These dependencies are required only for these header files:
-* `graphics.hpp`
-* `Font.hpp` (included in `graphics.hpp`)
-* `shader.hpp` (included in `graphics.hpp`)
-* `controls.hpp` (included in `graphics.hpp`)
-
-To install all dependencies at once on Ubuntu, you can run the shell script `dependencies_ubuntu.sh`.
-
-### Compilation
-
-To compile the program, simply do (with MinGW):
-
-    g++ main.cpp -o mold -std=c++20 -I <includes> -L <libs> -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast
-
-On Linux, the library names could be different:
-
-    g++ main.cpp -o mold -std=c++20 -I <includes> -L <libs> -lGL -lGLU -lGLEW -lglfw -lfreetype -Wall -Wextra -pedantic -Ofast
-
-where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files (if required). The executable will be called `mold`. If GCC is used for compilation, version 10+ is required for full C++20 support. Running the graphical part of the program requires OpenGL 3.3+.
-
-To compile on Ubuntu, you can also run the shell script `compile.sh`.
-
-### Basic usage
-
-To create a molecular system use the following:
-```c++
-#include "physics/physics.hpp"
-
-int main()
-{
-    physics::molecular_system my_system;
-
-    return 0;
-}
-```
-To add a molecule to the system, use the method `add_molecule`:
-```c++
-    my_system.add_molecule(molecule);
-```
-Currently available molecules are:
-
-* `physics::water_tip3p<>`: Water molecule, using a flexible TIP3P model with O–H and H–H Lennard-Jones parameters
-* `physics::water_tip3p_lr<>`: Water molecule, using a flexible TIP3P model optimized for long-range interactions
-* `physics::water_fba_eps<>`: Water molecule, using the FBA/&epsilon; model
-
-To set the coordinates of the molecule:
-```c++
-    my_system.add_molecule(physics::water_tip3p<>, {1, 2, 3});
-```
-where the coordinates are given in angstrom.
-To advance the system by one step, do:
-```c++
-    my_system.step();
-```
-It is possible to set the algorithm used for the summation of long-range forces:
-```c++
-    physics::molecular_system<long double, physics::ewald> my_system;
-```
-It is also possible to change the floating point type and the numerical integrator to be used for the simulation:
-```c++
-    physics::molecular_system<long double, physics::pppm, physics::pefrl> my_system;
-```
-By default, the floating point type is `double` (64-bit floating point), the summation algorithm is `physics::pppm` and the integrator is `physics::leapfrog`. Currently available summation algorithms are:
-
-* `physics::ewald`: Ewald summation, O(N^2) complexity, more accurate
-* `physics::pppm`: Particle-particle, particle-mesh method, O(N log N) complexity, faster, speed and accuracy depend on parameters
-
-Some currently available numerical integrators are:
-
-* `physics::symplectic_euler`: Symplectic Euler method (1st order, 1 stage)
-* `physics::leapfrog`: Leapfrog method (2nd order, 1 stage), *default*
-* `physics::multi_timestep_leapfrog`: Multi-timestep leapfrog method (2nd order, 1 stage for long-range forces)
-* `physics::stochastic_leapfrog`: Stochastic "leapfrog" method (1 stage)
-* `physics::damped_leapfrog`: Damped "leapfrog" method (1 stage)
-* `physics::isokinetic_leapfrog`: Isokinetic "leapfrog" method (2nd order, 1 stage)
-* `physics::nose_hoover`: Nosé-Hoover thermostats chain integrator (2nd order, 1 stage): it approximates a canonical (NVT) ensemble
-* `physics::pefrl`: Position-extended Forest-Ruth-like method (4th order, 4 stages)
-* `physics::vefrl`: Velocity-extended Forest-Ruth-like method (4th order, 4 stages)
-* Composition schemes (they are structure-preserving, and can be used to construct higher-order, also symplectic, methods starting from 2nd order ones):
-  * `physics::forest_ruth`: Forest-Ruth method (4th order, 3 stages)
-  * `physics::suzuki4`: Suzuki method (4th order, 5 stages)
-  * `physics::yoshida6`: Yoshida method (6th order, 8 stages)
-  * `physics::suzuki8`: Suzuki method (8th order, 15 stages)
-  * `physics::kahan_li10a`: Kahan-Li method (10th order, 31 stages)
-* Explicit Runge-Kutta schemes:
-  * `physics::ralston2`: Ralston method (2th order, 2 stages)
-  * `physics::ralston4`: Ralston method (4th order, 4 stages)
-  * `physics::butcher6`: Butcher method (6th order, 7 stages)
-  * `physics::verner8`: Verner method (8th order, 11 stages)
-
-It is possible to set a custom time step (in picoseconds) by adding a parameter to the `step` method:
-```c++
-    my_system.step(5e-4);
-```
-The biggest value for the time step so that leapfrog integration is stable is `2e-3` (2 femtoseconds, 1 is the default). This value corresponds more or less to the vibration period of O–H bonds.
-
-To create a window, simply do:
-```c++
-#include "graphics.hpp"
-
-int main()
-{
-    graphics my_window;
-
-    return 0;
-}
-```
-To draw a frame of our system inside it, call the method:
-```c++
-    my_window.draw(my_system);
-```
-If we want to simulate the system until the window is closed:
-```c++
-    while (!my_window.should_close())
-    {
-        my_system.step();
-        my_window.draw(my_system);
-    }
-```

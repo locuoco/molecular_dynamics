@@ -24,6 +24,7 @@
 
 /*
 
+Compilation:
 g++ parallel_sort.cpp -o parallel_sort -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1
 
 */
@@ -32,104 +33,52 @@ g++ parallel_sort.cpp -o parallel_sort -std=c++20 -Wall -Wextra -pedantic -Ofast
 #include "../../utils/parallel_sort.hpp"
 
 utils::thread_pool tp;
-std::mt19937 mersenne_twister;
+std::mt19937_64 mersenne_twister(1234); // seed set to 1234
+// mersenne_twister will behave in the same way for all compilers/runs
 
-template <typename T>
-std::uniform_real_distribution<T> dist(-1, 1);
-
-void test_parallel_sort_correct()
+auto gen()
+// generate a pseudo-random number in [-1, 1]
 {
-	for (std::size_t n = 16; n <= (1 << 20); n <<= 1)
-	{
-		std::vector<double> x(n), xref;
-
-		std::generate(begin(x), end(x), [&]{ return dist<double>(mersenne_twister); });
-		xref = x;
-
-		utils::parallel_sort(begin(x), end(x), tp);
-		std::sort(begin(xref), end(xref));
-
-		assert(x == xref);
-	}
+	double two63 = 1ull << 63; // 2 ** 63
+	return dist(mersenne_twister()/two63-1);
 }
 
-void test_parallel_sort_reverse_correct()
+void test_parallel_sort_correct(std::size_t n = 1 << 20)
+// oracle test between `utils::parallel_sort` and `std::sort`.
+// `n` is the number of elements of the sequence used in the test.
 {
-	tp.resize(6);
-	for (std::size_t n = 21; n <= (1 << 20); n <<= 1)
-	{
-		std::vector<double> x(n), xref;
+	std::vector<double> x(n), xref;
 
-		std::generate(begin(x), end(x), [&]{ return dist<double>(mersenne_twister); });
-		xref = x;
+	std::generate(begin(x), end(x), gen);
+	xref = x;
 
-		utils::parallel_sort(begin(x), end(x), tp, std::greater{});
-		std::sort(begin(xref), end(xref), std::greater{});
+	utils::parallel_sort(begin(x), end(x), tp);
+	std::sort(begin(xref), end(xref));
 
-		assert(x == xref);
-	}
+	assert(x == xref);
 }
 
-void test_parallel_sort_perf()
+void test_parallel_sort_reverse_correct(std::size_t n = 1 << 20)
+// oracle test between `utils::parallel_sort` and `std::sort` (reversed/decreasing order).
+// `n` is the number of elements of the sequence used in the test.
 {
-	std::cout << " ======   utils::parallel_sort   ====== " << std::endl;
-	std::size_t n_loops = 10;
-	for (std::size_t n = 128; n <= (1 << 20); n <<= 1)
-	{
-		std::vector<double> x(n);
+	std::vector<double> x(n), xref;
 
-		decltype(std::chrono::steady_clock::now()) start, finish;
-		double timing = 0;
+	std::generate(begin(x), end(x), gen);
+	xref = x;
 
-		for (size_t i = 0; i < n_loops+1; ++i)
-		{
-			std::generate(begin(x), end(x), [&]{ return dist<double>(mersenne_twister); });
+	utils::parallel_sort(begin(x), end(x), tp, std::greater{});
+	std::sort(begin(xref), end(xref), std::greater{});
 
-			start = std::chrono::steady_clock::now();
-			utils::parallel_sort(begin(x), end(x), tp);
-			finish = std::chrono::steady_clock::now();
-
-			if (i)
-				timing += std::chrono::duration<double>(finish-start).count();
-		}
-		timing /= n_loops;
-		std::cout << "n = " << n << " -- t = " << timing << "s -- x_0 = " << x[0] << std::endl;
-	}
-}
-
-void test_sort_perf()
-{
-	std::cout << " ======   std::sort   ====== " << std::endl;
-	std::size_t n_loops = 10;
-	for (std::size_t n = 128; n <= (1 << 20); n <<= 1)
-	{
-		std::vector<double> x(n);
-
-		decltype(std::chrono::steady_clock::now()) start, finish;
-		double timing = 0;
-
-		for (std::size_t i = 0; i < n_loops+1; ++i)
-		{
-			std::generate(begin(x), end(x), [&]{ return dist<double>(mersenne_twister); });
-
-			start = std::chrono::steady_clock::now();
-			std::sort(begin(x), end(x));
-			finish = std::chrono::steady_clock::now();
-
-			if (i)
-				timing += std::chrono::duration<double>(finish-start).count();
-		}
-		timing /= n_loops;
-		std::cout << "n = " << n << " -- t = " << timing << "s -- x_0 = " << x[0] << std::endl;
-	}
+	assert(x == xref);
 }
 
 int main()
 {
 	test_parallel_sort_correct();
 	test_parallel_sort_reverse_correct();
-	test_parallel_sort_perf();
-	test_sort_perf();
+
+	std::cout << "All tests passed successfully!" << std::endl;
 
 	return 0;
 }

@@ -14,8 +14,8 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef PHYSICS_POINT_H
-#define PHYSICS_POINT_H
+#ifndef PHYSICS_TENSOR_H
+#define PHYSICS_TENSOR_H
 
 #include <concepts> // floating_point, integral, convertible_to
 #include <valarray>
@@ -44,18 +44,18 @@ namespace physics
 
 	template <typename T, std::size_t ... Ns>
 	requires ((Ns * ...) >= 1)
-	struct tens; // tensor
+	struct tensor;
 
 	template <typename T, std::size_t M, std::size_t N = M>
-	using mat = tens<T, M, N>;
+	using mat = tensor<T, M, N>;
 
 	template <typename T, std::size_t Dim>
-	using point = tens<T, Dim, 1>;
+	using vec = tensor<T, Dim, 1>;
 
 	template <typename T, std::size_t Dim>
-	constexpr point<T, Dim> make_filled_point(T scal) noexcept
+	constexpr vec<T, Dim> make_filled_vec(T scal) noexcept
 	{
-		return make_filled<point<T, Dim>, Dim>(scal);
+		return make_filled<vec<T, Dim>, Dim>(scal);
 	}
 
 	template <typename T, std::size_t Dim>
@@ -91,23 +91,23 @@ namespace physics
 
 	template <typename T, std::size_t ... Ns>
 	requires ((Ns * ...) >= 1)
-	struct tens : std::array<T, (Ns * ...)>
+	struct tensor : std::array<T, (Ns * ...)>
 	{
 		private:
 			using base = std::array<T, (Ns * ...)>;
 
 		public:
 
-		constexpr tens() noexcept = default;
+		constexpr tensor() noexcept = default;
 
 		template <typename ... Ts>
 		requires (sizeof...(Ts) <= (Ns * ...) && sizeof...(Ts) >= 2 && ((std::floating_point<Ts> || std::integral<Ts>) && ...))
-		constexpr tens(Ts ... ts) noexcept : base{static_cast<T>(ts)...} {}
+		constexpr tensor(Ts ... ts) noexcept : base{static_cast<T>(ts)...} {}
 
-		constexpr tens(T t) noexcept : base(make_filled<tens<T, Ns...>, (Ns * ...)>(t)) {}
+		constexpr tensor(T t) noexcept : base(make_filled<tensor<T, Ns...>, (Ns * ...)>(t)) {}
 
 		template <std::convertible_to<T> S>
-		constexpr tens(const tens<S, Ns...>& other)
+		constexpr tensor(const tensor<S, Ns...>& other)
 		{
 			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) = other[i];
@@ -127,60 +127,60 @@ namespace physics
 			return base::operator[](static_multi_index<Ns...>(is...));
 		}
 
-		constexpr const tens& operator+() const noexcept
+		constexpr const tensor& operator+() const noexcept
 		{
 			return *this;
 		}
-		constexpr tens operator-() const
+		constexpr tensor operator-() const
 		{
-			tens res;
+			tensor res;
 			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				res[i] = -base::operator[](i);
 			return res;
 		}
-		constexpr tens& operator+=(const tens& other)
+		constexpr tensor& operator+=(const tensor& other)
 		{
 			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) += other[i];
 			return *this;
 		}
-		constexpr tens& operator-=(const tens& other)
+		constexpr tensor& operator-=(const tensor& other)
 		{
 			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) -= other[i];
 			return *this;
 		}
-		constexpr tens& operator*=(const tens& other)
+		constexpr tensor& operator*=(const tensor& other)
 		{
 			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) *= other[i];
 			return *this;
 		}
-		constexpr tens& operator/=(const tens& other)
+		constexpr tensor& operator/=(const tensor& other)
 		{
 			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) /= other[i];
 			return *this;
 		}
-		constexpr tens& operator+=(T scal)
+		constexpr tensor& operator+=(T scal)
 		{
 			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) += scal;
 			return *this;
 		}
-		constexpr tens& operator-=(T scal)
+		constexpr tensor& operator-=(T scal)
 		{
 			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) -= scal;
 			return *this;
 		}
-		constexpr tens& operator*=(T scal)
+		constexpr tensor& operator*=(T scal)
 		{
 			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) *= scal;
 			return *this;
 		}
-		constexpr tens& operator/=(T scal)
+		constexpr tensor& operator/=(T scal)
 		{
 			for (std::size_t i = 0; i < (Ns * ...); ++i)
 				base::operator[](i) /= scal;
@@ -189,62 +189,62 @@ namespace physics
 	};
 
 	template <typename T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> operator+(tens<T, Ns...> lhs, const tens<T, Ns...>& rhs)
+	constexpr tensor<T, Ns...> operator+(tensor<T, Ns...> lhs, const tensor<T, Ns...>& rhs)
 	{
 		return lhs += rhs;
 	}
 	template <typename T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> operator-(tens<T, Ns...> lhs, const tens<T, Ns...>& rhs)
+	constexpr tensor<T, Ns...> operator-(tensor<T, Ns...> lhs, const tensor<T, Ns...>& rhs)
 	{
 		return lhs -= rhs;
 	}
 	template <typename T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> operator*(tens<T, Ns...> lhs, const tens<T, Ns...>& rhs)
+	constexpr tensor<T, Ns...> operator*(tensor<T, Ns...> lhs, const tensor<T, Ns...>& rhs)
 	{
 		return lhs *= rhs;
 	}
 	template <typename T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> operator/(tens<T, Ns...> lhs, const tens<T, Ns...>& rhs)
+	constexpr tensor<T, Ns...> operator/(tensor<T, Ns...> lhs, const tensor<T, Ns...>& rhs)
 	{
 		return lhs /= rhs;
 	}
 	template <typename T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> operator+(tens<T, Ns...> lhs, typename tens<T, Ns...>::value_type scal)
+	constexpr tensor<T, Ns...> operator+(tensor<T, Ns...> lhs, typename tensor<T, Ns...>::value_type scal)
 	{
 		return lhs += scal;
 	}
 	template <typename T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> operator+(typename tens<T, Ns...>::value_type scal, tens<T, Ns...> rhs)
+	constexpr tensor<T, Ns...> operator+(typename tensor<T, Ns...>::value_type scal, tensor<T, Ns...> rhs)
 	{
 		return rhs + scal;
 	}
 	template <typename T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> operator-(tens<T, Ns...> lhs, typename tens<T, Ns...>::value_type scal)
+	constexpr tensor<T, Ns...> operator-(tensor<T, Ns...> lhs, typename tensor<T, Ns...>::value_type scal)
 	{
 		return lhs -= scal;
 	}
 	template <typename T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> operator-(typename tens<T, Ns...>::value_type scal, tens<T, Ns...> rhs)
+	constexpr tensor<T, Ns...> operator-(typename tensor<T, Ns...>::value_type scal, tensor<T, Ns...> rhs)
 	{
 		return rhs - scal;
 	}
 	template <typename T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> operator*(tens<T, Ns...> lhs, typename tens<T, Ns...>::value_type scal)
+	constexpr tensor<T, Ns...> operator*(tensor<T, Ns...> lhs, typename tensor<T, Ns...>::value_type scal)
 	{
 		return lhs *= scal;
 	}
 	template <typename T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> operator*(typename tens<T, Ns...>::value_type scal, tens<T, Ns...> rhs)
+	constexpr tensor<T, Ns...> operator*(typename tensor<T, Ns...>::value_type scal, tensor<T, Ns...> rhs)
 	{
 		return rhs * scal;
 	}
 	template <typename T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> operator/(tens<T, Ns...> lhs, typename tens<T, Ns...>::value_type scal)
+	constexpr tensor<T, Ns...> operator/(tensor<T, Ns...> lhs, typename tensor<T, Ns...>::value_type scal)
 	{
 		return lhs /= scal;
 	}
 	template <typename T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> operator/(typename tens<T, Ns...>::value_type scal, tens<T, Ns...> rhs)
+	constexpr tensor<T, Ns...> operator/(typename tensor<T, Ns...>::value_type scal, tensor<T, Ns...> rhs)
 	{
 		return rhs / scal;
 	}
@@ -262,7 +262,7 @@ namespace physics
 	}
 
 	template <std::floating_point T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> remainder(tens<T, Ns...> t, typename tens<T, Ns...>::value_type modulo)
+	constexpr tensor<T, Ns...> remainder(tensor<T, Ns...> t, typename tensor<T, Ns...>::value_type modulo)
 	{
 		using std::round;
 		for (std::size_t i = 0; i < (Ns * ...); ++i)
@@ -270,7 +270,7 @@ namespace physics
 		return t;
 	}
 	template <typename T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> mod(tens<T, Ns...> t, typename tens<T, Ns...>::value_type modulo)
+	constexpr tensor<T, Ns...> mod(tensor<T, Ns...> t, typename tensor<T, Ns...>::value_type modulo)
 	{
 		using math::mod;
 		for (std::size_t i = 0; i < (Ns * ...); ++i)
@@ -278,7 +278,7 @@ namespace physics
 		return t;
 	}
 	template <std::floating_point T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> floor(tens<T, Ns...> t)
+	constexpr tensor<T, Ns...> floor(tensor<T, Ns...> t)
 	{
 		using std::floor;
 		for (std::size_t i = 0; i < (Ns * ...); ++i)
@@ -286,7 +286,7 @@ namespace physics
 		return t;
 	}
 	template <std::floating_point T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> round(tens<T, Ns...> t)
+	constexpr tensor<T, Ns...> round(tensor<T, Ns...> t)
 	{
 		using std::round;
 		for (std::size_t i = 0; i < (Ns * ...); ++i)
@@ -294,7 +294,7 @@ namespace physics
 		return t;
 	}
 	template <std::floating_point T, std::size_t ... Ns>
-	constexpr tens<T, Ns...> trunc(tens<T, Ns...> t)
+	constexpr tensor<T, Ns...> trunc(tensor<T, Ns...> t)
 	{
 		using std::trunc;
 		for (std::size_t i = 0; i < (Ns * ...); ++i)
@@ -303,7 +303,7 @@ namespace physics
 	}
 
 	template <typename T, std::size_t M, std::size_t N>
-	constexpr mat<T, M, N> outer(const point<T, M>& lhs, const point<T, N>& rhs)
+	constexpr mat<T, M, N> outer(const vec<T, M>& lhs, const vec<T, N>& rhs)
 	{
 		using std::size_t;
 		mat<T, M, N> res;
@@ -323,7 +323,7 @@ namespace physics
 	}
 
 	template <typename T, std::size_t Dim>
-	constexpr T dot(const point<T, Dim>& lhs, const point<T, Dim>& rhs)
+	constexpr T dot(const vec<T, Dim>& lhs, const vec<T, Dim>& rhs)
 	{
 		T res(0);
 		for (std::size_t i = 0; i < Dim; ++i)
@@ -332,13 +332,13 @@ namespace physics
 	}
 
 	template <std::floating_point T, std::size_t Dim>
-	constexpr T norm(const point<T, Dim>& pnt)
+	constexpr T norm(const vec<T, Dim>& pnt)
 	{
 		using std::sqrt;
 		return sqrt(dot(pnt, pnt));
 	}
 	template <std::floating_point T, std::size_t Dim>
-	constexpr point<T, Dim> normalize(const point<T, Dim>& pnt)
+	constexpr vec<T, Dim> normalize(const vec<T, Dim>& pnt)
 	{
 		T n = norm(pnt);
 		if (n == 0)
@@ -346,23 +346,23 @@ namespace physics
 		return pnt / n;
 	}
 
-#define PHYSICS_GEN_POINTN_ALIAS(N) \
+#define PHYSICS_GEN_VECN_ALIAS(N) \
 	template <typename T> \
-	using point##N = point<T, N>
+	using vec##N = vec<T, N>
 
-	PHYSICS_GEN_POINTN_ALIAS(2);
-	PHYSICS_GEN_POINTN_ALIAS(3);
-	PHYSICS_GEN_POINTN_ALIAS(4);
+	PHYSICS_GEN_VECN_ALIAS(2);
+	PHYSICS_GEN_VECN_ALIAS(3);
+	PHYSICS_GEN_VECN_ALIAS(4);
 
-#define PHYSICS_GEN_POINTNT_ALIAS(TYPE, SUFFIX) \
-	using point2##SUFFIX = point2<TYPE>; \
-	using point3##SUFFIX = point3<TYPE>; \
-	using point4##SUFFIX = point4<TYPE>
+#define PHYSICS_GEN_VECNT_ALIAS(TYPE, SUFFIX) \
+	using vec2##SUFFIX = vec2<TYPE>; \
+	using vec3##SUFFIX = vec3<TYPE>; \
+	using vec4##SUFFIX = vec4<TYPE>
 
-	PHYSICS_GEN_POINTNT_ALIAS(int, i);
-	PHYSICS_GEN_POINTNT_ALIAS(float, f);
-	PHYSICS_GEN_POINTNT_ALIAS(double, d);
-	PHYSICS_GEN_POINTNT_ALIAS(long double, ld);
+	PHYSICS_GEN_VECNT_ALIAS(int, i);
+	PHYSICS_GEN_VECNT_ALIAS(float, f);
+	PHYSICS_GEN_VECNT_ALIAS(double, d);
+	PHYSICS_GEN_VECNT_ALIAS(long double, ld);
 
 #define PHYSICS_GEN_MATN_ALIAS(n) \
 	template <typename T> \
@@ -383,7 +383,7 @@ namespace physics
 	PHYSICS_GEN_MATNT_ALIAS(long double, ld);
 
 	template <typename T>
-	constexpr point3<T> cross(const point3<T>& lhs, const point3<T>& rhs)
+	constexpr vec3<T> cross(const vec3<T>& lhs, const vec3<T>& rhs)
 	{
 		return {lhs[1] * rhs[2] - lhs[2] * rhs[1],
 				lhs[2] * rhs[0] - lhs[0] * rhs[2],
@@ -401,7 +401,7 @@ namespace physics
 	}
 
 	template <typename T, std::size_t Dim>
-	using state = std::valarray<point<T, Dim>>; // a "state" is an alias for a valarray of points
+	using state = std::valarray<vec<T, Dim>>; // a "state" is an alias for a valarray of vecs
 
 	template <typename T, std::size_t M, std::size_t N>
 	constexpr mat<T, M, N> sum_outer(const state<T, M>& lhs, const state<T, N>& rhs)
@@ -563,11 +563,11 @@ namespace physics
 	}
 
 	template <std::floating_point T>
-	mat4<T> look_at(const point3<T>& eye, const point3<T>& center, const point3<T>& up)
+	mat4<T> look_at(const vec3<T>& eye, const vec3<T>& center, const vec3<T>& up)
 	{
-		point3<T> f(normalize(center - eye));
-		point3<T> s(normalize(cross(f, up)));
-		point3<T> u(cross(s, f));
+		vec3<T> f(normalize(center - eye));
+		vec3<T> s(normalize(cross(f, up)));
+		vec3<T> u(cross(s, f));
 
 		return
 		{
@@ -579,7 +579,7 @@ namespace physics
 	}
 
 	template <std::floating_point T>
-	mat4<T> look_at_col(const point3<T>& eye, const point3<T>& center, const point3<T>& up)
+	mat4<T> look_at_col(const vec3<T>& eye, const vec3<T>& center, const vec3<T>& up)
 	{
 		mat4<T> res(look_at(eye, center, up));
 		transpose(res);
@@ -588,7 +588,7 @@ namespace physics
 
 } // namespace physics
 
-#endif // PHYSICS_POINT_H
+#endif // PHYSICS_TENSOR_H
 
 
 
