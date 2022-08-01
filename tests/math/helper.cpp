@@ -16,12 +16,14 @@
 
 #include <iostream> // cout, endl
 #include <cassert>
-#include <cmath> // sin, cos, sqrt, fabs, exp, erfc, erf
+#include <cmath> // sin, cos, sqrt, abs, exp, erfc, erf
+#include <random> // mt19937_64
+#include <complex>
 
 /*
 
 Compilation:
-g++ helper.cpp -o helper -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1
+g++ helper.cpp -o helper -std=c++20 -Wall -Wextra -pedantic -Ofast -fmax-errors=1
 
 */
 
@@ -29,42 +31,68 @@ g++ helper.cpp -o helper -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fma
 
 constexpr double error_threshold = 1e-15;
 
+std::mt19937_64 mersenne_twister(1234); // seed set to 1234
+// mersenne_twister will behave in the same way for all compilers/runs
+
+void test_pow_of_2()
+// test that `is_pow_of_2` check powers of 2 correctly for some arguments.
+// Since the assertion is checked at compile time and the function is already
+// instantiated (it is not templated), the function does not need to be called.
+{
+	static_assert(math::is_pow_of_2(0) == false);
+	static_assert(math::is_pow_of_2(1) == true);
+	static_assert(math::is_pow_of_2(2) == true);
+	static_assert(math::is_pow_of_2(3) == false);
+	static_assert(math::is_pow_of_2(16) == true);
+	static_assert(math::is_pow_of_2(257) == false);
+	// ~0000 = 1111,  1111 >> 1 = 0111,  0111 + 1 = 1000 -> a power of 2
+	static_assert(math::is_pow_of_2((~0ull >> 1) + 1) == true);
+}
+
+void test_powm1(int n)
+// test math::powm1(n) = (-1)^n
+{
+	int res = (n % 2 == 0) ? 1 : -1;
+	assert(math::powm1(n) == res);
+}
+
+void test_rms()
+{
+	std::valarray<double> x;
+	std::valarray<std::complex<double>> z;
+}
+
 void test_deg2rad()
 // unit test showing math::deg2rad(360.) == 2 pi
 {
-	using std::fabs;
-	assert(fabs(math::deg2rad(360.) - math::two_pi<double>) < error_threshold);
+	assert(std::abs(math::deg2rad(360.) - math::two_pi<double>) < error_threshold);
 }
 
 void test_rad2deg()
 // unit test showing math::rad2deg(pi / 4) == 45
 {
-	using std::fabs;
-	assert(fabs(math::rad2deg(math::pi_4<double>) - 45) < error_threshold);
+	assert(std::abs(math::rad2deg(math::pi_4<double>) - 45) < error_threshold);
 }
 
 void test_fastexp(double x, double max_relerr)
 // test relative error of `math::fastexp` against `std::exp` for argument `x`.
 // `max_relerr` is the maximum relative error tolerated for this test.
 {
-	using std::exp;
-	double ref = exp(x);
-	double relerr = fabs((math::fastexp(x) - ref)/ref);
+	double ref = std::exp(x);
+	double relerr = std::abs((math::fastexp(x) - ref)/ref);
 	assert(relerr <= max_relerr);
 }
 
 void test_fasterfc(double x)
 // test absolute error of `math::fasterfc` against `std::erfc` for argument `x`.
 {
-	using std::erfc;
-	assert(fabs(math::fasterfc(x) - erfc(x)) < 1e-6);
+	assert(std::abs(math::fasterfc(x) - std::erfc(x)) < 1e-6);
 }
 
 void test_fasterf(double x)
 // test absolute error of `math::fasterf` against `std::erf` for argument `x`.
 {
-	using std::erf;
-	assert(fabs(math::fasterf(x) - erf(x)) < 1e-6);
+	assert(std::abs(math::fasterf(x) - std::erf(x)) < 1e-6);
 }
 
 void test_mod1()
@@ -74,9 +102,11 @@ void test_mod1()
 }
 
 void test_mod2()
-// test that math::mod(-3, 4) == 1
+// test that math::mod(-3, 4) == 1.
+// Since the assertion is checked at compile time and the function is already
+// instantiated (it is not templated), the function does not need to be called.
 {
-	assert(math::mod(-3, 4) == 1);
+	static_assert(math::mod(-3, 4) == 1);
 }
 
 void test_sinc_denormal()
@@ -90,19 +120,26 @@ void test_sinc_denormal()
 }
 
 void test_clamp1()
-// test that math::clamp(-1, 0, 1) == 0
+// test that math::clamp(-1, 0, 1) == 0.
+// Since the assertion is checked at compile time and the function is already
+// instantiated (it is not templated), the function does not need to be called.
 {
-	assert(math::clamp(-1, 0, 1) == 0);
+	static_assert(math::clamp(-1, 0, 1) == 0);
 }
 
 void test_clamp2()
-// test that math::clamp(2, -3, 1) == 1
+// test that math::clamp(2, -3, 1) == 1.
+// Since the assertion is checked at compile time and the function is already
+// instantiated (it is not templated), the function does not need to be called.
 {
-	assert(math::clamp(2., -3., 1.) == 1);
+	static_assert(math::clamp(2., -3., 1.) == 1);
 }
 
 int main()
 {
+	test_powm1(2);
+	test_powm1(5);
+	test_powm1(9);
 	test_deg2rad();
 	test_rad2deg();
 	test_fastexp(1e-6, 1e-7);
@@ -121,10 +158,7 @@ int main()
 	test_fasterf(-1);
 	test_fasterf(10);
 	test_mod1();
-	test_mod2();
 	test_sinc_denormal();
-	test_clamp1();
-	test_clamp2();
 
 	std::cout << "All tests passed successfully!" << std::endl;
 

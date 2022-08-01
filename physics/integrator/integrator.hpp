@@ -317,7 +317,7 @@ namespace physics
 			}
 
 			template <having_coordinates<T, State> System>
-			T G(const System& s, std::size_t i) const
+			T G(System& s, std::size_t i) const
 			{
 				if (i == 0)
 					return s.dof*(s.temperature() - s.temperature_ref);

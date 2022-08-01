@@ -40,7 +40,17 @@ auto gen()
 // generate a pseudo-random number in [-1, 1]
 {
 	double two63 = 1ull << 63; // 2 ** 63
-	return dist(mersenne_twister()/two63-1);
+	return mersenne_twister()/two63-1;
+}
+
+void test_gen()
+// test that the values generated with `gen` are between -1 and 1
+{
+	std::valarray<double> x(1000);
+
+	std::ranges::generate(x, gen);
+
+	assert((std::abs(x) <= 1).min());
 }
 
 void test_parallel_sort_correct(std::size_t n = 1 << 20)
@@ -49,11 +59,11 @@ void test_parallel_sort_correct(std::size_t n = 1 << 20)
 {
 	std::vector<double> x(n), xref;
 
-	std::generate(begin(x), end(x), gen);
+	std::ranges::generate(x, gen);
 	xref = x;
 
 	utils::parallel_sort(begin(x), end(x), tp);
-	std::sort(begin(xref), end(xref));
+	std::ranges::sort(xref);
 
 	assert(x == xref);
 }
@@ -64,17 +74,18 @@ void test_parallel_sort_reverse_correct(std::size_t n = 1 << 20)
 {
 	std::vector<double> x(n), xref;
 
-	std::generate(begin(x), end(x), gen);
+	std::ranges::generate(x, gen);
 	xref = x;
 
 	utils::parallel_sort(begin(x), end(x), tp, std::greater{});
-	std::sort(begin(xref), end(xref), std::greater{});
+	std::ranges::sort(xref, std::greater{});
 
 	assert(x == xref);
 }
 
 int main()
 {
+	test_gen();
 	test_parallel_sort_correct();
 	test_parallel_sort_reverse_correct();
 

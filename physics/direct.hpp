@@ -36,7 +36,7 @@ namespace physics
 	// `lj_halfR[i]` is half the minimum LJ potential distance parameter for particle `i`.
 	// `f[i]` is the force for particle `i`.
 	// `potential` is the potential energy.
-	// `virial` is the virial.
+	// `virial` is the virial (used to calculate the pressure).
 		{
 			i < s.n;
 			t += s.z[i];
@@ -51,7 +51,7 @@ namespace physics
 	void eval_direct(System& s, T& u, T& v, std::size_t i, std::size_t j)
 	// compute force between two particles `i` and `j`. It represents a single
 	// iteration of a direct summation.
-	// `s` is the physical system.
+	// `s` is the physical system (`coulomb_and_lj` constraints required).
 	// `u` is a variable which accumulates the potential energy.
 	// `v` is a variable which accumulates the virial.
 	// The `Bidirectional` template non-type parameter must be specified. If
@@ -88,7 +88,8 @@ namespace physics
 	// assuming non-periodic boundaries.
 	{
 		static T cutoff_radius() noexcept
-		// there is no cutoff radius as all contributes are being calculated
+		// There is no cutoff radius as all contributes are being calculated.
+		// Return 0.
 		{
 			return 0;
 		}
@@ -107,7 +108,7 @@ namespace physics
 		template <coulomb_and_lj<T, State> System>
 		void operator()(System& s, utils::thread_pool& tp)
 		// multi-threaded implementation
-		// `s` is the physical system.
+		// `s` is the physical system (`coulomb_and_lj` constraints required).
 		// `tp` is a thread pool.
 		{
 			using std::size_t;

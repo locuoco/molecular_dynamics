@@ -22,13 +22,25 @@
 #include <iterator> // random_access_iterator
 #include <complex>
 #include <numbers> // numbers::pi_v
-#include <concepts> // convertible_to
+#include <concepts> // convertible_to, random_access_iterator, forward_iterator
 #include <stdexcept> // invalid_argument
 
+#include "helper.hpp" // powm1
 #include "../utils/thread_pool.hpp"
 
 namespace math
 {
+	template <std::forward_iterator It>
+	constexpr void impulse(It first, It last, std::size_t pos)
+	// Create a unit impulse signal in the range [first, last),
+	// i.e.: 1 at position `pos` and 0 elsewhere.
+	// If pos >= std::distance(first, last), then the resulting signal will be 0 everywhere.
+	// Note: `It` is required to be a forward (and output) iterator
+	{
+		for (std::size_t i = 0; first != last; (void)++i, ++first)
+			*first = (i == pos);
+	}
+
 	constexpr bool access_bit(std::size_t num, unsigned pos)
 	// access bit at position `pos` in number `num`
 	{
@@ -74,7 +86,7 @@ namespace math
 	{
 		using std::size_t;
 		size_t n = std::distance(first, last);
-		if ((n&(n-1)) != 0 || !n)
+		if (!math::is_pow_of_2(n))
 			throw std::invalid_argument("number of elements is not a power of 2!");
 		size_t n_bits = num_bits(n-1);
 		for (size_t i = 0; i < n; ++i)
@@ -101,7 +113,7 @@ namespace math
 			using std::size_t;
 			using std::sin;
 			using std::cos;
-			if ((n&(n-1)) != 0 || !n)
+			if (!math::is_pow_of_2(n))
 				throw std::invalid_argument(std::string("number of elements is not a power of 2: ") + std::to_string(n));
 			size_t n_bits = num_bits(n);
 			// check whether twiddle factors are already computed
@@ -143,6 +155,15 @@ namespace math
 					n_elems *= 2;
 				}
 			}
+		}
+
+		constexpr std::complex<T> twiddle_factor(std::size_t k, std::size_t n)
+		// Return exp(-2 pi i k/n), where i = imaginary unit.
+		// Subroutine `compute_twiddle_factors` will throw a `std::invalid_argument` if the
+		// number of elements inside the range is not a power of 2.
+		{
+			compute_twiddle_factors(n);
+			return twiddle_factors[num_bits(n-1)][k&(n-1)];
 		}
 
 		template <std::random_access_iterator It>
@@ -212,10 +233,10 @@ namespace math
 		// inside the range is not a power of 2.
 		{
 			fft(first, last);
-			T xe = first -> real();
-			T xo = first -> imag();
-			first -> real(xe + xo);
-			first -> imag(xe - xo);
+			T xe = first->real();
+			T xo = first->imag();
+			first->real(xe + xo);
+			first->imag(xe - xo);
 			// ^ the first and the last elements (which are both real)
 			// are put on the first complex number
 			rfft_correct(first, last, -1);
@@ -233,10 +254,10 @@ namespace math
 		// Subroutine `rfft_correct` will throw a `std::invalid_argument` if the number of elements
 		// inside the range is not a power of 2.
 		{
-			T xe = first -> real();
-			T xo = first -> imag();
-			first -> real((xe + xo)/2);
-			first -> imag((xe - xo)/2);
+			T xe = first->real();
+			T xo = first->imag();
+			first->real((xe + xo)/2);
+			first->imag((xe - xo)/2);
 			rfft_correct(first, last, 1);
 			ifft(first, last);
 		}
@@ -487,6 +508,60 @@ namespace math
 			bfftn<true, true, N, Vec>(v, n, tp);
 		}
 
+		template <std::random_access_iterator It>
+		requires requires (It it, std::complex<T> z)
+			{
+				{z} -> std::convertible_to<decltype(*it)>;
+			}
+		constexpr void dft_impulse(It first, It last, std::size_t pos)
+		// Create the DFT of a unit impulse signal in the range [first, last), i.e.:
+		//	 DFT(x)_l = e^(-ik) with k = 2 * (l*pos) * pi / n, and i = imaginary unit
+		// `pos` is the index corresponding to the position of impulse before DFT.
+		// `It` is required to be a random access iterator to a type which `std::complex<T>`
+		// is convertible to.
+		// If pos >= std::distance(first, last), a `std::invalid_argument` is thrown.
+		// Subroutine `compute_twiddle_factors` will throw a `std::invalid_argument` if the
+		// number of elements inside the range is not a power of 2.
+		{
+			size_t n = std::distance(first, last);
+			if (pos >= n)
+				throw std::invalid_argument("`pos` argument must be smaller than the size of the range [first, last).");
+			compute_twiddle_factors(n);
+			size_t n_bits = num_bits(n-1);
+			for (std::size_t i = 0; i < n; ++i)
+				*(first + i) = twiddle_factors[n_bits][(i*pos)&(n-1)];
+		}
+
+		template <std::random_access_iterator It>
+		requires requires (It it, std::complex<T> z)
+			{
+				{z} -> std::convertible_to<decltype(*it)>;
+			}
+		constexpr void dft_impulse_real(It first, It last, std::size_t pos)
+		// Create the DFT of a unit impulse signal in the range [first, last), i.e.:
+		//	 DFT(x)_l = e^(-ik) with k = 2 * (l*pos) * pi / n, and i = imaginary unit
+		// `pos` is the index corresponding to the position of impulse before DFT.
+		// `It` is required to be a random access iterator to a type which `std::complex<T>`
+		// is convertible to.
+		// Differently from `dft_impulse`, the format assumed is the same as the one used
+		// for transforms of real input signals.
+		// If pos >= 2*std::distance(first, last), a `std::invalid_argument` is thrown.
+		// Subroutine `compute_twiddle_factors` will throw a `std::invalid_argument` if the
+		// number of elements inside the range is not a power of 2.
+		{
+			size_t n = 2*std::distance(first, last);
+			if (pos >= n)
+				throw std::invalid_argument("`pos` argument must be smaller than the size of the range [first, last).");
+			compute_twiddle_factors(n);
+			size_t n_bits = num_bits(n-1);
+			// first element must be 1
+			// (n/2+1)-th element must be either 1 or -1 depending on j's parity
+			first->real(1);
+			first->imag(math::powm1(pos));
+			for (std::size_t i = 1; i < n/2; ++i)
+				*(first + i) = twiddle_factors[n_bits][(i*pos)&(n-1)];
+		}
+
 		private:
 
 			template <std::random_access_iterator It>
@@ -520,7 +595,7 @@ namespace math
 					*first = xe + xo * (*twiddle);
 					*last = xen + xon * conj(*twiddle);
 				}
-				first -> imag(-first -> imag());
+				first->imag(-first->imag());
 			}
 
 			std::vector<std::vector<std::complex<T>>> tmp;

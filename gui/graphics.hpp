@@ -135,6 +135,7 @@ class graphics
 			delete camera_controls;
 
 			glDeleteProgram(prog_id);
+			glDeleteProgram(prog_fxaa_id);
 
 			// delete all buffers (free memory)
 			glDeleteFramebuffers(1, &fb);
@@ -142,9 +143,9 @@ class graphics
 			glDeleteTextures(1, &tex_blue_noise);
 			glDeleteRenderbuffers(1, &rb);
 			glDeleteBuffers(1, &vb_post);
-			glDeleteVertexArrays(1, &va_post);
 			glDeleteBuffers(1, &pb_inst);
 			glDeleteBuffers(1, &vb_atom);
+			glDeleteVertexArrays(1, &va_post);
 			glDeleteVertexArrays(1, &va_atom);
 
 			glfwTerminate();
@@ -157,12 +158,13 @@ class graphics
 		}
 
 		template <typename MolSys>
-		void draw(const MolSys& molsys)
+		void draw(MolSys& molsys)
 		// draw all the atoms inside `molsys`
 		// `Molsys` must be a `molecular_system` type.
 		// Throw a `std::runtime_error` if `CHECK_GL_ERROR` finds an error
 		{
 			using std::remainder;
+			molsys.fetch();
 			atom_attribs.resize(4*molsys.n);
 			for (unsigned i = 0; i < molsys.n; ++i)
 			{
@@ -179,7 +181,7 @@ class graphics
 			// update controls
 			camera_controls->update(dt);
 
-			draw_background_and_spheres(molsys);
+			draw_background_and_spheres(molsys.n);
 			draw_post_processing();
 			draw_text(molsys);
 			
@@ -192,10 +194,10 @@ class graphics
 
 	private:
 
-		GLFWwindow* window;
-		const GLFWvidmode *vidmode;
-		controls *camera_controls;
-		font *text;
+		GLFWwindow* window = nullptr;
+		const GLFWvidmode *vidmode = nullptr;
+		controls *camera_controls = nullptr;
+		font *text = nullptr;
 		GLuint prog_id, prog_fxaa_id; // programs
 		GLuint mv_id, proj_id, normal_mat_id, light_pos_id, gamma_id; // uniforms of prog_id
 		GLuint rgb_max_id, frame_id, scene_id, blue_noise_id; // uniforms of prog_fxaa_id
@@ -331,7 +333,7 @@ class graphics
 			// (every frame indeed)
 			glGenBuffers(1, &pb_inst);
 			glBindBuffer(GL_ARRAY_BUFFER, pb_inst);
-			glBufferData(GL_ARRAY_BUFFER, physics::molecular_system<float>::max_atoms*4*sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+			glBufferData(GL_ARRAY_BUFFER, physics::max_atoms*4*sizeof(float), nullptr, GL_DYNAMIC_DRAW);
 			// specify `pb_inst` buffer format and attributes
 			glVertexAttribPointer(
 				10,       // location id in vertex shader
@@ -486,11 +488,11 @@ class graphics
 			CHECK_GL_ERROR();
 		}
 
-		template <typename MolSys>
-		void draw_background_and_spheres(const MolSys& molsys)
+		void draw_background_and_spheres(std::size_t n)
 		// set background to black and draw the spheres on the framebuffer called `fb`
 		// (in particular, colors are written inside the framebuffer color attachment
 		// represented by the texture `tex_scene`)
+		// `n` is the number of particles to draw (given by `molsys.n`).
 		{
 			// convert view and projection matrices into single-precision floating point matrices
 			physics::mat4f fview = camera_controls->view;
@@ -544,7 +546,7 @@ class graphics
 			// disabling blending
 			glDisable(GL_BLEND);
 
-			if (molsys.n == 0)
+			if (n == 0)
 				return; // no particles to draw
 
 			// set the uniforms (variables defined inside the shaders)
@@ -613,7 +615,7 @@ class graphics
 		}
 
 		template <typename Molsys>
-		void draw_text(const Molsys& molsys)
+		void draw_text(Molsys& molsys)
 		// draw text on screen
 		{
 			// bind to default (0) framebuffer (i.e. the screen)
@@ -650,11 +652,11 @@ class graphics
 			);
 			text->draw(
 				std::string("T = ") + std::to_string(molsys.temperature()) +
-				" K\nP = " + std::to_string(molsys.pressure()/physics::atm<double>) +
+				" K\nP = " + std::to_string(molsys.pressure()/physics::atm<>) +
 				" atm\nV = " + std::to_string(molsys.volume()/1'000) +
 				" nm^3\nE = " + std::to_string(molsys.total_energy()) +
 				" kcal/mol\nN = " + std::to_string(molsys.n) +
-				"\nrho = " + std::to_string(molsys.density()/physics::kg_per_m3<double>) +
+				"\nrho = " + std::to_string(molsys.density()/physics::kg_per_m3<>) +
 				" kg/m^3",
 				w-160*xscale, h-36*yscale, 0.5f*xscale
 			);

@@ -52,12 +52,15 @@ struct controls
 	friend void scroll_callback(GLFWwindow*, double, double);
 
 	controls(GLFWwindow* window, int w, int h) : window(window), w(w), h(h)
+	// constructor:
+	// `window` is a pointer to GLFWwindow returned by `glfwCreateWindow`.
+	// `w` and `h` are the width and height of the window respectively.
 	{
 		glfwPollEvents();
 
 		// enable keyboard input
 		glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
-		// set pointer to this object which will be used inside the
+		// set user pointer to `this`, which will be used inside the
 		// `scroll_callback` function
 		glfwSetWindowUserPointer(window, this);
 		// set `scroll_callback` as the callback managing the input from the scroll wheel

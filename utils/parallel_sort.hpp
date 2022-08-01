@@ -23,10 +23,11 @@
 #include <functional> // less
 
 #include "thread_pool.hpp"
+#include "../math/helper.hpp"
 
 namespace utils
 {
-	template <std::random_access_iterator It, typename Compare>
+	template <std::random_access_iterator It, typename Compare = std::less<>>
 	void parallel_sort(It first, It last, thread_pool& tp, Compare comp = std::less{})
 	// PARALLEL SORT
 	// it uses a thread pool `tp` to sort many parts of the range [first, last) concurrently, and
@@ -42,10 +43,10 @@ namespace utils
 		// if the number of threads is not a power of 2, we increase it to the nearest
 		// power of 2 (hopefully without increasing overhead).
 		// Having a power-of-2 number of threads makes the algorithm easier to implement.
-		if ((n_blocks&(n_blocks-1)) != 0)
+		if (!math::is_pow_of_2(n_blocks))
 		{
 			do ++n_blocks;
-			while ((n_blocks&(n_blocks-1)) != 0);
+			while (!math::is_pow_of_2(n_blocks));
 			std::clog << "Warning: Number of threads in thread pool is not a power of 2. "
 				"Increasing to the nearest power of 2...: " << n_blocks << '\n';
 			tp.resize(n_blocks);

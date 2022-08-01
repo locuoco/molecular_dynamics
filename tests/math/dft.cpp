@@ -24,6 +24,7 @@
 #include <numeric> // iota
 #include <chrono>
 #include <cmath> // sin, cos, sqrt
+#include <numbers> // numbers::pi
 
 /*
 
@@ -33,6 +34,7 @@ g++ dft.cpp -o dft -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-erro
 */
 
 #include "../../math/dft.hpp"
+#include "../../math/helper.hpp" // rms
 
 utils::thread_pool tp;
 constexpr double error_threshold = 1e-15;
@@ -47,30 +49,42 @@ auto gen()
 	return std::complex(mersenne_twister()/two63-1, mersenne_twister()/two63-1);
 }
 
-auto sqr(std::complex<double> z)
-// calculate the norm squared of complex number `z`.
-// Return a complex number with 0 imaginary part.
+void test_gen()
+// test that the values generated with `gen` have real and imaginary
+// parts between -1 and 1
 {
-	return std::complex<double>(norm(z), 0);
+	using std::abs;
+	std::valarray<std::complex<double>> x(1000);
+
+	std::ranges::generate(x, gen);
+
+	for (const auto& elem : x)
+		assert(abs(elem.real()) <= 1 && abs(elem.imag()) <= 1);
 }
 
 void test_bit_reversal_incr(std::size_t n)
 // test basic property of bit reversal of an incrementing sequence:
 //	B(x_(i+n/2)) == B(x_i + 1)  for 0 <= i < n/2  (if n is a power of 2)
 // where x is an incrementing sequence and B is the bit reversal permutation.
-// The test passes if this property is satisfied.
-// `n` is the length of the sequence to test, which must be a power of 2.
+// Another property, that the first n/2 elements are even and the last n/2
+// are odd, is also used.
+// The test passes if these property is satisfied.
+// `n` is the length of the sequence to test, which must be a power of 2
+// greater than 1.
 {
-	std::vector<int> seq(n);
+	std::valarray<int> x(n);
 	// iota creates an incrementing (starting from 0)
-	std::iota(begin(seq), end(seq), 0);
+	std::iota(begin(x), end(x), 0);
 
-	math::bit_reversal_permutation(begin(seq), end(seq));
+	math::bit_reversal_permutation(begin(x), end(x));
 
-	bool ok = true;
-	for (std::size_t i = 0; i < n/2; ++i)
-		ok &= (seq[i+n/2] == seq[i]+1);
-	assert(ok);
+	// test that the number of even elements are exactly n/2
+	assert(as_const(x)[x%2 == 0].size() == n/2);
+	// `as_const` forces the compiler to choose the const overload of operator[]
+	// which return a valarray instead of a mask_array (which has no size()
+	// method).
+
+	assert((x[x%2 == 1] == as_const(x)[x%2 == 0]+1).min());
 }
 
 void test_bit_reversal_permutation(std::size_t n)
@@ -85,7 +99,17 @@ void test_bit_reversal_permutation(std::size_t n)
 
 	math::bit_reversal_permutation(begin(res), end(res));
 
-	assert(std::is_permutation(begin(res), end(res), begin(seq)));
+	assert(std::ranges::is_permutation(res, seq));
+}
+
+void test_twiddle_factors(std::size_t k, std::size_t n)
+// Test that dft.twiddle_factor(k, n) == exp(-2 pi i k/n), where i = imaginary unit.
+// `n` must be a power of 2.
+{
+	math::dft<double> dft;
+	std::complex exponent(0., -2*std::numbers::pi*k/n);
+
+	assert(abs(dft.twiddle_factor(k, n) - exp(exponent)) < error_threshold);
 }
 
 void test_fft_impulse(std::size_t n, std::size_t j)
@@ -94,31 +118,17 @@ void test_fft_impulse(std::size_t n, std::size_t j)
 // `j` is the element that is 1 (all others are 0).
 // Note that j < n must be true for the test to be meaningful.
 // The test passes if the Fourier transform is given by (up to rounding errors):
-// DFT(x)_l = e^(ik) with k = 2 * (l*j) * pi / n
+// 	DFT(x)_l = e^(-ik) with k = 2 * (l*j) * pi / n
 {
-	using std::sqrt;
-	using std::sin;
-	using std::cos;
-	using std::size_t;
-
 	math::dft<double> dft;
-	std::vector<std::complex<double>> x(n);
+	std::valarray<std::complex<double>> x(n), xref(n);
 
-	for (size_t i = 0; i < n; ++i)
-		x[i] = (i == j);
-
+	math::impulse(begin(x), end(x), j);
 	dft.fft(begin(x), end(x));
 
-	double rmse = 0;
-	for (size_t i = 0; i < n; ++i)
-	{
-		double k = -2*double((i*j) % n)*std::numbers::pi/n;
-		double diff = norm(x[i]-std::complex<double>(cos(k), sin(k)));
-		rmse += diff;
-	}
-	rmse = sqrt(rmse/n);
+	dft.dft_impulse(begin(xref), end(xref), j);
 
-	assert(rmse < error_threshold);
+	assert(math::rms(x-xref) < error_threshold);
 }
 
 void test_fft_impulse_real(std::size_t n, std::size_t j)
@@ -128,38 +138,18 @@ void test_fft_impulse_real(std::size_t n, std::size_t j)
 // Note that j < n must be true for the test to be meaningful.
 // Note also that n real numbers can be reinterpreted as n/2 complex ones.
 // The test passes if the Fourier transform is given by (up to rounding errors):
-// DFT(x)_l = e^(ik) with k = 2 * (l*j) * pi / n, and i = imaginary unit
+// 	DFT(x)_l = e^(-ik) with k = 2 * (l*j) * pi / n, and i = imaginary unit
 {
-	using std::sqrt;
-	using std::sin;
-	using std::cos;
-	using std::size_t;
-
 	math::dft<double> dft;
-	std::vector<std::complex<double>> x(n/2);
-	double *x_real = reinterpret_cast<double*>(x.data());
+	std::valarray<std::complex<double>> x(n/2), xref(n/2);
+	double *x_real = reinterpret_cast<double*>(&x[0]);
 
-	for (size_t i = 0; i < n; ++i)
-		x_real[i] = (i == j);
+	math::impulse(x_real, x_real+n, j);
 
 	dft.rfft(begin(x), end(x));
+	dft.dft_impulse_real(begin(xref), end(xref), j);
 
-	double rmse = 0;
-	// first element must be 1
-	double diff = x[0].real()-1;
-	rmse += diff*diff;
-	// (n/2+1)-th element must be either 1 or -1 depending on j's parity
-	diff = x[0].imag()-(1-2*(std::ptrdiff_t(j)%2));
-	rmse += diff*diff;
-	for (size_t i = 1; i < n/2; ++i)
-	{
-		double k = -2*double((i*j) % n)*std::numbers::pi/n;
-		diff = norm(x[i]-std::complex<double>(cos(k), sin(k)));
-		rmse += diff;
-	}
-	rmse = sqrt(rmse/(n/2+1));
-
-	assert(rmse < error_threshold);
+	assert(math::rms(x-xref) < error_threshold);
 }
 
 void test_fft_ifft(std::size_t n)
@@ -168,19 +158,15 @@ void test_fft_ifft(std::size_t n)
 // Starting from a vector x, the test passes if IFFT(FFT(x)) == x
 // up to rounding errors.
 {
-	using std::sqrt;
-
 	math::dft<double> dft;
 	std::valarray<std::complex<double>> xref(n), x;
 
-	std::generate(begin(xref), end(xref), gen);
+	std::ranges::generate(xref, gen);
 
 	x = dft.fft(xref);
 	x = dft.ifft(x);
 
-	double rmse = sqrt((x-xref).apply(sqr).sum().real()/n);
-
-	assert(rmse < error_threshold);
+	assert(math::rms(x-xref) < error_threshold);
 }
 
 void test_rfft_irfft(std::size_t n)
@@ -189,19 +175,15 @@ void test_rfft_irfft(std::size_t n)
 // Starting from a vector x, the test passes if IFFT(FFT(x)) == x
 // up to rounding errors.
 {
-	using std::sqrt;
-
 	math::dft<double> dft;
 	std::valarray<std::complex<double>> xref(n), x;
 
-	std::generate(begin(xref), end(xref), gen);
+	std::ranges::generate(xref, gen);
 
 	x = dft.rfft(xref);
 	x = dft.irfft(x);
 
-	double rmse = sqrt((x-xref).apply(sqr).sum().real()/n);
-
-	assert(rmse < error_threshold);
+	assert(math::rms(x-xref) < error_threshold);
 }
 
 void test_fft_ifft3(const std::array<std::size_t, 3>& n_shape)
@@ -210,23 +192,18 @@ void test_fft_ifft3(const std::array<std::size_t, 3>& n_shape)
 // Starting from an array x, the test passes if IFFT(FFT(x)) == x
 // up to rounding errors.
 {
-	using std::sqrt;
-	using std::size_t;
-
-	size_t n = n_shape[0]*n_shape[1]*n_shape[2];
+	std::size_t n = n_shape[0]*n_shape[1]*n_shape[2];
 
 	math::dft<double> dft;
 	std::valarray<std::complex<double>> xref(n), x;
 
-	std::generate(begin(xref), end(xref), gen);
+	std::ranges::generate(xref, gen);
 
 	x = xref;
 	dft.fftn<3>(x, n_shape, tp);
 	dft.ifftn<3>(x, n_shape, tp);
 
-	double rmse = sqrt((x-xref).apply(sqr).sum().real()/n);
-
-	assert(rmse < error_threshold);
+	assert(math::rms(x-xref) < error_threshold);
 }
 
 void test_rfft_irfft3(const std::array<std::size_t, 3>& n_shape)
@@ -235,29 +212,27 @@ void test_rfft_irfft3(const std::array<std::size_t, 3>& n_shape)
 // Starting from an array x, the test passes if IFFT(FFT(x)) == x
 // up to rounding errors.
 {
-	using std::sqrt;
-	using std::size_t;
-
-	size_t n = n_shape[0]*n_shape[1]*n_shape[2];
+	std::size_t n = n_shape[0]*n_shape[1]*n_shape[2];
 
 	math::dft<double> dft;
 	std::valarray<std::complex<double>> xref(n), x;
 
-	std::generate(begin(xref), end(xref), gen);
+	std::ranges::generate(xref, gen);
 
 	x = xref;
 	dft.rfftn<3>(x, n_shape, tp);
 	dft.irfftn<3>(x, n_shape, tp);
 
-	double rmse = sqrt((x-xref).apply(sqr).sum().real()/n);
-
-	assert(rmse < error_threshold);
+	assert(math::rms(x-xref) < error_threshold);
 }
 
 int main()
 {
+	test_gen();
 	test_bit_reversal_incr(16);
 	test_bit_reversal_permutation(8);
+	test_twiddle_factors(1, 2);
+	test_twiddle_factors((1<<20)+1, 1<<20);
 	test_fft_impulse(1<<20, 2468);
 	test_fft_impulse(1<<20, 3579);
 	test_fft_impulse_real(1<<20, 4680);

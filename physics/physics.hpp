@@ -17,6 +17,7 @@
 #ifndef PHYSICS_PHYSICS_H
 #define PHYSICS_PHYSICS_H
 
+#include "direct.hpp"
 #include "ewald.hpp"
 #include "integrator/composition_scheme.hpp"
 #include "integrator/integrator.hpp"

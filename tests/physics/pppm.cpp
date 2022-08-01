@@ -16,8 +16,7 @@
 
 #include <iostream> // cout, endl
 #include <cassert>
-#include <cmath> // fabs
-#include <random> // mt19937, uniform_real_distribution
+#include <cmath> // abs
 
 /*
 
@@ -27,70 +26,79 @@ g++ pppm.cpp -o pppm -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-er
 */
 
 #include "../../physics/physics.hpp"
-
-std::mt19937 mersenne_twister;
-std::uniform_real_distribution<double> dist(0, 1);
+#include "../../physics/tensor.hpp" // rms
 
 void test_charge_assignment_function(size_t order, double x)
 // test property of charge assignment function, i.e.:
-// sum_p W_p (x) = 1 for all x (charge must be conserved)
+// sum_k W_k (x) = 1  for all x (charge must be conserved)
+// with k = 0, ..., order-1
+// `order` is the order of the charge assignment function to test.
+// `x` is the argument to feed to the function to test.
 {
 	double sum = 0;
 	for (std::size_t k = 0; k < order; ++k)
 		sum += physics::charge_assignment_function(x, k, order);
 
-	assert(std::fabs(sum - 1) < 1.e-14);
+	assert(std::abs(sum - 1) < 1e-15);
 }
 
-void test_force_accuracy()
+void test_force_accuracy(std::string scheme)
+// Test PPPM algorithm against Ewald summation for a lattice of TIP3P water molecules.
+// The test passes if the RMS error is not greater than 3 times the estimated error.
+// `scheme` is the scheme to use for PPPM (either "ik" or "ad").
 {
-	using std::sqrt;
+	physics::molecular_system<double, physics::pppm> sys;
+	physics::molecular_system<double, physics::ewald> sys_ref;
 
-	int side = 15, hside = side/2;
-	int Nmol = side*side*side;
-	double volume = (Nmol*18.0154)/0.602214076;
-	double dist = std::cbrt(volume)/side;
-
-	physics::molecular_system<double, physics::pppm, physics::leapfrog> sys(dist*side);
-	physics::molecular_system<double, physics::ewald, physics::leapfrog> sys_ref;
-
+	// Set parameters in order to increase accuracy
 	sys.lrsum.cutoff_radius(9);
 	sys.lrsum.charge_assignment_order(7);
-	sys.lrsum.set_diff_scheme("ik");
-	sys.lrsum.cell_multiplier(0);
+	// Set differentiation scheme
+	sys.lrsum.set_diff_scheme(scheme);
 
-	for (int i = 0; i < side; ++i)
-		for (int j = 0; j < side; ++j)
-			for (int k = 0; k < side; ++k)
-			{
-				physics::molecule w = physics::water_tip3p<>;
-				physics::point3<double> p {(i-hside)*dist, (j-hside)*dist, (k-hside)*dist};
-				for (int l = 0; l < 3; ++l)
-					p[l] += (::dist(mersenne_twister) - 0.5) * 0.1;
-				sys.add_molecule(w, p);
-			}
+	double dist = std::cbrt(physics::water_mass<> / physics::water_density25<>);
+
+	sys.primitive_cubic_lattice(16, dist, physics::water_tip3p<>);
 
 	sys_ref = sys;
 
-	sys.step(0);
-	sys_ref.step(0);
+	assert(rms(sys.force() - sys_ref.force()) < 3*sys.lrsum.estimated_error);
+}
 
-	auto sqr = [](physics::point3d x) { return x*x; };
-	auto sum_coords = [](physics::point3d x) { return x[0]+x[1]+x[2]; };
+void test_madelung_nacl()
+// Test that the calculated electrostatic energy for NaCl lattice is related to the
+// Madelung constant M = -1.747565 with this formula:
+// E = k_C e^2 M / a
+// where `k_C` is the Coulomb constant, `e` is the elementary charge and `a` is the
+// NaCl lattice constant. Note that in AKMA units e = 1.
+{
+	physics::molecular_system<double, physics::pppm> sys;
 
-	double rmse = sqrt(sum_coords((sys.f - sys_ref.f).apply(sqr).sum()) / sys.n);
-	double rms_elec = sqrt(sum_coords(sys_ref.lrsum.f.apply(sqr).sum()) / sys.n);
-	double rms_tot = sqrt(sum_coords(sys_ref.f.apply(sqr).sum()) / sys.n);
+	// Set parameters in order to increase accuracy
+	sys.lrsum.charge_assignment_order(7);
+	sys.lrsum.cutoff_radius(20);
+	sys.lrsum.cell_multiplier(2);
 
-	std::cout << "Calculated total RMS error = " << rmse << '\n';
-	std::cout << "Force electrostatic RMS = " << rms_elec << '\n';
-	std::cout << "Total force RMS (excluded intra-molecular pairs) = " << rms_tot << '\n';
+	int n_side = 2;
+	double lattice_constant = 5.6402;
+
+	sys.face_centered_cubic_lattice(n_side, lattice_constant, physics::sodium_ion<>, physics::chloride_ion<>);
+
+	sys.force();
+	double calculated_madelung = sys.lrsum.energy_coulomb*lattice_constant/(physics::kC<>*sys.n);
+
+	assert(std::abs(calculated_madelung - physics::madelung_nacl<>) < 1e-5);
 }
 
 int main()
 {
-	test_charge_assignment_function();
-	test_force_accuracy();
+	for (auto i = physics::pppm_min_order; i <= physics::pppm_max_order; ++i)
+		test_charge_assignment_function(i, 0.3141592); // a random number
+	test_force_accuracy("ik");
+	test_force_accuracy("ad");
+	test_madelung_nacl();
+
+	std::cout << "All tests passed successfully!" << std::endl;
 
 	return 0;
 }

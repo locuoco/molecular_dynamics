@@ -84,7 +84,8 @@ namespace utils
 
 	class task
 	{
-		std::unique_ptr<task_base> pt;
+		// using `std::unique_ptr` causes stack corruption when compiling with -D_GLIBCXX_DEBUG (not sure why)
+		std::shared_ptr<task_base> pt;
 
 		public:
 
@@ -94,7 +95,7 @@ namespace utils
 			template <typename F, typename ... Args>
 			task(F&& f, Args&& ... args)
 			// add a task by storing a function object `f` and its arguments `args`
-				: pt(std::make_unique<task_wrapper<F>>(std::forward<F>(f), std::forward<Args>(args)...))
+				: pt(std::make_shared<task_wrapper<F>>(std::forward<F>(f), std::forward<Args>(args)...))
 			{}
 
 			void perform()

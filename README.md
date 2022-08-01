@@ -103,7 +103,7 @@ On Linux, the library names could be different:
 
     g++ <ins> -o <out> -std=c++20 -I <includes> -L <libs> -lGL -lGLU -lGLEW -lglfw -lfreetype -Wall -Wextra -pedantic -Ofast
 
-where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files (if required), while `<ins>` `<out>` are the compilation units name and the output executable name respectively. If GCC is used for compilation, version 10+ is required for full C++20 support. Running the graphical part of the program requires OpenGL 3.3+.
+where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files (if required), while `<ins>` and `<out>` are the compilation units names and the output executable name respectively. If GCC is used for compilation, version 10+ is required for full C++20 support. Running the graphical part of the program requires OpenGL 3.3+.
 
 ### Basic usage
 
@@ -127,6 +127,9 @@ Currently available molecules are:
 * `physics::water_tip3p<>`: Water molecule, using a flexible TIP3P model with O–H and H–H Lennard-Jones parameters
 * `physics::water_tip3p_lr<>`: Water molecule, using a flexible TIP3P model optimized for long-range interactions
 * `physics::water_fba_eps<>`: Water molecule, using the FBA/&epsilon; model
+* `physics::sodium_ion<>`: Sodium ion
+* `physics::chloride_ion<>`: Chloride ion
+* `physics::caesium_ion<>`: Caesium ion
 
 To set the coordinates of the molecule:
 ```c++

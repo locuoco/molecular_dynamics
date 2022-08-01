@@ -17,33 +17,90 @@
 #ifndef MATH_HELPER_H
 #define MATH_HELPER_H
 
-#include <concepts> // floating_point
+#include <concepts> // floating_point, assignable_from
 #include <cmath> // sqrt, fmod, sin
 #include <type_traits> // is_integral_v
 #include <numbers> // numbers::pi_v
+#include <valarray>
+#include <complex>
 
 namespace math
 {
 	template <typename T>
-	constexpr T half_pi = 1.5707963267948966192313216916398L; // pi/2
+	inline constexpr T half_pi = 1.5707963267948966192313216916398L; // pi/2
 
 	template <typename T>
-	constexpr T pi_4 = 0.78539816339744830961566084581988L; // pi/4
+	inline constexpr T pi_4 = 0.78539816339744830961566084581988L; // pi/4
 
 	template <typename T>
-	constexpr T two_pi = 6.283185307179586476925286766559L; // 2 pi
+	inline constexpr T two_pi = 6.283185307179586476925286766559L; // 2 pi
 
 	template <typename T>
-	constexpr T sqrtpi = 1.7724538509055160272981674833411L; // square root of pi
+	inline constexpr T sqrtpi = 1.7724538509055160272981674833411L; // square root of pi
 
 	template <typename T>
-	constexpr T cbrtpi = 1.4645918875615232630201425272638L; // cube root of pi
+	inline constexpr T cbrtpi = 1.4645918875615232630201425272638L; // cube root of pi
 
 	template <typename T>
-	constexpr T inv_sqrt2 = 0.70710678118654752440084436210485L; // 1/sqrt(2)
+	inline constexpr T inv_sqrt2 = 0.70710678118654752440084436210485L; // 1/sqrt(2)
 
 	template <typename T>
-	constexpr T two1_6 = 1.1224620483093729814335330496792L; // 2^(1/6)
+	inline constexpr T two1_6 = 1.1224620483093729814335330496792L; // 2^(1/6)
+
+	template <typename T>
+	inline constexpr bool is_complex = false;
+	
+	template <typename T>
+	inline constexpr bool is_complex<std::complex<T>> = true;
+
+	template <std::integral T>
+	constexpr bool is_even(T num) noexcept
+	// return true if and only if `num` is even
+	{
+		return (num & 1) == 0;
+		// if the least significant bit is 0 the number is even.
+	}
+	template <std::integral T>
+	constexpr bool is_odd(T num) noexcept
+	// return true if and only if `num` is odd
+	{
+		return !is_even(num);
+	}
+
+	constexpr bool is_pow_of_2(unsigned long long num) noexcept
+	// return true if and only if `num` is a power of 2
+	{
+		return (num & (num-1)) == 0 && num != 0;
+		// the preceding number of any number in binary has at least one common bit
+		// (the msb) unless it is 0 or a power of 2.
+	}
+
+	constexpr int powm1(int expo) noexcept
+	// calculate (-1)^expo (power of minus 1)
+	{
+		return 1-2*(expo&1);
+	}
+
+	template <typename Vec>
+	requires (std::assignable_from<std::valarray<typename Vec::value_type>&, Vec> && std::floating_point<typename Vec::value_type>)
+	auto rms(const Vec& v)
+	// calculate root mean square of a valarray of real numbers `v`
+	{
+		using std::sqrt;
+		return sqrt((v*v).sum()/v.size());
+	}
+
+	template <typename Vec>
+	requires (std::assignable_from<std::valarray<typename Vec::value_type>&, Vec> && is_complex<typename Vec::value_type>)
+	auto rms(const Vec& v)
+	// calculate root mean square of a valarray of complex numbers `v`, using the formula:
+	// rms(v) = sqrt( sum_i |v_i|^2 / n)
+	// where n is the number of complex numbers.
+	{
+		using std::sqrt;
+		auto sqr = [](const auto& z) { return std::complex(norm(z), 0.); };
+		return sqrt(v.apply(sqr).sum().real()/v.size());
+	}
 
 	template <std::floating_point T>
 	constexpr T deg2rad(T deg) noexcept
@@ -60,7 +117,7 @@ namespace math
 	}
 
 	template <std::floating_point T, std::size_t Exponent = sizeof(T)*4>
-	T fastexp(T x) noexcept
+	constexpr T fastexp(T x) noexcept
 	// based on the fundamental limit:
 	// (1 + x/n)^n -> e^x for n -> inf
 	// and exponentiation by squaring,
@@ -77,7 +134,7 @@ namespace math
 	}
 
 	template <std::floating_point T>
-	T fasterfc(T x) noexcept
+	constexpr T fasterfc(T x) noexcept
 	// From Abramowitz and Stegun (1964)
 	// calculate the complementary error function
 	// max relative error should be around 10^-7
@@ -104,7 +161,7 @@ namespace math
 	}
 
 	template <std::floating_point T>
-	T fasterf(T x) noexcept
+	constexpr T fasterf(T x) noexcept
 	// calculate the error function
 	// max relative error should be around 10^-7
 	{
@@ -112,7 +169,7 @@ namespace math
 	}
 
 	template <typename T>
-	T mod(T x, T y) noexcept
+	constexpr T mod(T x, T y) noexcept
 	// remaps x in the [0, y) range, i.e.:
 	//	res = x mod y
 	// Note that x % y = n such that x = trunc(x/y)*y + n.
@@ -142,7 +199,7 @@ namespace math
 	}
 
 	template <typename T>
-	T clamp(T x, T a, T b) noexcept
+	constexpr T clamp(T x, T a, T b) noexcept
 	// clamp `x` between `a` and `b`
 	{
 		return x>b?b:x<a?a:x;
