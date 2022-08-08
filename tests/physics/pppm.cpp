@@ -27,6 +27,7 @@ g++ pppm.cpp -o pppm -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-er
 
 #include "../../physics/physics.hpp"
 #include "../../physics/tensor.hpp" // rms
+#include "nist_test.hpp"
 
 void test_charge_assignment_function(size_t order, double x)
 // test property of charge assignment function, i.e.:
@@ -43,51 +44,107 @@ void test_charge_assignment_function(size_t order, double x)
 }
 
 void test_force_accuracy(std::string scheme)
-// Test PPPM algorithm against Ewald summation for a lattice of TIP3P water molecules.
-// The test passes if the RMS error is not greater than 3 times the estimated error.
+// Test PPPM algorithm against Ewald summation for a system of TIP3P water molecules.
+// The test passes if the RMS error is not greater than 3 times the estimated RMS error.
 // `scheme` is the scheme to use for PPPM (either "ik" or "ad").
 {
 	physics::molecular_system<double, physics::pppm> sys;
 	physics::molecular_system<double, physics::ewald> sys_ref;
 
 	// Set parameters in order to increase accuracy
-	sys.lrsum.cutoff_radius(9);
+	// Also, cutoff radius must be large enough so that LJ truncation error is negligible
+	sys.lrsum.cutoff_radius(20);
 	sys.lrsum.charge_assignment_order(7);
+	sys.lrsum.cell_multiplier(2);
+	sys.lrsum.precise(true);
 	// Set differentiation scheme
 	sys.lrsum.set_diff_scheme(scheme);
 
+	sys_ref.lrsum.max_n(12);
+	sys_ref.lrsum.precise(true);
+
 	double dist = std::cbrt(physics::water_mass<> / physics::water_density25<>);
 
-	sys.primitive_cubic_lattice(16, dist, physics::water_tip3p<>);
+	sys.primitive_cubic_lattice(8, dist, physics::water_tip3p<>);
+	sys.simulate(20);
 
-	sys_ref = sys;
+	sys_ref = sys; // copy content
 
-	assert(rms(sys.force() - sys_ref.force()) < 3*sys.lrsum.estimated_error);
+	sys.force();
+	sys_ref.force();
+
+	assert(rms(sys.f - sys_ref.f) < 3*(sys.lrsum.estimated_error + sys_ref.lrsum.estimated_error)); // should be around 1e-7
+}
+
+void test_energy_same()
+// Test that the energy calculated from ik- and ad-differentiation with the same
+// parameters are the same up to rounding error.
+{
+	double dist = std::cbrt(physics::water_mass<> / physics::water_density25<>);
+
+	physics::molecular_system<double, physics::pppm> sys;
+	sys.primitive_cubic_lattice(3, dist, physics::water_tip3p<>);
+
+	sys.lrsum.set_diff_scheme("ik");
+	sys.force();
+	double ik_energy = sys.potential;
+	double param = sys.lrsum.ewald_par(); // get automatically optimized Ewald parameter
+
+	sys.lrsum.set_diff_scheme("ad");
+	sys.lrsum.ewald_par(param); // set same Ewald parameter manually
+
+	sys.force();
+	double ad_energy = sys.potential;
+
+	assert(std::abs(ik_energy - ad_energy) < 1e-15);
 }
 
 void test_madelung_nacl()
-// Test that the calculated electrostatic energy for NaCl lattice is related to the
+// Test that the calculated electrostatic energy for a sodium chloride lattice is related to the
 // Madelung constant M = -1.747565 with this formula:
-// E = k_C e^2 M / a
-// where `k_C` is the Coulomb constant, `e` is the elementary charge and `a` is the
-// NaCl lattice constant. Note that in AKMA units e = 1.
+// E = k_C e^2 N M / a
+// where `k_C` is the Coulomb constant, `e` is the elementary charge, `a` is the NaCl
+// lattice constant and `N` is the number of atoms. Note that in AKMA units e = 1.
 {
 	physics::molecular_system<double, physics::pppm> sys;
 
+	// set dielectric to infinity to ignore dipole correction
+	sys.lrsum.dielectric(std::numeric_limits<double>::infinity());
 	// Set parameters in order to increase accuracy
 	sys.lrsum.charge_assignment_order(7);
 	sys.lrsum.cutoff_radius(20);
 	sys.lrsum.cell_multiplier(2);
 
-	int n_side = 2;
-	double lattice_constant = 5.6402;
-
-	sys.face_centered_cubic_lattice(n_side, lattice_constant, physics::sodium_ion<>, physics::chloride_ion<>);
+	sys.face_centered_cubic_lattice(2, physics::nacl_lattice<>, physics::sodium_ion<>, physics::chloride_ion<>);
 
 	sys.force();
-	double calculated_madelung = sys.lrsum.energy_coulomb*lattice_constant/(physics::kC<>*sys.n);
 
-	assert(std::abs(calculated_madelung - physics::madelung_nacl<>) < 1e-5);
+	double calculated_madelung = sys.lrsum.energy_coulomb*physics::nacl_lattice<>/(physics::kC<>*sys.n);
+	assert(std::abs(calculated_madelung - physics::nacl_madelung<>) < 1e-5);
+}
+
+void test_madelung_cscl()
+// Test that the calculated electrostatic energy for a caesium chloride lattice is related to the
+// Madelung constant M = -1.762675 with this formula:
+// E = k_C e^2 N M / (4 sqrt(3) a)
+// where `k_C` is the Coulomb constant, `e` is the elementary charge, `a` is the CsCl
+// lattice constant and `N` is the number of atoms. Note that in AKMA units e = 1.
+{
+	physics::molecular_system<double, physics::pppm> sys;
+
+	// set dielectric to infinity to ignore dipole correction
+	sys.lrsum.dielectric(std::numeric_limits<double>::infinity());
+	// Set parameters in order to increase accuracy
+	sys.lrsum.charge_assignment_order(7);
+	sys.lrsum.cutoff_radius(20);
+	sys.lrsum.cell_multiplier(2);
+
+	sys.primitive_cubic_lattice(8, physics::cscl_lattice<>, physics::caesium_ion<>, physics::chloride_ion<>);
+
+	sys.force();
+
+	double calculated_madelung = sys.lrsum.energy_coulomb*physics::cscl_lattice<>*std::numbers::sqrt3/(physics::kC<>*sys.n);
+	assert(std::abs(calculated_madelung - physics::cscl_madelung<>) < 1e-4);
 }
 
 int main()
@@ -96,7 +153,9 @@ int main()
 		test_charge_assignment_function(i, 0.3141592); // a random number
 	test_force_accuracy("ik");
 	test_force_accuracy("ad");
+	test_energy_same();
 	test_madelung_nacl();
+	test_madelung_cscl();
 
 	std::cout << "All tests passed successfully!" << std::endl;
 

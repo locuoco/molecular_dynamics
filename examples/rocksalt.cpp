@@ -1,4 +1,4 @@
-//  Molecular dynamics example
+//  Molecular dynamics example: rock salt lattice
 //  Copyright (C) 2022 Alessandro Lo Cuoco (alessandro.locuoco@gmail.com)
 
 //  This program is free software: you can redistribute it and/or modify
@@ -16,32 +16,38 @@
 
 #include <iostream>
 #include <vector>
+#include <limits> // infinity
 
 /*
 
-g++ main.cpp -o mold -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\Users\aless\Desktop\myLib\lib -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1
+Compilation:
+g++ rocksalt.cpp -o rocksalt -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\Users\aless\Desktop\myLib\lib -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1
 
 */
 
 #include "../physics/physics.hpp"
 #include "../gui/graphics.hpp"
 
-int main(const int, const char**)
+int main()
 {
 	graphics window;
 
-	double dist = std::cbrt(physics::water_mass<> / physics::water_density25<>);
+	unsigned n_side = 8;
 
-	unsigned n_side = 16;
+	physics::molecular_system<double, physics::pppm, physics::nose_hoover> molsys;
 
-	physics::molecular_system<double, physics::pppm, physics::nose_hoover> molsys(298.15);
+	// set dielectric to infinity to ignore dipole correction
+	molsys.lrsum.dielectric(std::numeric_limits<double>::infinity());
 
-	// set a simple cubic lattice as initial condition
-	molsys.primitive_cubic_lattice(n_side, dist, physics::water_tip3p_lr<>);
+	// ik-differentiation scheme conserves momentum better
+	molsys.lrsum.set_diff_scheme("ik");
+	molsys.lrsum.cell_multiplier(1);
+
+	molsys.face_centered_cubic_lattice(n_side, physics::nacl_lattice<>, physics::sodium_ion<>, physics::chloride_ion<>);
 
 	while (!window.should_close())
 	{
-		molsys.step(1e-3);
+		molsys.step(4e-3);
 		window.draw(molsys);
 	}
 

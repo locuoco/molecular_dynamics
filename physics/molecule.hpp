@@ -55,7 +55,7 @@ namespace physics
 
 	// 1 atmosphere in AKMA units
 	template <std::floating_point T = double>
-	inline constexpr T atm = 1.4583972574259082217973231357553e-5L;
+	inline constexpr T atm = 1.458397257425908222e-5L;
 
 	// 1 kg/m^3 in AKMA units
 	template <std::floating_point T = double>
@@ -63,11 +63,11 @@ namespace physics
 
 	// water self-diffusion constant at 5 °C in AKMA units
 	template <std::floating_point T = double>
-	inline constexpr T DW5 = 0.00616480364668354400695529510607L;
+	inline constexpr T DW5 = 0.006164803646683544007L;
 
 	// water self-diffusion constant at 25 °C in AKMA units
 	template <std::floating_point T = double>
-	inline constexpr T DW25 = 0.01123940014569822971609058164065L;
+	inline constexpr T DW25 = 0.01123940014569822972L;
 
 	// density of ice in AKMA units (u.m.a. / A^3)
 	template <std::floating_point T = double>
@@ -87,7 +87,7 @@ namespace physics
 
 	// water molecular mass (in atomic mass units)
 	template <std::floating_point T = double>
-	inline constexpr T water_mass = 18.01528L;
+	inline constexpr T water_mass = 18.0154L;
 
 	// kcal to kJ conversion factor
 	template <std::floating_point T = double>
@@ -95,23 +95,37 @@ namespace physics
 
 	// NaCl Madelung constant
 	template <std::floating_point T = double>
-	inline constexpr T madelung_nacl = -1.747565L;
+	inline constexpr T nacl_madelung = -1.74756459463318L;
 
 	// CsCl Madelung constant
 	template <std::floating_point T = double>
-	inline constexpr T madelung_cscl = -1.762675L;
+	inline constexpr T cscl_madelung = -1.76267477307098L;
+
+	// ZnS Madelung constant
+	template <std::floating_point T = double>
+	inline constexpr T zns_madelung = -1.6380550533L;
+
+	// NaCl lattice constant
+	template <std::floating_point T = double>
+	inline constexpr T nacl_lattice = 5.6402L;
+
+	// CsCl lattice constant
+	template <std::floating_point T = double>
+	inline constexpr T cscl_lattice = 4.119L;
 
 	enum class atom_type : unsigned char
 	{
-		HT,  // TIP3P hydrogen atom
-		HTL, // TIP3P-Ewald hydrogen atom
-		HF,  // FBA/eps hydrogen atom
-		OT,  // TIP3P oxygen atom
-		OTL, // TIP3P-Ewald oxygen atom
-		OF,  // FBA/eps oxygen atom
-		SOD, // sodium ion
-		CLA, // chloride ion
-		CES, // caesium ion
+		HT,  // TIP3P water hydrogen atom
+		HTL, // TIP3P-Ewald water hydrogen atom
+		HF,  // FBA/eps water hydrogen atom
+		HSE, // SPC/E water hydrogen atom
+		OT,  // TIP3P water oxygen atom
+		OTL, // TIP3P-Ewald water oxygen atom
+		OF,  // FBA/eps water oxygen atom
+		OSE, // SPC/E water oxygen atom
+		SOD, // sodium (Na+) cation
+		CLA, // chloride (Cl-) anion
+		CES, // caesium (Cs+) cation
 		N    // number of atom types
 	};
 	inline constexpr std::size_t num_atom_types = std::size_t(atom_type::N);
@@ -125,21 +139,24 @@ namespace physics
 	// maximum number of atoms
 	inline constexpr std::size_t max_atoms = 2'000'000;
 
-	inline constexpr unsigned char atom_number[num_atom_types] {1, 1, 1, 8, 8, 8, 11, 17, 55};
+	inline constexpr unsigned char atom_number[num_atom_types] {1, 1, 1, 1, 8, 8, 8, 8, 11, 17, 55};
 
 	// atom masses in atomic units
+	// note that for ions, the electron mass is not added/subtracted, as it is not always significant
 	template <std::floating_point T>
 	inline constexpr T atom_mass[num_atom_types]
 	{
-		  1.00794L,  // HT
-		  1.00794L,  // HTL
-		  1.00794L,  // HF
-		 15.9994L,   // OT
-		 15.9994L,   // OTL
-		 15.9994L,   // OF
-		 22.989769L, // SOD
-		 35.453L,    // CLA
-		132.90545L,  // CES
+		  1.008L,   // HT
+		  1.008L,   // HTL
+		  1.008L,   // HF
+		  1.008L,   // HSE
+		 15.9994L,  // OT
+		 15.9994L,  // OTL
+		 15.9994L,  // OF
+		 15.9994L,  // OSE
+		 22.98977L, // SOD
+		 35.45L,    // CLA
+		132.90545L, // CES
 	};
 
 	template <std::floating_point T>
@@ -165,6 +182,7 @@ namespace physics
 		{ {atom_type::HT,  atom_type::OT }, {450,       0.9572L} },
 		{ {atom_type::HTL, atom_type::OTL}, {450,       0.9572L} },
 		{ {atom_type::HF,  atom_type::OF }, {358.5086L, 1.027L } },
+		{ {atom_type::HSE, atom_type::OSE}, {0,         1      } },
 	};
 
 	template <std::floating_point T>
@@ -176,22 +194,28 @@ namespace physics
 		{ {atom_type::HT,  atom_type::OT,  atom_type::HT }, {55,       math::deg2rad(104.52L), 0, 0} },
 		{ {atom_type::HTL, atom_type::OTL, atom_type::HTL}, {55,       math::deg2rad(104.52L), 0, 0} },
 		{ {atom_type::HF,  atom_type::OF,  atom_type::HF }, {45.7696L, math::deg2rad(114.70L), 0, 0} },
+		{ {atom_type::HSE, atom_type::OSE, atom_type::HSE}, {0,        math::deg2rad(109.47L), 0, 0} },
 	};
 
 	template <std::floating_point T>
 	inline lj_struct<T> lj_params[num_atom_types] =
 	// Lennard-Jones parameters
 	// (epsilon, R_min/2) associated to each atom types
+	// taken from CHARMM force field
+	// R_min is given by sigma * 2^(1/6)
+	// for ions, see also Beglov, Roux, 1994 and Stote, Karplus, 1995
 	{
-		{0.046L,  0.2245L }, // HT
-		{0,       0       }, // HTL
-		{0,       0       }, // HF
-		{0.1521L, 1.7682L }, // OT
-		{0.102L,  1.7892L }, // OTL
-		{0.1894L, 1.78337L}, // OF
-		{0.0469L, 1.41075L}, // SOD
-		{0.150L,  2.27L   }, // CLA
-		{0.190L,  2.100L  }, // CES
+		{0.046L,         0.2245L   }, // HT
+		{0,              0         }, // HTL
+		{0,              0         }, // HF
+		{0,              0         }, // HSE
+		{0.1521L,        1.7682L   }, // OT
+		{0.102L,         1.7892L   }, // OTL
+		{0.1894L,        1.78337L  }, // OF
+		{0.15539426812L, 1.7766093L}, // OSE
+		{0.0469L,        1.41075L  }, // SOD
+		{0.150L,         2.27L     }, // CLA
+		{0.190L,         2.100L    }, // CES
 	};
 
 	template <std::floating_point T = double>
@@ -218,7 +242,10 @@ namespace physics
 
 	template <std::floating_point T = double>
 	inline const molecule<T> water_tip3p
-	// TIP3P water model
+	// TIP3P water model with flexible bonds
+	// see also W. L. Jorgensen, J. Chandrasekhar, J. D. Madura, R. W. Impey,
+	// M. L. Klein, "Comparison of simple potential functions for
+	// simulating liquid water", J. Chem. Phys. 79 926-935 (1983).
 	{
 		.x     = { {-0.75695L, 0.58588L}, {0}, {0.75695L, 0.58588L} }, // oxygen at the origin
 		.id    = {atom_type::HT, atom_type::OT, atom_type::HT},
@@ -229,8 +256,8 @@ namespace physics
 
 	template <std::floating_point T = double>
 	inline const molecule<T> water_tip3p_lr
-	// TIP3P water model optimized for long-range interactions
-	// see D. J. Price, C. L. Brooks, "A modified TIP3P water potential for simulation with Ewald summation", 2004
+	// TIP3P water model with flexible bonds optimized for long-range interactions
+	// see also D. J. Price, C. L. Brooks, "A modified TIP3P water potential for simulation with Ewald summation", 2004
 	{
 		.x     = { {-0.75695L, 0.58588L}, {0}, {0.75695L, 0.58588L} }, // oxygen at the origin
 		.id    = {atom_type::HTL, atom_type::OTL, atom_type::HTL},
@@ -241,12 +268,24 @@ namespace physics
 
 	template <std::floating_point T = double>
 	inline const molecule<T> water_fba_eps
-	// FBA/eps water model
+	// FBA/epsilon water model
 	// see R. Fuentes-Azcatl, M. Barbosa, "Flexible Bond and Angle, FBA/epsilon model of water", 2018
 	{
 		.x     = { {-0.75695L, 0.58588L}, {0}, {0.75695L, 0.58588L} }, // oxygen at the origin
 		.id    = {atom_type::HF, atom_type::OF, atom_type::HF},
 		.q     = {0.4225L, -0.8450L, 0.4225L},
+		.bonds = { {1}, {0, 2}, {1} },
+		.n     = 3
+	};
+
+	template <std::floating_point T = double>
+	inline const molecule<T> water_spc_e
+	// SPC/E water model
+	// only for testing Ewald summation, do not use for simulations! (fixed bonds not supported)
+	{
+		.x     = { {-0.75695L, 0.58588L}, {0}, {0.75695L, 0.58588L} }, // oxygen at the origin
+		.id    = {atom_type::HSE, atom_type::OSE, atom_type::HSE},
+		.q     = {0.4238L, -0.8476L, 0.4238L},
 		.bonds = { {1}, {0, 2}, {1} },
 		.n     = 3
 	};
@@ -304,14 +343,15 @@ namespace physics
 		std::vector<atom_type> id; // identity of the atom
 		std::vector<fixed_list<max_bonds>> bonds; // bonds as an adjacency list
 		std::vector<std::array<unsigned, 4>> impropers; // list of impropers in the whole system
-		T M = 0, Z = 0, Z2 = 0, tracedisp = 0, sumdisp = 0;
+		T M = 0, Z = 0, Z2 = 0, tracedisp6 = 0, sumdisp6 = 0, tracedisp12 = 0, sumdisp12 = 0;
 			// total mass, total charge, sum of charges^2, trace of dispersion matrix, sum of all dispersion terms coefficients
 		unsigned n = 0, dof = 0; // total number of atoms, degrees of freedom
 		utils::thread_pool tp; // thread pool
 		Integ integ; // integrator
 		LRSum lrsum; // long-range summation algorithm
 		std::mt19937_64 mersenne_twister = std::mt19937_64(0);
-		T side, temperature_ref;
+		T side, temperature_ref; // box side, reference temperature (for constant-T ensembles)
+		T energy_lrc, energy_intra_coulomb, energy_intra_lj; // LJ long-range correction, intra-molecular energy corrections
 		T t = 0, potential, virial, D; // time, potential energy, virial, diffusion coefficient
 		bool rescale_temperature = false, first_step = true, dispersion_correction = true;
 
@@ -329,6 +369,8 @@ namespace physics
 		// add a molecule to the system.
 		// `mol` is the molecule to add.
 		// `pos` is the position of the molecule.
+		// Throw a `std::runtime_error` exception if the number of atoms is going
+		// to exceed the maxium allowed (i.e. `max_atoms`).
 		{
 			using std::size_t;
 			using std::sqrt;
@@ -386,30 +428,40 @@ namespace physics
 				Z2 += z[n + i]*z[n + i];
 			}
 			// update the trace and the sum of the dispersion coefficients matrix.
-			// Dispersion coefficients are calculated using the Lorentz-Berthelot mixing rule
-			// these coefficients are used for long-range dispersion energy correction. If not
+			// Dispersion coefficients are calculated using the Lorentz-Berthelot mixing rule.
+			// These coefficients are used for long-range dispersion energy correction. If not
 			// needed, set `dispersion_correction` to false for faster initialization.
 			if (dispersion_correction)
 			{
 				for (size_t i = 0; i < mol.n; ++i)
 				{
+					T eps = lj_sqrteps[n + i]*lj_sqrteps[n + i];
 					T C6 = 2*lj_halfR[n + i];
 					C6 *= C6;
 					C6 = C6 * C6 * C6;
-					C6 = 2 * lj_sqrteps[n + i]*lj_sqrteps[n + i] * C6;
-					tracedisp += C6;
-					sumdisp += C6;
+					T C12 = eps * C6 * C6;
+					C6 = 2 * eps * C6;
+					tracedisp6 += C6;
+					sumdisp6 += C6;
+					tracedisp12 += C12;
+					sumdisp12 += C12;
 				}
 				for (size_t i = n; i < n+mol.n; ++i)
 					for (size_t j = 0; j < i; ++j)
 					{
+						T epsij = lj_sqrteps[i]*lj_sqrteps[j];
 						T C6 = lj_halfR[i]+lj_halfR[j];
 						C6 *= C6;
 						C6 = C6 * C6 * C6;
-						C6 = 2 * lj_sqrteps[i]*lj_sqrteps[j] * C6;
-						sumdisp += 2*C6;
+						T C12 = epsij * C6 * C6;
+						C6 = 2 * epsij * C6;
+						sumdisp6 += 2*C6;
+						sumdisp12 += 2*C12;
 					}
 			}
+			else
+				tracedisp6 = sumdisp6 = tracedisp12 = sumdisp12 = 0;
+
 			n += mol.n;
 			dof = 3*n;
 			first_step = true;
@@ -422,8 +474,9 @@ namespace physics
 			const molecule<T>& species1,
 			const molecule<T>& species2 = empty_molecule<T>
 		)
-		// create a primitive cubic lattice (overwriting the current system).
-		// Example: Caesium chloride (CsCl), caesium bromide (CsBr), caesium iodide (CsI), many
+		// create a primitive cubic lattice (overwriting the current system). If two chemical
+		// species are given, create an interpenetrating (caesium-chloride-like) structure.
+		// Examples: Caesium chloride (CsCl), caesium bromide (CsBr), caesium iodide (CsI), many
 		// binary metallic alloys.
 		// `n_side` is the number of cubic unit cells along one dimension. The total number of lattice
 		// points for species 1 (or 2) is thus n_side^3.
@@ -443,11 +496,11 @@ namespace physics
 				for (int j = 0; j < n_side; ++j)
 					for (int k = 0; k < n_side; ++k)
 						add_molecule(species1, {(i-hside)*lattice_const, (j-hside)*lattice_const, (k-hside)*lattice_const});
-			T hside2 = hside - T(0.5);
+			hside -= T(0.5);
 			for (int i = 0; i < n_side; ++i)
 				for (int j = 0; j < n_side; ++j)
 					for (int k = 0; k < n_side; ++k)
-						add_molecule(species2, {(i-hside2)*lattice_const, (j-hside2)*lattice_const, (k-hside2)*lattice_const});
+						add_molecule(species2, {(i-hside)*lattice_const, (j-hside)*lattice_const, (k-hside)*lattice_const});
 			fetch();
 		}
 
@@ -457,8 +510,9 @@ namespace physics
 			const molecule<T>& species1,
 			const molecule<T>& species2 = empty_molecule<T>
 		)
-		// create a face-centered cubic lattice (overwriting the current system).
-		// Example: Sodium chloride (NaCl), lithium chloride (LiCl), lithium floride (LiF), many
+		// create a face-centered cubic lattice (overwriting the current system). If two chemical
+		// species are given, create a rock-salt-like structure.
+		// Examples: Rock salt (NaCl), lithium chloride (LiCl), lithium floride (LiF), many
 		// salts composed with other alkali metals (expect caesium, and probably francium).
 		// `n_side` is the number of cubic unit cells along one dimension. The total number of lattice
 		// points for species 1 (or 2) is thus 4 * n_side^3.
@@ -577,8 +631,17 @@ namespace physics
 			rescale_temp();
 		}
 
+		void simulate(std::size_t n_steps, T dt = 1e-3L)
+		// make a simulation of `n_steps` steps with an integration step of `dt` picoseconds.
+		// Same as:
+		//	for (size_t i = 0; i < n_steps; ++i) step(dt);
+		{
+			for (std::size_t i = 0; i < n_steps; ++i)
+				step(dt);
+		}
+
 		const state<T, 3>& force(bool eval = true) override
-		// calculate all forces
+		// calculate all forces and update energies
 		// if `eval` is false, reuse old values
 		{
 			fetch();
@@ -682,7 +745,12 @@ namespace physics
 		// `force_long`, `vel`, `rand`, `kinetic_energy`, `total_energy`, `temperature`, `kT`,
 		// `pressure`, `external_pressure`, `primitive_cubic_lattice`, `face_centered_cubic_lattice`
 		// is called).
+		// Throw a `std::runtime_error` if member variable `side` is less than 6.
 		{
+			if (side < 6)
+				throw std::runtime_error("Simulation box is too small!");
+			// If the simulation box is too small, some problems could occur in
+			// the calculation of bonds interactions
 			if (x.size() == n)
 				return;
 			x.resize(n); p.resize(n);
@@ -754,7 +822,11 @@ namespace physics
 						std::swap(idi, idj);
 					const auto& par = bond_params<T>[{ idi, idj }];
 
-					vec3<T> r = x[i] - x[j];
+					vec3<T> r;
+					if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
+						r = x[i] - x[j];
+					else
+						r = remainder(x[i] - x[j], side);
 					T d = norm(r);
 					T d_ = 1/d;
 					T diff = d - par.b0;
@@ -779,8 +851,13 @@ namespace physics
 					size_t j = bonds[i][mj];
 					atom_type idj = id[j];
 
-					vec3<T> rij = x[i] - x[j];
+					vec3<T> rij;
+					if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
+						rij = x[i] - x[j];
+					else
+						rij = remainder(x[i] - x[j], side);
 					T rij2 = dot(rij, rij);
+
 					for (size_t mk = 0; mk < bonds[j].n; ++mk)
 					{
 						size_t k = bonds[j][mk];
@@ -791,8 +868,13 @@ namespace physics
 							std::swap(idi, idk);
 						const auto& par = angle_params<T>[{ idi, idj, idk }];
 
-						vec3<T> rkj = x[k] - x[j];
+						vec3<T> rkj;
+						if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
+							rkj = x[k] - x[j];
+						else
+							rkj = remainder(x[k] - x[j], side);
 						T rkj2 = dot(rkj, rkj);
+
 						T num = dot(rij, rkj), den = sqrt(rij2 * rkj2);
 						T costheta = num / den;
 						T sintheta = sqrt((1 + costheta) * (1 - costheta));
@@ -824,18 +906,21 @@ namespace physics
 		// (TODO) calculate improper angles forces and energies for all atoms
 		{}
 
-		void eval_nonbonded(std::size_t i, std::size_t j, T cutoff2, T fact = 1) noexcept
+		void eval_nonbonded(std::size_t i, std::size_t j, T cutoff2) noexcept
 		// evaluate non-bonded forces and energies for a pair of atoms with indices `i`, `j`.
-		// `fact` is a factor which forces and energies are multiplied by.
-		// This method is called inside `correct_nonbonded`.
 		// `cutoff2` is the square of the Lennard-Jones cutoff radius (0 for no cutoff).
+		// This method is called inside `correct_nonbonded`.
 		{
-
-			vec3<T> r = x[i] - x[j];
+			vec3<T> r;
+			if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
+				r = x[i] - x[j];
+			else
+				r = remainder(x[i] - x[j], side);
 			T r2 = dot(r, r), r2_ = 1/r2;
+
 			T d_ = sqrt(r2_);
 			T epsijs = 0, s = 0;
-			if (cutoff2 > 0 && r2 <= cutoff2)
+			if (cutoff2 == 0 || r2 <= cutoff2)
 			{
 				T Rij = lj_halfR[i] + lj_halfR[j];
 				s = Rij * Rij * r2_;
@@ -843,34 +928,38 @@ namespace physics
 				epsijs = lj_sqrteps[i] * lj_sqrteps[j] * s;
 			}
 			T coulomb = z[i] * z[j] * d_;
-			T vir = (12 * epsijs * (s - 1) + coulomb) * fact;
+			T vir = -(12 * epsijs * (s - 1) + coulomb);
 			vec3<T> fij = (vir * r2_) * r;
 			f[i] += fij;
 			f[j] -= fij;
-			potential += (epsijs * (s - 2) + coulomb) * fact;
+			energy_intra_coulomb -= coulomb;
+			energy_intra_lj -= epsijs * (s - 2);
 			virial += vir;
 		}
 
 		void correct_nonbonded(T cutoff2)
-		// the long-range forces must be excluded for 1-2, 1-3 and 1-4 bonded atoms.
+		// the long-range forces must be excluded for 1-2 and 1-3 bonded atoms.
 		// This correction is applied so that the force calculated through a long-range
 		// summation algorithm vanish for these atom pairs.
 		// `cutoff2` is the square of the Lennard-Jones cutoff radius (0 for no cutoff).
 		{
 			using std::size_t;
+			energy_intra_coulomb = 0;
+			energy_intra_lj = 0;
 			for (size_t i = 0; i < n; ++i)
 				for (size_t mj = 0; mj < bonds[i].n; ++mj)
 				{
 					const size_t j = bonds[i][mj];
 					if (i < j)
-						eval_nonbonded(i, j, cutoff2, -1);
+						eval_nonbonded(i, j, cutoff2);
 					for (size_t mk = 0; mk < bonds[j].n; ++mk)
 					{
 						const size_t k = bonds[j][mk];
 						if (i < k)
-							eval_nonbonded(i, k, cutoff2, -1);
+							eval_nonbonded(i, k, cutoff2);
 					}
 				}
+			potential += energy_intra_coulomb + energy_intra_lj;
 		}
 
 		void force_nonbonded()
@@ -889,22 +978,17 @@ namespace physics
 			if (cutoff)
 			{
 				T cutoff3 = cutoff*cutoff*cutoff;
-				T disp_average = 0;
-				if (n > 1)
-					disp_average = (sumdisp - tracedisp) / (n * (n-1));
-				T factor = 2 * std::numbers::pi_v<T> * n * number_density() * disp_average / cutoff3;
-				potential -= factor/3;
-				virial -= 2*factor;
-			}
-		}
+				T cutoff9 = cutoff3*cutoff3*cutoff3;
+				T meandisp6 = sumdisp6 / (n * n);
+				T meandisp12 = sumdisp12 / (n * n);
 
-		void elastic_confining(vec3<T> k)
-		// an elastic potential may be used to confine the atoms (if the system is not periodic)
-		{
-			using std::size_t;
-			f -= k * x;
-			for (size_t i = 0; i < n; ++i)
-				potential += T(.5L) * dot(k, x[i]*x[i]);
+				T common_factor = 2 * std::numbers::pi_v<T> * n * number_density();
+				T term6 = common_factor * meandisp6 / (3*cutoff3);
+				T term12 = common_factor * meandisp12 / (9*cutoff9);
+				energy_lrc = term12 - term6;
+				potential += energy_lrc;
+				virial += 12*term12 - 6*term6;
+			}
 		}
 
 		void diff_box_confining(T steepness)
@@ -971,7 +1055,8 @@ namespace physics
 			bonds.clear();
 			impropers.clear();
 			M = Z = Z2 = 0;
-			tracedisp = sumdisp = 0;
+			tracedisp6 = sumdisp6 = 0;
+			tracedisp12 = sumdisp12 = 0;
 			n = dof = 0;
 			t = 0;
 			first_step = true;
@@ -983,9 +1068,12 @@ namespace physics
 			: x(other.x), p(other.p), v(other.v), f(other.f), noise(other.noise), m(other.m), gamma(other.gamma),
 			x_tmp(other.x_tmp), p_tmp(other.p_tmp), v_tmp(other.v_tmp), f_tmp(other.f_tmp), m_tmp(other.m_tmp),
 			z(other.z), lj_sqrteps(other.lj_sqrteps), lj_halfR(other.lj_halfR), id(other.id), bonds(other.bonds), impropers(other.impropers),
-			M(other.M), Z(other.Z), Z2(other.Z2), tracedisp(other.tracedisp), sumdisp(other.sumdisp), n(other.n), dof(other.dof),
+			M(other.M), Z(other.Z), Z2(other.Z2), tracedisp6(other.tracedisp6), sumdisp6(other.sumdisp6),
+			tracedisp12(other.tracedisp12), sumdisp12(other.sumdisp12), n(other.n), dof(other.dof),
 			mersenne_twister(other.mersenne_twister), side(other.side), temperature_ref(other.temperature_ref),
-			t(other.t), potential(other.potential), virial(other.virial), D(other.D), first_step(other.first_step)
+			energy_lrc(other.energy_lrc), energy_intra_coulomb(other.energy_intra_coulomb), energy_intra_lj(other.energy_intra_lj),
+			t(other.t), potential(other.potential), virial(other.virial), D(other.D),
+			first_step(other.first_step), dispersion_correction(other.dispersion_correction)
 		{}
 
 		template <
@@ -998,9 +1086,12 @@ namespace physics
 			: x(other.x), p(other.p), v(other.v), f(other.f), noise(other.noise), m(other.m), gamma(other.gamma),
 			x_tmp(other.x_tmp), p_tmp(other.p_tmp), v_tmp(other.v_tmp), f_tmp(other.f_tmp), m_tmp(other.m_tmp),
 			z(other.z), lj_sqrteps(other.lj_sqrteps), lj_halfR(other.lj_halfR), id(other.id), bonds(other.bonds), impropers(other.impropers),
-			M(other.M), Z(other.Z), Z2(other.Z2), tracedisp(other.tracedisp), sumdisp(other.sumdisp), n(other.n), dof(other.dof),
+			M(other.M), Z(other.Z), Z2(other.Z2), tracedisp6(other.tracedisp6), sumdisp6(other.sumdisp6),
+			tracedisp12(other.tracedisp12), sumdisp12(other.sumdisp12), n(other.n), dof(other.dof),
 			mersenne_twister(other.mersenne_twister), side(other.side), temperature_ref(other.temperature_ref),
-			t(other.t), potential(other.potential), virial(other.virial), D(other.D), first_step(other.first_step)
+			energy_lrc(other.energy_lrc), energy_intra_coulomb(other.energy_intra_coulomb), energy_intra_lj(other.energy_intra_lj),
+			t(other.t), potential(other.potential), virial(other.virial), D(other.D),
+			first_step(other.first_step), dispersion_correction(other.dispersion_correction)
 		{}
 
 		molecular_system& operator=(const molecular_system& other)
@@ -1023,18 +1114,24 @@ namespace physics
 			M = other.M;
 			Z = other.Z;
 			Z2 = other.Z2;
-			tracedisp = other.tracedisp;
-			sumdisp = other.sumdisp;
+			tracedisp6 = other.tracedisp6;
+			sumdisp6 = other.sumdisp6;
+			tracedisp12 = other.tracedisp12;
+			sumdisp12 = other.sumdisp12;
 			n = other.n;
 			dof = other.dof;
 			mersenne_twister = other.mersenne_twister;
 			side = other.side;
 			temperature_ref = other.temperature_ref;
+			energy_lrc = other.energy_lrc;
+			energy_intra_coulomb = other.energy_intra_coulomb;
+			energy_intra_lj = other.energy_intra_lj;
 			t = other.t;
 			potential = other.potential;
 			virial = other.virial;
 			D = other.D;
 			first_step = other.first_step;
+			dispersion_correction = other.dispersion_correction;
 			return *this;
 		}
 
@@ -1063,18 +1160,24 @@ namespace physics
 			M = other.M;
 			Z = other.Z;
 			Z2 = other.Z2;
-			tracedisp = other.tracedisp;
-			sumdisp = other.sumdisp;
+			tracedisp6 = other.tracedisp6;
+			sumdisp6 = other.sumdisp6;
+			tracedisp12 = other.tracedisp12;
+			sumdisp12 = other.sumdisp12;
 			n = other.n;
 			dof = other.dof;
 			mersenne_twister = other.mersenne_twister;
 			side = other.side;
 			temperature_ref = other.temperature_ref;
+			energy_lrc = other.energy_lrc;
+			energy_intra_coulomb = other.energy_intra_coulomb;
+			energy_intra_lj = other.energy_intra_lj;
 			t = other.t;
 			potential = other.potential;
 			virial = other.virial;
 			D = other.D;
 			first_step = other.first_step;
+			dispersion_correction = other.dispersion_correction;
 			return *this;
 		}
 	};

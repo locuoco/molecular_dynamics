@@ -33,7 +33,7 @@ g++ parallel_sort.cpp -o parallel_sort -std=c++20 -Wall -Wextra -pedantic -Ofast
 #include "../../utils/parallel_sort.hpp"
 
 utils::thread_pool tp;
-std::mt19937_64 mersenne_twister(1234); // seed set to 1234
+std::mt19937_64 mersenne_twister;
 // mersenne_twister will behave in the same way for all compilers/runs
 
 auto gen()
@@ -46,6 +46,7 @@ auto gen()
 void test_gen()
 // test that the values generated with `gen` are between -1 and 1
 {
+	mersenne_twister.seed(1234);
 	std::valarray<double> x(1000);
 
 	std::ranges::generate(x, gen);
@@ -57,6 +58,7 @@ void test_parallel_sort_correct(std::size_t n = 1 << 20)
 // oracle test between `utils::parallel_sort` and `std::sort`.
 // `n` is the number of elements of the sequence used in the test.
 {
+	mersenne_twister.seed(1234);
 	std::vector<double> x(n), xref;
 
 	std::ranges::generate(x, gen);
@@ -72,6 +74,7 @@ void test_parallel_sort_reverse_correct(std::size_t n = 1 << 20)
 // oracle test between `utils::parallel_sort` and `std::sort` (reversed/decreasing order).
 // `n` is the number of elements of the sequence used in the test.
 {
+	mersenne_twister.seed(1234);
 	std::vector<double> x(n), xref;
 
 	std::ranges::generate(x, gen);

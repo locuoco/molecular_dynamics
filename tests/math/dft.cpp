@@ -39,7 +39,7 @@ g++ dft.cpp -o dft -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-erro
 utils::thread_pool tp;
 constexpr double error_threshold = 1e-15;
 
-std::mt19937_64 mersenne_twister(1234); // seed set to 1234
+std::mt19937_64 mersenne_twister;
 // mersenne_twister will behave in the same way for all compilers/runs
 
 auto gen()
@@ -54,6 +54,7 @@ void test_gen()
 // parts between -1 and 1
 {
 	using std::abs;
+	mersenne_twister.seed(1234);
 	std::valarray<std::complex<double>> x(1000);
 
 	std::ranges::generate(x, gen);
@@ -141,7 +142,7 @@ void test_fft_impulse_real(std::size_t n, std::size_t j)
 // 	DFT(x)_l = e^(-ik) with k = 2 * (l*j) * pi / n, and i = imaginary unit
 {
 	math::dft<double> dft;
-	std::valarray<std::complex<double>> x(n/2), xref(n/2);
+	std::valarray<std::complex<double>> x(n/2+1), xref(n/2+1);
 	double *x_real = reinterpret_cast<double*>(&x[0]);
 
 	math::impulse(x_real, x_real+n, j);
@@ -152,12 +153,62 @@ void test_fft_impulse_real(std::size_t n, std::size_t j)
 	assert(math::rms(x-xref) < error_threshold);
 }
 
+void test_fft_linearity(std::size_t n)
+// test linearity property of FFT up to rounding errors:
+//	FFT(a x + b y) == a FFT(x) + b FFT(y)
+// `n` is the length of the sequence to test, which must be a power of 2.
+{
+	mersenne_twister.seed(1234);
+	math::dft<double> dft;
+	std::valarray<std::complex<double>> x(n), y(n);
+	std::complex<double> a = gen(), b = gen();
+
+	std::ranges::generate(x, gen);
+	std::ranges::generate(y, gen);
+
+	std::valarray<std::complex<double>> z = a*x + b*y;
+
+	x = dft.fft(x);
+	y = dft.fft(y);
+	z = dft.fft(z);
+
+	assert(math::rms(z - (a*x + b*y)) < 1e-12);
+}
+
+void test_rfft_linearity(std::size_t n)
+// test linearity property of FFT up to rounding errors:
+//	FFT(a x + b y) == a FFT(x) + b FFT(y)
+// `n` is the length of the sequence to test, which must be a power of 2.
+// Real-signal input variant.
+{
+	mersenne_twister.seed(1234);
+	math::dft<double> dft;
+	std::valarray<std::complex<double>> x(n+1), y(n+1);
+	std::complex<double> c = gen();
+	std::complex<double> a = c.real(), b = c.imag();
+	// a and b must are set to real to avoid mixing between input values
+	// (which, although of type complex, must be interpreted as real).
+
+	std::ranges::generate(x, gen);
+	std::ranges::generate(y, gen);
+
+	std::valarray<std::complex<double>> z = a*x + b*y;
+
+	// the last element (padding) will be ignored
+	x = dft.rfft(x);
+	y = dft.rfft(y);
+	z = dft.rfft(z);
+
+	assert(math::rms(z - (a*x + b*y)) < 1e-12);
+}
+
 void test_fft_ifft(std::size_t n)
 // test that composing FFT and inverse FFT one obtains identity.
 // `n` is the length of the sequence to test, which must be a power of 2.
 // Starting from a vector x, the test passes if IFFT(FFT(x)) == x
 // up to rounding errors.
 {
+	mersenne_twister.seed(1234);
 	math::dft<double> dft;
 	std::valarray<std::complex<double>> xref(n), x;
 
@@ -174,11 +225,14 @@ void test_rfft_irfft(std::size_t n)
 // `n` is the length of the sequence to test, which must be a power of 2.
 // Starting from a vector x, the test passes if IFFT(FFT(x)) == x
 // up to rounding errors.
+// Real-signal input variant.
 {
+	mersenne_twister.seed(1234);
 	math::dft<double> dft;
-	std::valarray<std::complex<double>> xref(n), x;
+	std::valarray<std::complex<double>> xref(n+1), x;
 
 	std::ranges::generate(xref, gen);
+	xref[n] = 0;
 
 	x = dft.rfft(xref);
 	x = dft.irfft(x);
@@ -188,10 +242,11 @@ void test_rfft_irfft(std::size_t n)
 
 void test_fft_ifft3(const std::array<std::size_t, 3>& n_shape)
 // test that composing FFT and inverse FFT one obtains identity.
-// `n_shape` is the shape of the array to test, whose entries must be powers of 2.
+// `n_shape` is the shape of the 3-array to test, whose entries must be powers of 2.
 // Starting from an array x, the test passes if IFFT(FFT(x)) == x
 // up to rounding errors.
 {
+	mersenne_twister.seed(1234);
 	std::size_t n = n_shape[0]*n_shape[1]*n_shape[2];
 
 	math::dft<double> dft;
@@ -208,22 +263,82 @@ void test_fft_ifft3(const std::array<std::size_t, 3>& n_shape)
 
 void test_rfft_irfft3(const std::array<std::size_t, 3>& n_shape)
 // test that composing FFT and inverse FFT one obtains identity.
-// `n_shape` is the shape of the array to test, whose entries must be powers of 2.
+// `n_shape` is the shape of the 3-array to test, whose entries must be powers of 2
+// (except the last dimension, which must be a power of 2 + 1).
 // Starting from an array x, the test passes if IFFT(FFT(x)) == x
 // up to rounding errors.
+// Real-signal input variant.
 {
+	mersenne_twister.seed(1234);
 	std::size_t n = n_shape[0]*n_shape[1]*n_shape[2];
 
 	math::dft<double> dft;
 	std::valarray<std::complex<double>> xref(n), x;
 
 	std::ranges::generate(xref, gen);
+	// setting padding elements to 0
+	for (std::size_t i = n_shape[2]-1; i < n; i += n_shape[2])
+		xref[i] = 0;
 
 	x = xref;
 	dft.rfftn<3>(x, n_shape, tp);
 	dft.irfftn<3>(x, n_shape, tp);
 
 	assert(math::rms(x-xref) < error_threshold);
+}
+
+void test_fft_linearity3(const std::array<std::size_t, 3>& n_shape)
+// test linearity property of FFT up to rounding errors:
+//	FFT(a x + b y) == a FFT(x) + b FFT(y)
+// `n_shape` is the shape of the 3-array to test, whose entries must be powers of 2.
+{
+	mersenne_twister.seed(1234);
+	std::size_t n = n_shape[0]*n_shape[1]*n_shape[2];
+
+	math::dft<double> dft;
+	std::valarray<std::complex<double>> x(n), y(n);
+	std::complex<double> a = gen(), b = gen();
+
+	std::ranges::generate(x, gen);
+	std::ranges::generate(y, gen);
+
+	std::valarray<std::complex<double>> z = a*x + b*y;
+
+	dft.fftn<3>(x, n_shape, tp);
+	dft.fftn<3>(y, n_shape, tp);
+	dft.fftn<3>(z, n_shape, tp);
+
+	assert(math::rms(z - (a*x + b*y)) < 1e-12);
+}
+
+void test_rfft_linearity3(const std::array<std::size_t, 3>& n_shape)
+// test linearity property of FFT up to rounding errors:
+//	FFT(a x + b y) == a FFT(x) + b FFT(y)
+// `n_shape` is the shape of the 3-array to test, whose entries must be powers of 2
+// (except the last dimension, which must be a power of 2 + 1).
+// Real-signal input variant.
+{
+	mersenne_twister.seed(1234);
+	std::size_t n = n_shape[0]*n_shape[1]*n_shape[2];
+
+	math::dft<double> dft;
+	std::valarray<std::complex<double>> x(n), y(n);
+	std::complex<double> c = gen();
+	std::complex<double> a = c.real(), b = c.imag();
+	// a and b must are set to real to avoid mixing between input values
+	// (which, although of type complex, must be interpreted as real).
+
+	std::ranges::generate(x, gen);
+	std::ranges::generate(y, gen);
+
+	std::valarray<std::complex<double>> z = a*x + b*y;
+
+	// the last element along the last dimension (padding) will be ignored
+	dft.rfftn<3>(x, n_shape, tp);
+	dft.rfftn<3>(y, n_shape, tp);
+	dft.rfftn<3>(z, n_shape, tp);
+
+	assert(math::rms(z - (a*x + b*y)) < 1e-12);
 }
 
 int main()
@@ -237,10 +352,16 @@ int main()
 	test_fft_impulse(1<<20, 3579);
 	test_fft_impulse_real(1<<20, 4680);
 	test_fft_impulse_real(1<<20, 1357);
+	test_fft_linearity(1<<20);
+	test_rfft_linearity(1<<20);
 	test_fft_ifft(1<<20);
 	test_rfft_irfft(1<<20);
 	test_fft_ifft3({16, 64, 32});
-	test_rfft_irfft3({16, 64, 32});
+	test_fft_ifft3({128, 128, 128});
+	test_rfft_irfft3({16, 64, 33});
+	test_rfft_irfft3({128, 128, 65});
+	test_fft_linearity3({128, 128, 128});
+	test_rfft_linearity3({128, 128, 65});
 
 	std::cout << "All tests passed successfully!" << std::endl;
 

@@ -31,12 +31,9 @@ g++ helper.cpp -o helper -std=c++20 -Wall -Wextra -pedantic -Ofast -fmax-errors=
 
 constexpr double error_threshold = 1e-15;
 
-std::mt19937_64 mersenne_twister(1234); // seed set to 1234
-// mersenne_twister will behave in the same way for all compilers/runs
-
 void test_pow_of_2()
 // test that `is_pow_of_2` check powers of 2 correctly for some arguments.
-// Since the assertion is checked at compile time and the function is already
+// Since the assertions are checked at compile time and the function is already
 // instantiated (it is not templated), the function does not need to be called.
 {
 	static_assert(math::is_pow_of_2(0) == false);
@@ -54,12 +51,6 @@ void test_powm1(int n)
 {
 	int res = (n % 2 == 0) ? 1 : -1;
 	assert(math::powm1(n) == res);
-}
-
-void test_rms()
-{
-	std::valarray<double> x;
-	std::valarray<std::complex<double>> z;
 }
 
 void test_deg2rad()

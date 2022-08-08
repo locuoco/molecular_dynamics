@@ -256,7 +256,7 @@ namespace physics
 	// Nosé-Hoover thermostats chain integrator (2nd order, 1 stage)
 	// It approximates a canonical (NVT) ensemble
 	{
-		nose_hoover(std::size_t n_th = 10, T tau = 1) : p_th(n_th), m_th(n_th), tau_relax(tau), n_th(n_th)
+		nose_hoover(std::size_t n_th = 10, T tau = .1) : p_th(n_th), m_th(n_th), tau_relax(tau), n_th(n_th)
 		{}
 
 		template <having_coordinates<T, State> System>

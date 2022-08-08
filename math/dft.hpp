@@ -78,7 +78,7 @@ namespace math
 	template <std::random_access_iterator It>
 	constexpr void bit_reversal_permutation(It first, It last)
 	// perform an in-place bit-reversal permutation of the range [first, last).
-	// Throw a `std::invalid_argument` if the number of elements inside the range
+	// Throw a `std::invalid_argument` if the number of elements in the range
 	// is not a power of 2.
 	// example of usage for a container `c`:
 	//	bit_reversal_permutation(begin(c), end(c));
@@ -160,7 +160,7 @@ namespace math
 		constexpr std::complex<T> twiddle_factor(std::size_t k, std::size_t n)
 		// Return exp(-2 pi i k/n), where i = imaginary unit.
 		// Subroutine `compute_twiddle_factors` will throw a `std::invalid_argument` if the
-		// number of elements inside the range is not a power of 2.
+		// number of elements in the range is not a power of 2.
 		{
 			compute_twiddle_factors(n);
 			return twiddle_factors[num_bits(n-1)][k&(n-1)];
@@ -177,7 +177,7 @@ namespace math
 		// `It` is required to be a random access iterator to a type which `std::complex<T>`
 		// is convertible to.
 		// Subroutine `compute_twiddle_factors` will throw a `std::invalid_argument` if the
-		// number of elements inside the range is not a power of 2.
+		// number of elements in the range is not a power of 2.
 		{
 			using std::size_t;
 			using std::ptrdiff_t;
@@ -205,7 +205,7 @@ namespace math
 		// `It` is required to be a random access iterator to a type which `std::complex<T>`
 		// is convertible to.
 		// Subroutine `fft` will throw a `std::invalid_argument` if the number of elements
-		// inside the range is not a power of 2.
+		// in the range is not a power of 2.
 		{
 			std::reverse(first+1, last);
 			fft(first, last);
@@ -216,30 +216,25 @@ namespace math
 
 		template <std::random_access_iterator It>
 		constexpr void rfft(It first, It last)
-		// compute a 1-dimensional fast Fourier transform of the range [first, last)
-		// from real input reinterpret-casted to a complex type.
-		// The algorithm is *in place* (the output replaces the input).
+		// compute a 1-dimensional fast Fourier transform of the subrange [first, last-1)
+		// from real input reinterpret-casted to a complex type. A padding of an additional
+		// element is required, as the algorithm is *in place* (the output replaces the input).
 		// `It` is required to be a random access iterator to a type which `std::complex<T>`
 		// is convertible to.
 		// While the input is interpreted as real numbers, the output should be interpreted
 		// as complex numbers. Since for real input x the DFT has the (even-symmetric) property:
 		//	DFT(x)_k = conj(DFT(x)_(n-k))
 		// where conj is the complex conjugate and n is the number of real elements the input, then only
-		// n/2+1 numbers will need to be stored. In particular, since the 1st and the (n/2+1)-th elements
-		// are always real, they are stored together in a single complex number at the first position
-		// (so exactly n/2 complex numbers are required to represent the output, which is the same as the
-		// input).
+		// n/2+1 numbers will need to be stored.
 		// Subroutine `fft` will throw a `std::invalid_argument` if the number of elements
-		// inside the range is not a power of 2.
+		// in the subrange [first, last-1) is not a power of 2.
 		{
-			fft(first, last);
+			fft(first, last-1);
 			T xe = first->real();
 			T xo = first->imag();
-			first->real(xe + xo);
-			first->imag(xe - xo);
-			// ^ the first and the last elements (which are both real)
-			// are put on the first complex number
-			rfft_correct(first, last, -1);
+			*first = xe + xo;
+			*(last-1) = xe - xo;
+			rfft_correct(first, last-1, -1);
 		}
 
 		template <std::random_access_iterator It>
@@ -249,17 +244,21 @@ namespace math
 		// `It` is required to be a random access iterator to a type which `std::complex<T>`
 		// is convertible to.
 		// This method assumes that the input has the same format as the output of `rfft`.
+		// In particular, the first and the last (n+1-th) elements are assumed to be real (imaginary
+		// component assumed to be 0).
 		// Although the output has a complex type (the same as the input), it should be reinterpreted
-		// as real (this can be done easily using `reinterpret_cast`)
+		// as real (this can be done easily using `reinterpret_cast`).
+		// The last element(s) will be set to 0, as it is a padding used only in Fourier space.
 		// Subroutine `rfft_correct` will throw a `std::invalid_argument` if the number of elements
-		// inside the range is not a power of 2.
+		// in the subrange [first, last-1) is not a power of 2.
 		{
 			T xe = first->real();
-			T xo = first->imag();
+			T xo = (last-1)->real();
 			first->real((xe + xo)/2);
 			first->imag((xe - xo)/2);
-			rfft_correct(first, last, 1);
-			ifft(first, last);
+			*(last-1) = T(0);
+			rfft_correct(first, last-1, 1);
+			ifft(first, last-1);
 		}
 
 		template <bool b_inverse, bool b_real, std::random_access_iterator It>
@@ -272,8 +271,9 @@ namespace math
 		// The algorithm is *in place* (the output replaces the input).
 		// `It` is required to be a random access iterator to a type which `std::complex<T>`
 		// is convertible to.
-		// A `std::invalid_argument` will be thrown if the number of elements inside the
-		// range is not a power of 2.
+		// A `std::invalid_argument` will be thrown if the number of elements in the
+		// range is not supported (power of 2 for fft, ifft, and power of 2 + 1 for rfft
+		// and irfft).
 		{
 			if constexpr (!b_real)
 			{
@@ -299,8 +299,10 @@ namespace math
 		// which `std::complex<T>` is convertible to.
 		// The algorithm is out of place (the input is not replaced).
 		// Subroutine `fft` will throw a `std::invalid_argument` if the number of elements
-		// inside the range is not a power of 2.
+		// is not a power of 2.
 		{
+			using std::begin;
+			using std::end;
 			fft(begin(x), end(x));
 			return x;
 		}
@@ -313,8 +315,10 @@ namespace math
 		// which `std::complex<T>` is convertible to.
 		// The algorithm is out of place (the input is not replaced).
 		// Subroutine `ifft` will throw a `std::invalid_argument` if the number of elements
-		// inside the range is not a power of 2.
+		// is not a power of 2.
 		{
+			using std::begin;
+			using std::end;
 			ifft(begin(x), end(x));
 			return x;
 		}
@@ -326,9 +330,11 @@ namespace math
 		// be overloaded for type `Vec` and return a random access iterator to a type
 		// which `std::complex<T>` is convertible to.
 		// The algorithm is out of place (the input is not replaced).
-		// Subroutine `rfft` will throw a `std::invalid_argument` if the number of elements
-		// inside the range is not a power of 2.
+		// Subroutine `rfft` will throw a `std::invalid_argument` if the number of complex elements
+		// is not a power of 2 + 1.
 		{
+			using std::begin;
+			using std::end;
 			rfft(begin(x), end(x));
 			return x;
 		}
@@ -340,9 +346,11 @@ namespace math
 		// be overloaded for type `Vec` and return a random access iterator to a type
 		// which `std::complex<T>` is convertible to.
 		// The algorithm is out of place (the input is not replaced).
-		// Subroutine `ifft` will throw a `std::invalid_argument` if the number of elements
-		// inside the range is not a power of 2.
+		// Subroutine `ifft` will throw a `std::invalid_argument` if the number of complex elements
+		// is not a power of 2 + 1.
 		{
+			using std::begin;
+			using std::end;
 			irfft(begin(x), end(x));
 			return x;
 		}
@@ -355,8 +363,10 @@ namespace math
 		// which `std::complex<T>` is convertible to.
 		// The algorithm is out of place (the input is not replaced).
 		// Subroutine `bfft` will throw a `std::invalid_argument` if the number of elements
-		// inside the range is not a power of 2.
+		// is not supported (power of 2 for fft, ifft, and power of 2 + 1 for rfft and irfft).
 		{
+			using std::begin;
+			using std::end;
 			bfft<b_inverse, b_real>(begin(x), end(x));
 			return x;
 		}
@@ -367,14 +377,16 @@ namespace math
 		// N-dimensional fast Fourier transform (performed in-place)
 		// 1-dim FFTs are performed for each direction, exploiting the separability property of N-dim DFT.
 		// The 1-dim FFTs are easily parallelized using a thread pool `tp`.
-		// `v` is a container (like a std::valarray or std::vector) for which the FFT needs to be computed.
+		// `v` is a random-access container (like a std::valarray or std::deque) for which the FFT needs to be computed.
 		// `n` specifies how the shape of the container should be interpreted.
 		// An inverse transform is computed if `b_inverse` is true and the real variants are used
 		// if `b_real` is true.
-		// A `std::invalid_argument` will be thrown if the number of elements inside the
-		// range is not a power of 2.
+		// A `std::invalid_argument` will be thrown if the shape of the array is not supported (see other methods
+		// for more info).
 		{
 			using std::size_t;
+			using std::begin;
+			using std::end;
 			auto num_threads = tp.size();
 			tmp.resize(num_threads);
 			auto eval_last = [this, num_threads, n, &v](size_t idx)
@@ -447,7 +459,7 @@ namespace math
 				if constexpr (!b_inverse)
 				{
 					if constexpr (b_real)
-						compute_twiddle_factors(2*n[N-1]);
+						compute_twiddle_factors(2*(n[N-1]-1));
 					else
 						compute_twiddle_factors(n[N-1]);
 					for (size_t i = 0; i < num_threads; ++i)
@@ -466,7 +478,7 @@ namespace math
 				if constexpr (b_inverse)
 				{
 					if constexpr (b_real)
-						compute_twiddle_factors(2*n[N-1]);
+						compute_twiddle_factors(2*(n[N-1]-1));
 					else
 						compute_twiddle_factors(n[N-1]);
 					for (size_t i = 0; i < num_threads; ++i)
@@ -538,26 +550,28 @@ namespace math
 				{z} -> std::convertible_to<decltype(*it)>;
 			}
 		constexpr void dft_impulse_real(It first, It last, std::size_t pos)
-		// Create the DFT of a unit impulse signal in the range [first, last), i.e.:
+		// Create the DFT of a unit impulse signal in the subrange [first, last-1), i.e.:
 		//	 DFT(x)_l = e^(-ik) with k = 2 * (l*pos) * pi / n, and i = imaginary unit
 		// `pos` is the index corresponding to the position of impulse before DFT.
 		// `It` is required to be a random access iterator to a type which `std::complex<T>`
 		// is convertible to.
+		// A padding of an additional element is required. As an input it will be ignored, but
+		// as an output it will contain the (n/2+1)-th element of the DFT.
 		// Differently from `dft_impulse`, the format assumed is the same as the one used
 		// for transforms of real input signals.
-		// If pos >= 2*std::distance(first, last), a `std::invalid_argument` is thrown.
+		// If pos >= 2*std::distance(first, last-1), a `std::invalid_argument` is thrown.
 		// Subroutine `compute_twiddle_factors` will throw a `std::invalid_argument` if the
-		// number of elements inside the range is not a power of 2.
+		// number of elements inside the subrange [first, last-1) is not a power of 2.
 		{
-			size_t n = 2*std::distance(first, last);
+			size_t n = 2*std::distance(first, last-1);
 			if (pos >= n)
-				throw std::invalid_argument("`pos` argument must be smaller than the size of the range [first, last).");
+				throw std::invalid_argument("`pos` argument must be smaller than 2x the size of the subrange [first, last-1).");
 			compute_twiddle_factors(n);
 			size_t n_bits = num_bits(n-1);
 			// first element must be 1
 			// (n/2+1)-th element must be either 1 or -1 depending on j's parity
-			first->real(1);
-			first->imag(math::powm1(pos));
+			*first = T(1);
+			*(last-1) = T(math::powm1(pos));
 			for (std::size_t i = 1; i < n/2; ++i)
 				*(first + i) = twiddle_factors[n_bits][(i*pos)&(n-1)];
 		}
@@ -566,7 +580,7 @@ namespace math
 
 			template <std::random_access_iterator It>
 			constexpr void rfft_correct(It first, It last, std::ptrdiff_t sign)
-			// used in `rfft` and `irfft`
+			// used in `rfft` and `irfft`:
 			// these methods use the complex-valued `fft` and `ifft` routines but then
 			// a correction is required since the input (for forward transform) or the
 			// output (for inverse transform) must be interpreted as real.
@@ -584,7 +598,7 @@ namespace math
 					twiddle = twiddle_factors[n_bits].end() - half_n/2;
 				else
 					twiddle = twiddle_factors[n_bits].begin() + half_n/2;
-				for (; first != last; ++first, --last)
+				for (; first != last; (void)++first, --last)
 				{
 					twiddle -= sign;
 					std::complex<T> zk = *first/T(2), znk = *last/T(2);

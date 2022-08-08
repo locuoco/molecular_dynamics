@@ -53,7 +53,7 @@ void test_pc_lattice()
 // `primitive_cubic_lattice`
 {
 	int n_side = 5;
-	T lattice_constant = 3.333;
+	double lattice_constant = 3.333;
 	physics::molecular_system sys;
 
 	sys.primitive_cubic_lattice(n_side, lattice_constant, physics::water_tip3p<>);
@@ -66,7 +66,7 @@ void test_fcc_lattice()
 // `face_centered_cubic_lattice`
 {
 	int n_side = 5;
-	T lattice_constant = 3.333;
+	double lattice_constant = 3.333;
 	physics::molecular_system sys;
 
 	sys.face_centered_cubic_lattice(n_side, lattice_constant, physics::water_tip3p<>);
@@ -87,7 +87,19 @@ void test_cubic_lattice()
 	assert(sys1.n == sys2.n);
 	assert(rms(sys1.x - sys2.x) < error_threshold);
 	// note that test assumes the atom positions are put in the same order for
-	// both sys1 and sys2.
+	// both sys1 and sys2!
+}
+
+void test_num_bonds()
+// test that the number of elements of the bonds member variable of the molecules
+// corresponds to the number of atoms `n` in the molecule.
+{
+	assert(physics::water_tip3p<>.bonds.size() == physics::water_tip3p<>.n);
+	assert(physics::water_tip3p_lr<>.bonds.size() == physics::water_tip3p_lr<>.n);
+	assert(physics::water_fba_eps<>.bonds.size() == physics::water_fba_eps<>.n);
+	assert(physics::sodium_ion<>.bonds.size() == physics::sodium_ion<>.n);
+	assert(physics::chloride_ion<>.bonds.size() == physics::chloride_ion<>.n);
+	assert(physics::caesium_ion<>.bonds.size() == physics::caesium_ion<>.n);
 }
 
 int main()
@@ -95,8 +107,9 @@ int main()
 	test_water_mass();
 	test_water_charge();
 	test_pc_lattice();
-	test_fcc_lattice()
+	test_fcc_lattice();
 	test_cubic_lattice();
+	test_num_bonds();
 
 	std::cout << "All tests passed successfully!" << std::endl;
 

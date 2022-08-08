@@ -35,6 +35,7 @@ namespace physics
 	{
 		virtual const State& force(bool eval = true) = 0;
 		virtual const State& vel(bool eval = true) = 0;
+		virtual ~physical_system_base() = default;
 	};
 
 	template <typename System, typename T, typename State>
