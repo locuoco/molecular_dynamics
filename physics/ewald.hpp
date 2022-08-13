@@ -17,6 +17,7 @@
 #ifndef PHYSICS_EWALD_H
 #define PHYSICS_EWALD_H
 
+#include <iostream> // clog
 #include <type_traits> // add_const_t, remove_reference_t
 #include <cmath> // sqrt, sin, cos, remainder
 #include <numbers> // numbers::inv_sqrtpi_v, numbers::pi_v
@@ -97,11 +98,6 @@ namespace physics
 	}
 
 	template <typename T, typename System>
-	requires requires(System& s, T x)
-		{
-			x += s.Z;
-			x += s.Z2;
-		}
 	void eval_ewald_scd(System& s, T& uC, T kappa, T volume, T dielectric = 1)
 	// Calculate self-energy, charged system and dipole corrections.
 	// `s` is the physical system (`coulomb_and_lj` constraints required). Additional
@@ -168,7 +164,7 @@ namespace physics
 
 		void ewald_par(T kappa)
 		// Set the Ewald parameter manually. If this method is not called, the Ewald
-		// parameter is set to 7/L (where L is the simulation box side).
+		// parameter is optimized automatically.
 		// Throw a `std::invalid_argument` if `kappa` is not strictly positive.
 		{
 			if (kappa <= 0)
@@ -191,6 +187,12 @@ namespace physics
 			fast = !flag;
 		}
 
+		void update_ewald() noexcept
+		// set update flag to true (calculates optimal Ewald parameter again)
+		{
+			update = true;
+		}
+
 		template <coulomb_and_lj_periodic<T, State> System>
 		void operator()(System& s, utils::thread_pool& tp)
 		// Perform Ewald summation with multi-threading.
@@ -203,9 +205,20 @@ namespace physics
 			maxn3 = maxn1*maxn1*maxn1;
 			T volume = s.side * s.side * s.side;
 			cutoff = s.side/2;
+			// update Ewald paremeter every once in a while for constant-P simulations
+			if (update_counter % update_max_count == (update_max_count-1))
+			{
+				update = true;
+				++update_counter;
+			}
 			if (update)
 				optimize_ewald_par(s);
-
+			else if (prev_side != s.side)
+			{
+				// rescale Ewald parameter
+				kappa *= prev_side / s.side;
+				++update_counter;
+			}
 			num_threads = tp.size();
 			partpot_r.resize(num_threads);
 			partpot_k.resize(num_threads);
@@ -235,9 +248,10 @@ namespace physics
 			s.potential += energy_coulomb + energy_lj;
 			s.virial += energy_coulomb;
 			update = false;
+			prev_side = s.side;
 		}
 
-		T estimated_error; // estimated force RMS error
+		T estimated_error, estimated_error_coulomb, estimated_error_lj; // estimated force RMS error
 		T energy_coulomb, energy_lj; // energy for electrostatic and LJ potentials
 		T energy_r, energy_k, energy_scd; // real, reciprocal and corrections parts of electrostatic potential
 
@@ -247,9 +261,10 @@ namespace physics
 			std::vector<std::complex<T>> structure; // structure factor
 			std::vector<T> partpot_r, partpot_k, partpot_lj, partvir_lj;
 			std::vector<T> factor;
-			T cutoff = 0, kappa = 0, dielec = 1;
+			T cutoff = 0, kappa = 0, dielec = 1, prev_side;
 			std::size_t maxn = 6, num_threads, maxn1, maxn3;
-			bool update = true, manual = false, fast = true;
+			unsigned update_counter, update_max_count = 1000;
+			bool update = true, manual = false, fast = true, verbose = false;
 
 			template <typename System>
 			void optimize_ewald_par(System& s)
@@ -293,16 +308,22 @@ namespace physics
 				while (abs((next_kappa-kappa) / kappa) > 1e-3 && counter < max_counter && !manual);
 
 				T volume = s.side*s.side*s.side;
-				estimated_error = 2 * s.Z2 * sqrt(errF / (s.n * volume));
+				estimated_error_coulomb = 2 * s.Z2 * sqrt(errF / (s.n * volume));
+				estimated_error_lj = 2 * s.tracedisp6 / (3 * cutoff2 * cutoff2) * sqrt(std::numbers::pi_v<T> / (cutoff * s.n * volume));
+				estimated_error = sqrt(estimated_error_coulomb*estimated_error_coulomb + estimated_error_lj*estimated_error_lj);
 
-				std::clog << "===== EWALD SUMMATION LOG =====\n";
+				if (verbose)
+				{
+					std::clog << "===== EWALD SUMMATION LOG =====\n";
+					std::clog << "Ewald parameter (A^-1): " << kappa << '\n';
+					std::clog << "estimated electrostatic force RMS error (kcal/(mol A)): " << estimated_error_coulomb << '\n';
+					std::clog << "estimated total force RMS error (kcal/(mol A)): " << estimated_error << '\n';
+					std::clog << "r_max (A): " << cutoff << "\n\n";
+				}
 				if (counter == max_counter)
 					std::clog << "Warning: Ewald parameter optimization may have not converged!\n";
 				if (estimated_error < 1e-5 && fast)
 					std::clog << "Warning: estimated accuracy may not be reliable if `precise` is not set to true.\n";
-				std::clog << "Ewald parameter (A^-1): " << kappa << '\n';
-				std::clog << "estimated electrostatic force RMS error (kcal/(mol A)): " << estimated_error << '\n';
-				std::clog << "r_max (A): " << cutoff << "\n\n";
 			}
 
 			template <typename System>

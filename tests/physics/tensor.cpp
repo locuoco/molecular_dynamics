@@ -125,7 +125,7 @@ void test_transpose()
 
 int main()
 {
-	std::cout << "All tests have been passed successfully!" << std::endl;
+	std::cout << "All tests passed successfully!" << std::endl;
 
 	return 0;
 }

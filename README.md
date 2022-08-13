@@ -44,6 +44,7 @@ References:
   * [Ewald summation](#ewald-summation)
   * [PPPM method](#pppm-method)
   * [Nosé-Hoover thermostat](#nosé-hoover-thermostat)
+  * [Martyna-Tobias-Klein equations](#martyna-tobias-klein-equations)
   * [Integration schemes](#integration-schemes)
 
 ![Animation of a system of water molecules](animation.gif)
@@ -103,7 +104,7 @@ On Linux, the library names could be different:
 
     g++ <ins> -o <out> -std=c++20 -I <includes> -L <libs> -lGL -lGLU -lGLEW -lglfw -lfreetype -Wall -Wextra -pedantic -Ofast
 
-where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files (if required), while `<ins>` and `<out>` are the compilation units names and the output executable name respectively. If GCC is used for compilation, version 10+ is required for full C++20 support. Running the graphical part of the program requires OpenGL 3.3+.
+where `<includes>` and `<libs>` are the paths for installed libraries header files and static library files (if required), while `<ins>` and `<out>` are the compilation units names and the output executable name respectively. If GCC is used for compilation, version 10.4+ is required for full C++20 support. Running the graphical part of the program requires OpenGL 3.3+.
 
 ### Basic usage
 
@@ -114,6 +115,7 @@ To create a molecular system use the following:
 int main()
 {
     physics::molecular_system my_system;
+    // ...
 
     return 0;
 }
@@ -158,10 +160,11 @@ Some currently available numerical integrators are:
 * `physics::symplectic_euler`: Symplectic Euler method (1st order, 1 stage)
 * `physics::leapfrog`: Leapfrog method (2nd order, 1 stage), *default*
 * `physics::multi_timestep_leapfrog`: Multi-timestep leapfrog method (2nd order, 1 stage for long-range forces)
-* `physics::stochastic_leapfrog`: Stochastic "leapfrog" method (1 stage)
+* `physics::stochastic_leapfrog`: Stochastic "leapfrog" method (1 stage): integrates Langevin equation
 * `physics::damped_leapfrog`: Damped "leapfrog" method (1 stage)
 * `physics::isokinetic_leapfrog`: Isokinetic "leapfrog" method (2nd order, 1 stage)
 * `physics::nose_hoover`: Nosé-Hoover thermostats chain integrator (2nd order, 1 stage): it approximates a canonical (NVT) ensemble
+* `physics::martyna_tobias_klein`: Martyna-Tobias-Klein equations integrator (2nd order, 1 stage): it approximates an isothermal-isobaric (NPT) ensemble
 * `physics::pefrl`: Position-extended Forest-Ruth-like method (4th order, 4 stages)
 * `physics::vefrl`: Velocity-extended Forest-Ruth-like method (4th order, 4 stages)
 * Composition schemes (they are structure-preserving, and can be used to construct higher-order, also symplectic, methods starting from 2nd order ones):
@@ -180,7 +183,7 @@ It is possible to set a custom time step (in picoseconds) by adding a parameter 
 ```c++
     my_system.step(5e-4);
 ```
-The biggest value for the time step so that leapfrog integration is stable is `2e-3` (2 femtoseconds, 1 is the default). This value corresponds more or less to the vibration period of O–H bonds.
+The biggest value for the time step so that leapfrog integration is stable is `2e-3` (2 femtoseconds, 1 is the default). This value corresponds more or less the same order of magnitude of the vibration period of O–H bonds.
 
 To create a window, simply do:
 ```c++
@@ -189,6 +192,7 @@ To create a window, simply do:
 int main()
 {
     graphics my_window;
+    // ...
 
     return 0;
 }
@@ -205,6 +209,7 @@ If we want to simulate the system until the window is closed:
         my_window.draw(my_system);
     }
 ```
+For more examples, see the `examples` directory in this repository.
 <!--- __________________________________________________________ --->
 
 ### Ewald summation
@@ -298,7 +303,7 @@ References:
 Simulating a system by integrating the Hamilton's equations of motion will naturally result in a microcanonical (NVE) ensemble, in which the total energy is conserved. In many applications, the internal energy of the system is not known a priori and it is more useful to control the temperature, and, in particular, one is interested in simulating a canonical (NVT) ensemble. One way to control the temperature is to employ isokinetic equations of motions, which are derived to constrain the kinetic energy to be conserved through a friction coefficient <img src="https://latex.codecogs.com/svg.image?\xi"/>:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\dot{\mathrm{r}}_i=\frac{\mathrm{p}_i}{m_i}%2C\qquad\dot{\mathrm{p}}_i=\mathrm{f}_i-\xi\mathrm{p}_i\\"/>
+<img src="https://latex.codecogs.com/svg.image?\dot{\mathrm{r}}_i=\frac{\mathrm{p}_i}{m_i}%2C\qquad\dot{\mathrm{p}}_i=\mathrm{f}_i-\xi\mathrm{p}_i%2C\\"/>
 </div>
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\xi=\frac{\sum_i\mathrm{p}_i\cdot\mathrm{f}_i/m_i}{\sum_ip_i^2/m_i}"/>
@@ -309,7 +314,7 @@ In this way, the temperature can be controlled by rescaling the kinetic energy a
 The Nosé-Hoover thermostat equations, instead, are (without scaling, given by Hoover, 1985):
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\dot{\mathrm{r}}_i=\frac{\mathrm{p}_i}{m_i}%2C\qquad\dot{\mathrm{p}}_i=\mathrm{f}_i-\frac{p_{\eta}}{Q}\mathrm{p}_i"/>
+<img src="https://latex.codecogs.com/svg.image?\dot{\mathrm{r}}_i=\frac{\mathrm{p}_i}{m_i}%2C\qquad\dot{\mathrm{p}}_i=\mathrm{f}_i-\frac{p_{\eta}}{Q}\mathrm{p}_i%2C"/>
 </div>
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\dot{\eta}=\frac{p_{\eta}}{Q}%2C\qquad\dot{p}_{\eta}=\sum_i\frac{p_i^2}{m_i}-gk_BT"/>
@@ -345,13 +350,42 @@ and the conserved quantity is then:
 <img src="https://latex.codecogs.com/svg.image?\mathcal{H}_{tot}=\mathcal{T}%2B\mathcal{V}%2B\sum_{j=1}^M\frac{p_{\eta_j}^2}{2Q_j}%2Bgk_BT\eta_1%2B\sum_{j=2}^Mk_BT\eta_j"/>
 </div>
 
-while <img src="https://latex.codecogs.com/svg.image?M"/> is number of thermostats. This effectively adds <img src="https://latex.codecogs.com/svg.image?2M"/> degrees of freedom to the system, which may be useful to achieve ergodicity.
+while <img src="https://latex.codecogs.com/svg.image?M"/> is number of thermostats.
 
 References:
 * S. Nosé, *A unified formulation of the constant temperature molecular-dynamics methods*, Journal of Chemical Physics, 81 (1): pp. 511-519, 1984
 * W. G. Hoover, *Canonical dynamics: equilibrium phase-space distributions*, Physical Review A, 31, pp. 1695-1697, 1985
 * G. J. Martyna, M. L. Klein, *Nosé-Hoover chains: The canonical ensemble via continuous dynamics*, Journal of Chemical Physics, 97, 2635, 1992
 * I. Fukuda, K. Moritsugu, *Coupled Nosé-Hoover equations of motions without time scaling*, Journal of Physics A, 50, 015002, 2016
+
+### Martyna-Tobias-Klein equations
+
+Most real experiments are performed at constant temperature and pressure. So it is useful to approximate an isothermal-isobaric ensemble. Introduced by Hoover, the equations for a NPT ensemble were modified by Martyna et al. (1994), which are given by:
+
+<div align="center">
+<img src="https://latex.codecogs.com/svg.image?\dot{\mathrm{r}}_i=\frac{\mathrm{p}_i}{m_i}%2B\left(\frac{p_{\epsilon}}{W}\right)\mathrm{r}_i%2C"/>
+</div>
+<div align="center">
+<img src="https://latex.codecogs.com/svg.image?\dot{\mathrm{p}}_i=\mathrm{f}_i-\alpha\left(\frac{p_{\epsilon}}{W}\right)\mathrm{p}_i-\left(\frac{p_{\eta_1}}{Q_1}\right)\mathrm{p}_i%2C"/>
+</div>
+<div align="center">
+<img src="https://latex.codecogs.com/svg.image?\dot{V}=\left(\frac{p_{\epsilon}}{W}\right)Vd%2C"/>
+</div>
+<div align="center">
+<img src="https://latex.codecogs.com/svg.image?\dot{p}_{\eta}=(\mathcal{P}-P)Vd%2B\sum_i\frac{\mathrm{p}_i^2}{m_i}-\left(\frac{p_{\eta_1^{%27}}}{Q_1^{%27}}\right)p_{\epsilon}"/>
+</div>
+
+where <img src="https://latex.codecogs.com/svg.image?P"/> is the reference pressure and <img src="https://latex.codecogs.com/svg.image?\mathcal{P}"/> is the pressure of the system. <img src="https://latex.codecogs.com/svg.image?\alpha"/> is defined as:
+
+<div align="center">
+<img src="https://latex.codecogs.com/svg.image?\alpha=1%2B\frac{1}{N}"/>
+</div>
+
+Furthermore, <img src="https://latex.codecogs.com/svg.image?p_{\eta_1}"/> and <img src="https://latex.codecogs.com/svg.image?p_{\eta_1^{%27}}"/> are Nosé-Hoover thermostats momenta, which can be chained as described in the previous paragraph, while <img src="https://latex.codecogs.com/svg.image?p_{\epsilon}"/> and <img src="https://latex.codecogs.com/svg.image?W"/> are the momenta and the inertia associated to the barostat (strain) respectively.
+
+References:
+* G. J. Martyna, D. J. Tobias, M. L. Klein, *Constant-pressure molecular dynamics algorithms*, Journal of Chemical Physics, 97, pp. 2635-2643, 1994
+* M. E. Tuckerman, J. Alejandre, R. Lopez-Rendon, A. L. Jochim, G. J. Martyna, *A Liouville-operator derived measure-preserving integrator for molecular dynamics simulations in the isothermal-isobaric ensemble*, Journal of Physics A Mathematical and General, 39, pp. 5629-5651, 2006
 
 ### Integration schemes
 

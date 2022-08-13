@@ -61,6 +61,14 @@ namespace physics
 	template <std::floating_point T = double>
 	inline constexpr T kg_per_m3 = 6.02214076e-4L;
 
+	// 1 picosecond (1 ps = 10^-12 s) in AKMA units
+	template <std::floating_point T = double>
+	inline constexpr T picosecond = 20.4548282844073286665866518779L;
+
+	// 1 femtosecond (1 fs = 10^-15 s) in AKMA units
+	template <std::floating_point T = double>
+	inline constexpr T femtosecond = 0.0204548282844073286665866518779L;
+
 	// water self-diffusion constant at 5 °C in AKMA units
 	template <std::floating_point T = double>
 	inline constexpr T DW5 = 0.006164803646683544007L;
@@ -91,7 +99,7 @@ namespace physics
 
 	// kcal to kJ conversion factor
 	template <std::floating_point T = double>
-	inline constexpr T kcal_to_kj = 4.184L;
+	inline constexpr T kcal2kj = 4.184L;
 
 	// NaCl Madelung constant
 	template <std::floating_point T = double>
@@ -229,6 +237,26 @@ namespace physics
 		unsigned                             n = 1;       // number of atoms in the molecule
 	};
 
+	template <typename T>
+	T mass_of(const molecule<T>& species)
+	// Return the total mass of a chemical species.
+	{
+		T mass = 0;
+		for (auto id : species.id)
+			mass += atom_mass<T>[ int(id) ];
+		return mass;
+	}
+
+	template <typename T>
+	T charge_of(const molecule<T>& species)
+	// Return the total charge of a chemical species.
+	{
+		T charge = 0;
+		for (auto q : species.q)
+			charge += q;
+		return charge;
+	}
+
 	template <std::floating_point T = double>
 	inline const molecule<T> empty_molecule
 	// Empty molecule
@@ -242,10 +270,12 @@ namespace physics
 
 	template <std::floating_point T = double>
 	inline const molecule<T> water_tip3p
-	// TIP3P water model with flexible bonds
+	// TIP3P water model
 	// see also W. L. Jorgensen, J. Chandrasekhar, J. D. Madura, R. W. Impey,
 	// M. L. Klein, "Comparison of simple potential functions for
 	// simulating liquid water", J. Chem. Phys. 79 926-935 (1983).
+	// This variant uses flexible bonds, which tend to increase the density
+	// This is the model used in CHARMM.
 	{
 		.x     = { {-0.75695L, 0.58588L}, {0}, {0.75695L, 0.58588L} }, // oxygen at the origin
 		.id    = {atom_type::HT, atom_type::OT, atom_type::HT},
@@ -256,8 +286,9 @@ namespace physics
 
 	template <std::floating_point T = double>
 	inline const molecule<T> water_tip3p_lr
-	// TIP3P water model with flexible bonds optimized for long-range interactions
+	// TIP3P water model optimized for long-range interactions
 	// see also D. J. Price, C. L. Brooks, "A modified TIP3P water potential for simulation with Ewald summation", 2004
+	// This variant uses flexible bonds, which tend to increase the density
 	{
 		.x     = { {-0.75695L, 0.58588L}, {0}, {0.75695L, 0.58588L} }, // oxygen at the origin
 		.id    = {atom_type::HTL, atom_type::OTL, atom_type::HTL},
@@ -270,6 +301,8 @@ namespace physics
 	inline const molecule<T> water_fba_eps
 	// FBA/epsilon water model
 	// see R. Fuentes-Azcatl, M. Barbosa, "Flexible Bond and Angle, FBA/epsilon model of water", 2018
+	// This model gives an accurate estime of water density at 25 °C using Ewald summation.
+	// FBA/epsilon model is the most accurate flexible water model currently implemented in this library.
 	{
 		.x     = { {-0.75695L, 0.58588L}, {0}, {0.75695L, 0.58588L} }, // oxygen at the origin
 		.id    = {atom_type::HF, atom_type::OF, atom_type::HF},
@@ -328,7 +361,6 @@ namespace physics
 
 		std::normal_distribution<T> n_dist = std::normal_distribution<T>(0, 1);
 		T kin; // kinetic energy
-		bool kin_updated = false;
 
 		public:
 
@@ -350,19 +382,20 @@ namespace physics
 		Integ integ; // integrator
 		LRSum lrsum; // long-range summation algorithm
 		std::mt19937_64 mersenne_twister = std::mt19937_64(0);
-		T side, temperature_ref; // box side, reference temperature (for constant-T ensembles)
+		T side, temperature_ref, pressure_ref; // box side, reference temperature (for constant-T), reference pressure (for constant-P)
 		T energy_lrc, energy_intra_coulomb, energy_intra_lj; // LJ long-range correction, intra-molecular energy corrections
 		T t = 0, potential, virial, D; // time, potential energy, virial, diffusion coefficient
 		bool rescale_temperature = false, first_step = true, dispersion_correction = true;
 
-		molecular_system(T temp = 298.15, T side = 50, T D = DW25<T>, Integ integ = Integ(), LRSum lrsum = LRSum())
+		molecular_system(T temp = 298.15, T p = 1*atm<T>, T side = 50, T D = DW25<T>, Integ integ = Integ(), LRSum lrsum = LRSum())
 		// constructor:
 		// `side` is the side of the cubic box of the system to simulate (in angstrom)
 		// `temp` is the temperature to give to the initial configuration and reference temperature (in Kelvin)
+		// `p` is the reference pressure (in AKMA units)
 		// `D` is the diffusion coefficient used in stochastic integrators (in AKMA units)
 		// `integ` is the integrator to be used
 		// `lrsum` is the long-range summation algorithm to be used
-			: integ(integ), lrsum(lrsum), side(side), temperature_ref(temp), D(D)
+			: integ(integ), lrsum(lrsum), side(side), temperature_ref(temp), pressure_ref(p), D(D)
 		{}
 
 		void add_molecule(const molecule<T>& mol, const vec3<T>& pos = 0)
@@ -465,7 +498,6 @@ namespace physics
 			n += mol.n;
 			dof = 3*n;
 			first_step = true;
-			kin_updated = false;
 		}
 
 		void primitive_cubic_lattice(
@@ -546,16 +578,11 @@ namespace physics
 		// kinetic energy of the system in kcal/mol
 		{
 			fetch();
-			if (!kin_updated)
-			{
-				kin = 0;
-				for (std::size_t i = 0; i < n; ++i)
-					kin += dot(p[i], p[i]) / m[i];
-				kin /= 2;
 
-				kin_updated = true;
-			}
-			return kin;
+			kin = 0;
+			for (std::size_t i = 0; i < n; ++i)
+				kin += dot(p[i], p[i]) / m[i];
+			return kin/2;
 		}
 
 		T total_energy()
@@ -624,11 +651,12 @@ namespace physics
 		// perform an integration step of `dt` picoseconds
 		{
 			fetch();
-			integ.step(*this, T(dt * 20.4548282844073286665866518779L), first_step); // picoseconds to AKMA time unit
+			integ.step(*this, T(dt * picosecond<T>), first_step);
 			first_step = false;
 
-			// rescale temperatures if asked for
-			rescale_temp();
+			// rescale temperature if asked for
+			if (rescale_temperature)
+				rescale_temp();
 		}
 
 		void simulate(std::size_t n_steps, T dt = 1e-3L)
@@ -662,8 +690,6 @@ namespace physics
 
 				if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
 					diff_box_confining(2);
-
-				kin_updated = false;
 			}
 			return f;
 		}
@@ -679,8 +705,6 @@ namespace physics
 				f = 0;
 
 				force_nonbonded();
-
-				kin_updated = false;
 			}
 			return f;
 		}
@@ -706,8 +730,6 @@ namespace physics
 
 				if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
 					diff_box_confining(2);
-
-				kin_updated = false;
 			}
 			return f;
 		}
@@ -745,12 +767,7 @@ namespace physics
 		// `force_long`, `vel`, `rand`, `kinetic_energy`, `total_energy`, `temperature`, `kT`,
 		// `pressure`, `external_pressure`, `primitive_cubic_lattice`, `face_centered_cubic_lattice`
 		// is called).
-		// Throw a `std::runtime_error` if member variable `side` is less than 6.
 		{
-			if (side < 6)
-				throw std::runtime_error("Simulation box is too small!");
-			// If the simulation box is too small, some problems could occur in
-			// the calculation of bonds interactions
 			if (x.size() == n)
 				return;
 			x.resize(n); p.resize(n);
@@ -762,6 +779,8 @@ namespace physics
 			copy(begin(v_tmp), end(v_tmp), begin(v));
 			copy(begin(f_tmp), end(f_tmp), begin(f));
 			copy(begin(m_tmp), end(m_tmp), begin(m));
+			// set total momentum to zero
+			p -= p.sum()/n;
 		}
 
 		private:
@@ -787,12 +806,9 @@ namespace physics
 		{
 			using std::sqrt;
 
-			if (rescale_temperature)
-			{
-				T temp = temperature();
-				if (temp > 0)
-					p *= sqrt(temperature_ref / temp);
-			}
+			T temp = temperature();
+			if (temp > 0)
+				p *= sqrt(temperature_ref / temp);
 		}
 
 		vec3<T> gen_gaussian()
@@ -822,11 +838,7 @@ namespace physics
 						std::swap(idi, idj);
 					const auto& par = bond_params<T>[{ idi, idj }];
 
-					vec3<T> r;
-					if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
-						r = x[i] - x[j];
-					else
-						r = remainder(x[i] - x[j], side);
+					vec3<T> r = x[i] - x[j];
 					T d = norm(r);
 					T d_ = 1/d;
 					T diff = d - par.b0;
@@ -851,11 +863,7 @@ namespace physics
 					size_t j = bonds[i][mj];
 					atom_type idj = id[j];
 
-					vec3<T> rij;
-					if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
-						rij = x[i] - x[j];
-					else
-						rij = remainder(x[i] - x[j], side);
+					vec3<T> rij = x[i] - x[j];
 					T rij2 = dot(rij, rij);
 
 					for (size_t mk = 0; mk < bonds[j].n; ++mk)
@@ -868,11 +876,7 @@ namespace physics
 							std::swap(idi, idk);
 						const auto& par = angle_params<T>[{ idi, idj, idk }];
 
-						vec3<T> rkj;
-						if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
-							rkj = x[k] - x[j];
-						else
-							rkj = remainder(x[k] - x[j], side);
+						vec3<T> rkj = x[k] - x[j];
 						T rkj2 = dot(rkj, rkj);
 
 						T num = dot(rij, rkj), den = sqrt(rij2 * rkj2);
@@ -911,11 +915,7 @@ namespace physics
 		// `cutoff2` is the square of the Lennard-Jones cutoff radius (0 for no cutoff).
 		// This method is called inside `correct_nonbonded`.
 		{
-			vec3<T> r;
-			if constexpr (std::is_same_v<LRSum, direct<T, state<T, 3>>>)
-				r = x[i] - x[j];
-			else
-				r = remainder(x[i] - x[j], side);
+			vec3<T> r = x[i] - x[j];
 			T r2 = dot(r, r), r2_ = 1/r2;
 
 			T d_ = sqrt(r2_);
@@ -1060,7 +1060,6 @@ namespace physics
 			n = dof = 0;
 			t = 0;
 			first_step = true;
-			kin_updated = false;
 		}
 
 		molecular_system(const molecular_system& other)
@@ -1181,26 +1180,6 @@ namespace physics
 			return *this;
 		}
 	};
-
-	template <typename T>
-	T mass_of(const molecule<T>& species)
-	// Return the total mass of a chemical species.
-	{
-		T mass = 0;
-		for (auto id : species.id)
-			mass += atom_mass<T>[ int(id) ];
-		return mass;
-	}
-
-	template <typename T>
-	T charge_of(const molecule<T>& species)
-	// Return the total charge of a chemical species.
-	{
-		T charge = 0;
-		for (auto q : species.q)
-			charge += q;
-		return charge;
-	}
 
 } // namespace physics
 

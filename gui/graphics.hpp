@@ -158,7 +158,7 @@ class graphics
 		}
 
 		template <typename MolSys>
-		void draw(MolSys& molsys)
+		void draw(MolSys& molsys, const std::string& custom_text = "")
 		// draw all the atoms inside `molsys`
 		// `Molsys` must be a `molecular_system` type.
 		// Throw a `std::runtime_error` if `CHECK_GL_ERROR` finds an error
@@ -183,7 +183,7 @@ class graphics
 
 			draw_background_and_spheres(molsys.n);
 			draw_post_processing();
-			draw_text(molsys);
+			draw_text(molsys, custom_text);
 			
 			glfwSwapBuffers(window);
 
@@ -615,7 +615,7 @@ class graphics
 		}
 
 		template <typename Molsys>
-		void draw_text(Molsys& molsys)
+		void draw_text(Molsys& molsys, const std::string& custom_text)
 		// draw text on screen
 		{
 			// bind to default (0) framebuffer (i.e. the screen)
@@ -660,6 +660,7 @@ class graphics
 				" kg/m^3",
 				w-160*xscale, h-36*yscale, 0.5f*xscale
 			);
+			text->draw(custom_text, 12*xscale, h-36*yscale, 0.5f*xscale);
 			text->end();
 		}
 

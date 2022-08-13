@@ -53,12 +53,18 @@ namespace physics
 
 	template <typename System, typename T, typename State>
 	concept coulomb_and_lj_periodic = coulomb_and_lj<System, T, State>
-		&& requires(System& s, std::size_t i)
+		&& requires(System& s, std::size_t i, T t)
 	// A `coulomb_and_lj_periodic` system `s` is a `coulomb_and_lj` system so that the following
 	// instructions are well-formed (compilable).
-	// `side` is the side of the simulation box.
+	// `side` must be the side of the simulation box.
+	// `tracedisp6` must be the sum square of all dispersion coefficients for each atom.
+	// `Z` must be the sum of all charges (rescaled by the square root of kC).
+	// `Z2` must be the sum square of all charges.
 		{
 			s.f[i] += remainder(s.x[i] - s.x[i], s.side);
+			t *= s.tracedisp6;
+			t += s.Z;
+			t += s.Z2;
 		};
 
 	template <bool Bidirectional, typename T, typename System>

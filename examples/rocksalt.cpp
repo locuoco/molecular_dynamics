@@ -14,8 +14,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#include <iostream>
-#include <vector>
+#include <string>
 #include <limits> // infinity
 
 /*
@@ -32,15 +31,13 @@ int main()
 {
 	graphics window;
 
-	unsigned n_side = 8;
+	unsigned n_side = 8; // 8x8x8 = 512 unit cubic cells = 4096 ions
 
 	physics::molecular_system<double, physics::pppm, physics::nose_hoover> molsys;
 
 	// set dielectric to infinity to ignore dipole correction
 	molsys.lrsum.dielectric(std::numeric_limits<double>::infinity());
 
-	// ik-differentiation scheme conserves momentum better
-	molsys.lrsum.set_diff_scheme("ik");
 	molsys.lrsum.cell_multiplier(1);
 
 	molsys.face_centered_cubic_lattice(n_side, physics::nacl_lattice<>, physics::sodium_ion<>, physics::chloride_ion<>);
@@ -48,7 +45,13 @@ int main()
 	while (!window.should_close())
 	{
 		molsys.step(4e-3);
-		window.draw(molsys);
+		std::stringstream custom_text;
+		custom_text << "Ewald parameter = " << molsys.lrsum.ewald_par();
+		custom_text << " A^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;
+		custom_text << " kcal/(mol A)\nEstimated dispersion force RMSE = " << molsys.lrsum.estimated_error_lj;
+		custom_text << " kcal/(mol A)\nEstimated total force RMSE = " << molsys.lrsum.estimated_error;
+		// the fcc structure is stable!
+		window.draw(molsys, custom_text.str());
 	}
 
 	return 0;

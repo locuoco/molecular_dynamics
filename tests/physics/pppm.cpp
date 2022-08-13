@@ -27,7 +27,6 @@ g++ pppm.cpp -o pppm -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-er
 
 #include "../../physics/physics.hpp"
 #include "../../physics/tensor.hpp" // rms
-#include "nist_test.hpp"
 
 void test_charge_assignment_function(size_t order, double x)
 // test property of charge assignment function, i.e.:
@@ -73,7 +72,9 @@ void test_force_accuracy(std::string scheme)
 	sys.force();
 	sys_ref.force();
 
-	assert(rms(sys.f - sys_ref.f) < 3*(sys.lrsum.estimated_error + sys_ref.lrsum.estimated_error)); // should be around 1e-7
+	double error = std::sqrt(sys.lrsum.estimated_error * sys.lrsum.estimated_error
+	                       + sys_ref.lrsum.estimated_error * sys_ref.lrsum.estimated_error);
+	assert(rms(sys.f - sys_ref.f) < 3*error); // should be around 1e-7
 }
 
 void test_energy_same()
@@ -137,7 +138,7 @@ void test_madelung_cscl()
 	// Set parameters in order to increase accuracy
 	sys.lrsum.charge_assignment_order(7);
 	sys.lrsum.cutoff_radius(20);
-	sys.lrsum.cell_multiplier(2);
+	sys.lrsum.cell_multiplier(1);
 
 	sys.primitive_cubic_lattice(8, physics::cscl_lattice<>, physics::caesium_ion<>, physics::chloride_ion<>);
 

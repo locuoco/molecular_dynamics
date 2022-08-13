@@ -37,6 +37,7 @@ void test_water_mass()
 	assert(abs(mass_of(physics::water_tip3p<>) - physics::water_mass<>) < error_threshold);
 	assert(abs(mass_of(physics::water_tip3p_lr<>) - physics::water_mass<>) < error_threshold);
 	assert(abs(mass_of(physics::water_fba_eps<>) - physics::water_mass<>) < error_threshold);
+	assert(abs(mass_of(physics::water_spc_e<>) - physics::water_mass<>) < error_threshold);
 }
 
 void test_water_charge()
@@ -46,6 +47,7 @@ void test_water_charge()
 	assert(abs(charge_of(physics::water_tip3p<>)) < error_threshold);
 	assert(abs(charge_of(physics::water_tip3p_lr<>)) < error_threshold);
 	assert(abs(charge_of(physics::water_fba_eps<>)) < error_threshold);
+	assert(abs(charge_of(physics::water_spc_e<>)) < error_threshold);
 }
 
 void test_pc_lattice()
@@ -58,7 +60,7 @@ void test_pc_lattice()
 
 	sys.primitive_cubic_lattice(n_side, lattice_constant, physics::water_tip3p<>);
 
-	assert(sys.side == n_side * lattice_constant);
+	assert(std::abs(sys.side - n_side * lattice_constant) < error_threshold);
 }
 
 void test_fcc_lattice()
@@ -71,7 +73,7 @@ void test_fcc_lattice()
 
 	sys.face_centered_cubic_lattice(n_side, lattice_constant, physics::water_tip3p<>);
 
-	assert(sys.side == n_side * lattice_constant);
+	assert(std::abs(sys.side - n_side * lattice_constant) < error_threshold);
 }
 
 void test_cubic_lattice()
@@ -97,6 +99,7 @@ void test_num_bonds()
 	assert(physics::water_tip3p<>.bonds.size() == physics::water_tip3p<>.n);
 	assert(physics::water_tip3p_lr<>.bonds.size() == physics::water_tip3p_lr<>.n);
 	assert(physics::water_fba_eps<>.bonds.size() == physics::water_fba_eps<>.n);
+	assert(physics::water_spc_e<>.bonds.size() == physics::water_spc_e<>.n);
 	assert(physics::sodium_ion<>.bonds.size() == physics::sodium_ion<>.n);
 	assert(physics::chloride_ion<>.bonds.size() == physics::chloride_ion<>.n);
 	assert(physics::caesium_ion<>.bonds.size() == physics::caesium_ion<>.n);

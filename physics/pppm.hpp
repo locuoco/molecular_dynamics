@@ -289,6 +289,12 @@ namespace physics
 			fast = !flag;
 		}
 
+		void update_ewald() noexcept
+		// set update flag to true (calculates optimal Ewald parameter again)
+		{
+			update = true;
+		}
+
 		template <coulomb_and_lj_periodic<T, State> System>
 		void operator()(System& s, utils::thread_pool& tp)
 		// Perform summation using the PPPM method with multi-threading.
@@ -353,7 +359,7 @@ namespace physics
 			update = false;
 		}
 
-		T estimated_error; // estimated force RMS error
+		T estimated_error, estimated_error_coulomb, estimated_error_lj; // estimated force RMS error
 		T energy_coulomb, energy_lj; // energy for electrostatic and LJ potentials
 		T energy_r, energy_k, energy_scd; // real, reciprocal and corrections parts of electrostatic potential
 
@@ -370,9 +376,8 @@ namespace physics
 			T kappa = 0.4, cutoff = 6, dielec = 1, cell_size, side;
 			std::size_t order = 5, num_cells, m, m_real, num_threads;
 			std::ptrdiff_t ch_num_cells = 0, maxn_ = 2; // maxn_ is the max n for the influence function summations
-			bool update = true, use_ik = false, manual = false, fast = true;
-
-			static constexpr bool b_real = true;
+			unsigned update_counter, update_max_count = 100;
+			bool update = true, use_ik = true, manual = false, fast = true, verbose = false;
 
 			void init_members(std::size_t n, std::size_t num_threads, T side)
 			// initialize member variables
@@ -381,7 +386,7 @@ namespace physics
 			// `side` is the side of the simulation box (s.side)
 			{
 				using std::size_t;
-				int expo = std::round(std::log2(n)/3);
+				int expo = std::ceil(std::log2(n)/3);
 				expo = math::clamp(expo, int(2), int(7));
 				expo += ch_num_cells;
 				expo = math::clamp(expo, int(2), int(7));
@@ -389,9 +394,30 @@ namespace physics
 				num_cells = 1 << expo;
 				// `m` is the total number of cells
 				m = num_cells*num_cells*num_cells;
-				m_real = num_cells*num_cells*(num_cells/(b_real+1) + b_real);
-				this->num_threads = num_threads;
+				m_real = num_cells*num_cells*(num_cells/2 + 1);
+
+				// update Ewald paremeter every once in a while for constant-P simulations
+				if (update_counter % update_max_count == (update_max_count-1))
+				{
+					update = true;
+					++update_counter;
+				}
+
+				if (!update)
+					if (side != this->side)
+					{
+						// rescaling Ewald parameter and influence functions
+						kappa *= this->side / side;
+						T scal = (side * side) / (this->side * this->side);
+						for (auto& Gelem : G)
+							Gelem *= scal;
+						for (auto& Gelem : G_energy)
+							Gelem *= scal;
+
+						++update_counter;
+					}
 				this->side = side;
+				this->num_threads = num_threads;
 				// `cell_size` is the length of a cell along one dimension
 				cell_size = side / num_cells;
 				if (cutoff > side/2)
@@ -481,18 +507,26 @@ namespace physics
 				while (abs((next_kappa-kappa) / kappa) > 1e-3 && counter < max_counter && !manual);
 
 				T volume = side*side*side;
-				estimated_error = s.Z2 * sqrt(errF / (s.n * volume));
+				estimated_error_coulomb = s.Z2 * sqrt(errF / (s.n * volume));
+				estimated_error_lj = 2 * s.tracedisp6 / (3 * cutoff2 * cutoff2) * sqrt(std::numbers::pi_v<T> / (cutoff * s.n * volume));
+				estimated_error = sqrt(estimated_error_coulomb*estimated_error_coulomb + estimated_error_lj*estimated_error_lj);
 
-				std::clog << "===== PPPM METHOD LOG =====\n";
+				if (verbose)
+				{
+					std::clog << "===== PPPM METHOD LOG =====\n";
+					std::clog << "Ewald parameter (A^-1): " << kappa << '\n';
+					std::clog << "Estimated electrostatic force RMS error (kcal/(mol A)): " << estimated_error_coulomb << '\n';
+					std::clog << "estimated total force RMS error (kcal/(mol A)): " << estimated_error << '\n';
+					std::clog << "N_M: " << num_cells << '\n';
+					std::clog << "P: " << order << '\n';
+					std::clog << "differentiation scheme: " << (use_ik ? "ik" : "ad") << '\n';
+					std::clog << "h (A): " << cell_size << '\n';
+					std::clog << "r_max (A): " << cutoff << "\n\n";
+				}
 				if (counter == max_counter)
 					std::clog << "Warning: Ewald parameter optimization may have not converged!\n";
 				if (estimated_error < 1e-5 && fast)
 					std::clog << "Warning: estimated accuracy may not be reliable if `precise` is not set to true.\n";
-				std::clog << "Ewald parameter (A^-1): " << kappa << '\n';
-				std::clog << "Estimated electrostatic force RMS error (kcal/(mol A)): " << estimated_error << '\n';
-				std::clog << "N_M: " << num_cells << '\n';
-				std::clog << "h (A): " << cell_size << '\n';
-				std::clog << "r_max (A): " << cutoff << "\n\n";
 			}
 
 			template <typename Vec>
@@ -521,8 +555,8 @@ namespace physics
 			// is known by symmetry).
 			{
 				vec3<int> v;
-				v[2] = index % (num_cells/(b_real+1) + b_real);
-				index /= num_cells/(b_real+1) + b_real;
+				v[2] = index % (num_cells/2 + 1);
+				index /= num_cells/2 + 1;
 				v[1] = index % num_cells;
 				index /= num_cells;
 				v[0] = index;
@@ -546,7 +580,7 @@ namespace physics
 			// calculate the cell flattened index from its vector indices.
 			// May be used for lattice functions in real space (reinterpreted from complex).
 			{
-				return (remap(v[0])*num_cells + remap(v[1]))*(num_cells + b_real*2) + remap(v[2]);
+				return (remap(v[0])*num_cells + remap(v[1]))*(num_cells + 2) + remap(v[2]);
 			}
 
 			template <typename System>
@@ -697,10 +731,7 @@ namespace physics
 							for (kkk[2] = 0; kkk[2] < int(order); ++kkk[2])
 							{
 								size_t index = vec2index_real(cell + kkk);
-								if constexpr (b_real)
-									zMG_real[index] += s.z[i] * W[kkk[0]][0] * W[kkk[1]][1] * W[kkk[2]][2];
-								else
-									zMG[index] += s.z[i] * W[kkk[0]][0] * W[kkk[1]][1] * W[kkk[2]][2];
+								zMG_real[index] += s.z[i] * W[kkk[0]][0] * W[kkk[1]][1] * W[kkk[2]][2];
 							}
 				}
 			}
@@ -833,17 +864,14 @@ namespace physics
 			// `tp` is a thread pool.
 			{
 				using std::size_t;
-				std::array<size_t, 3> nlist{num_cells, num_cells, num_cells/(b_real+1) + b_real};
-				if constexpr (b_real)
-					dft.template rfftn<3>(zMG, nlist, tp);
-				else
-					dft.template fftn<3>(zMG, nlist, tp);
+				std::array<size_t, 3> nlist{num_cells, num_cells, num_cells/2 + 1};
+				dft.template rfftn<3>(zMG, nlist, tp);
 
 				T volume = side*side*side;
 				T u = 0;
 				for (size_t i = 0; i < m_real; ++i)
 					u += norm(zMG[i]) * G_energy[i];
-				energy_k = u / (volume*(2-b_real));
+				energy_k = u / volume;
 			}
 
 			void backward_transform(utils::thread_pool& tp)
@@ -856,7 +884,7 @@ namespace physics
 			// `tp` is a thread pool.
 			{
 				using std::size_t;
-				std::array<size_t, 3> nlist{num_cells, num_cells, num_cells/(b_real+1) + b_real};
+				std::array<size_t, 3> nlist{num_cells, num_cells, num_cells/2 + 1};
 				T cell_size3 = cell_size*cell_size*cell_size;
 				for (size_t i = 0; i < m_real; ++i)
 					zMG[i] *= G[i] / cell_size3;
@@ -867,9 +895,9 @@ namespace physics
 					vec3<T> kvec;
 					for (nnn[0] = 0; nnn[0] < num_cells; ++nnn[0])
 						for (nnn[1] = 0; nnn[1] < num_cells; ++nnn[1])
-							for (nnn[2] = 0; nnn[2] < num_cells/(b_real+1) + b_real; ++nnn[2])
+							for (nnn[2] = 0; nnn[2] < num_cells/2 + 1; ++nnn[2])
 							{
-								size_t index = (nnn[0]*num_cells + nnn[1])*(num_cells/(b_real+1) + b_real) + nnn[2];
+								size_t index = (nnn[0]*num_cells + nnn[1])*(num_cells/2 + 1) + nnn[2];
 								vec3<int> nvec(nnn);
 								nvec -= int(num_cells)*(2*nvec/int(num_cells));
 								kvec = twopi_L * vec3<T>(nvec);
@@ -877,18 +905,11 @@ namespace physics
 								for (size_t j = 0; j < 3; ++j)
 									electric_field[j][index] = kvec[j] * zGi;
 							}
-					if constexpr (b_real)
-						for (size_t j = 0; j < 3; ++j)
-							dft.template irfftn<3>(electric_field[j], nlist, tp);
-					else
-						for (size_t j = 0; j < 3; ++j)
-							dft.template ifftn<3>(electric_field[j], nlist, tp);
+					for (size_t j = 0; j < 3; ++j)
+						dft.template irfftn<3>(electric_field[j], nlist, tp);
 				}
 				else
-					if constexpr (b_real)
-						dft.template irfftn<3>(zMG, nlist, tp);
-					else
-						dft.template ifftn<3>(zMG, nlist, tp);
+					dft.template irfftn<3>(zMG, nlist, tp);
 			}
 
 			template <typename System>
@@ -924,12 +945,8 @@ namespace physics
 								if (use_ik)
 								{
 									T Wxyz = W[order*idx + kkk[0]][0] * W[order*idx + kkk[1]][1] * W[order*idx + kkk[2]][2];
-									if constexpr (b_real)
-										for (size_t j = 0; j < 3; ++j)
-											ei[j] -= electric_field_real[j][index] * Wxyz;
-									else
-										for (size_t j = 0; j < 3; ++j)
-											ei[j] -= electric_field[j][index].real() * Wxyz;
+									for (size_t j = 0; j < 3; ++j)
+										ei[j] -= electric_field_real[j][index] * Wxyz;
 								}
 								else
 								{
@@ -938,10 +955,7 @@ namespace physics
 										W[order*idx + kkk[0]][0] * dW[order*idx + kkk[1]][1] * W[order*idx + kkk[2]][2],
 										W[order*idx + kkk[0]][0] * W[order*idx + kkk[1]][1] * dW[order*idx + kkk[2]][2]
 									);
-									if constexpr (b_real)
-										ei -= zMG_real[index] * gradW;
-									else
-										ei -= zMG[index].real() * gradW;
+									ei -= zMG_real[index] * gradW;
 								}
 							}
 					s.f[i] += s.z[i] * ei;

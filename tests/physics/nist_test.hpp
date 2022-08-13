@@ -58,6 +58,8 @@ void load_nist_sample(System& sys)
 		input >> w.x[2][2];
 		input >> dummy_char;
 		input >> dummy;
+		w.x[0] = w.x[1] + remainder(w.x[0] - w.x[1], sys.side);
+		w.x[2] = w.x[1] + remainder(w.x[2] - w.x[1], sys.side);
 		sys.add_molecule(w);
 	}
 	sys.fetch();

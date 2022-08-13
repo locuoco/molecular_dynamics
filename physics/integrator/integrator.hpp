@@ -255,61 +255,71 @@ namespace physics
 	struct nose_hoover : integrator_base<T, State>
 	// Nosé-Hoover thermostats chain integrator (2nd order, 1 stage)
 	// It approximates a canonical (NVT) ensemble
+	// See Allen, Computer simulation of liquids, 2017, pp. 134-139
 	{
-		nose_hoover(std::size_t n_th = 10, T tau = .1) : p_th(n_th), m_th(n_th), tau_relax(tau), n_th(n_th)
+		nose_hoover(std::size_t n_th = 10, T tau = .2) : tau_relax(tau), n_th(n_th), p_th(n_th), m_th(n_th)
 		{}
 
 		template <having_coordinates<T, State> System>
 		requires requires(System& s, T t)
 			{
-				t += s.dof*(s.temperature() - s.temperature_ref);
+				t += 2*s.kinetic_energy() - s.dof*s.kT_ref();
 			}
 		void step(System& s, T dt, bool first_step = false)
 		{
 			using std::size_t;
 			using std::exp;
+			if (n_th == 0)
+				throw std::runtime_error("Error: number of thermostats must be greater than 0.");
 
-			T tau2 = s.temperature_ref * tau_relax*tau_relax;
+			p_th.resize(n_th);
+			m_th.resize(n_th);
+
+			T tau2 = s.kT_ref() * tau_relax*tau_relax;
 			m_th[0] = s.dof * tau2;
 			for (size_t i = 1; i < n_th; ++i)
 				m_th[i] = tau2;
 
+			// U4
 			p_th[n_th-1] += G(s,n_th-1) * (dt/2);
 			for (size_t i = n_th-1; i --> 0; )
-			{
-				if (p_th[i])
+				if (p_th[i+1])
 				{
 					T a = exp(-xi(i+1)*(dt/2));
-					p_th[i] = p_th[i] * a + G(s,i) * (1 - a) / xi(i+1);
+					p_th[i] = a * p_th[i] + (1 - a) * G(s,i) / xi(i+1);
 				}
 				else
 					p_th[i] += G(s,i) * (dt/2);
-			}
+			// U3
 			s.p *= exp(-xi(0) * (dt/2));
+			// U2
 			s.p += s.force(first_step) * (dt/2);
+			// U1
 			s.x += s.vel() * dt;
+			// U2
 			s.p += s.force() * (dt/2);
+			// U3
 			s.p *= exp(-xi(0) * (dt/2));
+			// U4
 			for (size_t i = 0; i < n_th-1; ++i)
-			{
-				if (p_th[i])
+				if (p_th[i+1])
 				{
 					T a = exp(-xi(i+1)*(dt/2));
-					p_th[i] = p_th[i] * a + G(s,i) * (1 - a) / xi(i+1);
+					p_th[i] = a * p_th[i] + (1 - a) * G(s,i) / xi(i+1);
 				}
 				else
 					p_th[i] += G(s,i) * (dt/2);
-			}
 			p_th[n_th-1] += G(s,n_th-1) * (dt/2);
 
 			s.t += dt;
 		}
 
+		T tau_relax;
+		std::size_t n_th;
+
 		private:
 
 			std::vector<T> p_th, m_th;
-			T tau_relax;
-			std::size_t n_th;
 
 			T xi(std::size_t i) const
 			{
@@ -320,89 +330,196 @@ namespace physics
 			T G(System& s, std::size_t i) const
 			{
 				if (i == 0)
-					return s.dof*(s.temperature() - s.temperature_ref);
+					return 2*s.kinetic_energy() - s.dof*s.kT_ref();
 				else
-					return p_th[i-1]*xi(i-1) - s.temperature_ref;
+					return p_th[i-1]*xi(i-1) - s.kT_ref();
 			}
 	};
 
-	/* TODO!!!
-
 	template <typename T, typename State>
-	struct nose_hoover_andersen : integrator_base<T, State>
-	// Nosé-Hoover thermostats with Andersen barostats chain integrator (2nd order, 1 stage)
+	struct martyna_tobias_klein : integrator_base<T, State>
+	// Martyna-Tobias-Klein equations integrator (2nd order, 1 stage)
 	// It approximates an isothermal-isobaric (NPT) ensemble
+	// See Allen et al., "Computer simulation of liquids", 2017, pp. 140-144
+	// and Tuckerman et al., "A Liouville-operator derived measure-preserving integrator
+	// for molecular dynamics simulations in the isothermal-isobaric ensemble", 2006
+	// Here, the velocity of the particles is assumed to be the same as p/m instead of dx/dt
+	// (they are not the same due to position rescaling).
 	{
-		nose_hoover_andersen(std::size_t n_th = 10, std::size_t n_ba = 10, T tau_th = 1, T tau_ba = 1)
-			: p_th(n_th), m_th(n_th), p_ba(n_ba), m_ba(n_ba), tau_th(tau_th), tau_ba(tau_ba), n_th(n_th), n_ba(n_ba)
+		martyna_tobias_klein(std::size_t n_th = 10, T tau_th = T(.2), T tau_ba = 5)
+			: tau_th(tau_th), tau_ba(tau_ba), n_th(n_th), p_th(n_th), m_th(n_th), p_ba(n_th), m_ba(n_th)
 		{}
 
 		template <having_coordinates<T, State> System>
 		requires requires(System& s, T t)
 			{
-				t += s.dof*(s.temperature() - s.temperature_ref);
+				t += 2*s.kinetic_energy() - s.dof*s.kT_ref();
+				t += ((s.pressure() - s.pressure_ref)*s.volume() + 2 * s.kinetic_energy() / s.n)*t;
+				s.side *= t;
 			}
 		void step(System& s, T dt, bool first_step = false)
 		{
 			using std::size_t;
 			using std::exp;
+			using std::log;
+			if (n_th == 0)
+				throw std::runtime_error("Error: number of thermostats must be greater than 0.");
 
-			T tau2 = s.temperature_ref * tau_th*tau_th;
+			p_th.resize(n_th);
+			m_th.resize(n_th);
+			p_ba.resize(n_th);
+			m_ba.resize(n_th);
+
+			T tau2 = s.kT_ref() * tau_th*tau_th;
 			m_th[0] = s.dof * tau2;
 			for (size_t i = 1; i < n_th; ++i)
 				m_th[i] = tau2;
 
-			p_th[n_th-1] += G(s,n_th-1) * (dt/2);
-			for (size_t i = n_th-1; i --> 0; )
+			tau2 = s.kT_ref() * tau_ba*tau_ba;
+			m_strain = s.dof * tau2;
+			for (size_t i = 0; i < n_th; ++i)
+				m_ba[i] = tau2;
+
+			// U4
+			U4_forward(s, dt/2);
+			// U3
+			s.p *= exp(-xi_th(0) * (dt/2));
+			p_strain *= exp(-xi_ba(0) * (dt/2));
+			// U2
+			p_strain += G_strain(s) * (dt/2);
+			if (p_strain)
 			{
-				if (p_th[i])
-				{
-					T a = exp(-xi(i+1)*(dt/2));
-					p_th[i] = p_th[i] * a + G(s,i) * (1 - a) / xi(i+1);
-				}
-				else
-					p_th[i] += G(s,i) * (dt/2);
+				T ax = (1 + T(1)/s.n) * xi_strain();
+				T a = exp(-ax*(dt/2));
+				s.p = a * s.p + (1 - a) / ax * s.force(first_step);
 			}
-			s.p *= exp(-xi(0) * (dt/2));
-			s.p += s.force(first_step) * (dt/2);
-			s.x += s.vel() * dt;
-			s.p += s.force() * (dt/2);
-			s.p *= exp(-xi(0) * (dt/2));
-			for (size_t i = 0; i < n_th-1; ++i)
+			else
+				s.p += s.force(first_step) * (dt/2);
+			// U1
+			if (p_strain)
 			{
-				if (p_th[i])
-				{
-					T a = exp(-xi(i+1)*(dt/2));
-					p_th[i] = p_th[i] * a + G(s,i) * (1 - a) / xi(i+1);
-				}
-				else
-					p_th[i] += G(s,i) * (dt/2);
+				T a = exp(xi_strain()*dt);
+				s.x = a * s.x + (a - 1) / xi_strain() * s.vel();
+				s.side *= a;
 			}
-			p_th[n_th-1] += G(s,n_th-1) * (dt/2);
+			else
+				s.x += s.vel() * dt;
+			// U2
+			if (p_strain)
+			{
+				T ax = (1 + T(1)/s.n) * xi_strain();
+				T a = exp(-ax*(dt/2));
+				s.p = a * s.p + (1 - a) / ax * s.force();
+			}
+			else
+				s.p += s.force() * (dt/2);
+			p_strain += G_strain(s) * (dt/2);
+			// U3
+			p_strain *= exp(-xi_ba(0) * (dt/2));
+			s.p *= exp(-xi_th(0) * (dt/2));
+			// U4
+			U4_backward(s, dt/2);
 
 			s.t += dt;
 		}
 
+		T tau_th, tau_ba;
+		std::size_t n_th;
+
 		private:
 
 			std::vector<T> p_th, m_th, p_ba, m_ba;
-			T tau_th, tau_ba;
-			std::size_t n_th, n_ba;
+			T p_strain, m_strain;
 
-			T xi(std::size_t i) const
+			T xi_th(std::size_t i) const
 			{
 				return p_th[i]/m_th[i];
 			}
 
+			T xi_ba(std::size_t i) const
+			{
+				return p_ba[i]/m_ba[i];
+			}
+
+			T xi_strain() const
+			{
+				return p_strain/m_strain;
+			}
+
 			template <having_coordinates<T, State> System>
-			T G(const System& s, std::size_t i) const
+			T G_th(System& s, std::size_t i) const
 			{
 				if (i == 0)
-					return s.dof*(s.temperature() - s.temperature_ref);
+					return 2*s.kinetic_energy() - s.dof*s.kT_ref();
 				else
-					return p_th[i-1]*xi(i-1) - s.temperature_ref;
+					return p_th[i-1]*xi_th(i-1) - s.kT_ref();
 			}
-	};*/
+
+			template <having_coordinates<T, State> System>
+			T G_ba(const System& s, std::size_t i) const
+			{
+				if (i == 0)
+					return p_strain*xi_strain() - s.kT_ref();
+				else
+					return p_ba[i-1]*xi_ba(i-1) - s.kT_ref();
+			}
+
+			template <having_coordinates<T, State> System>
+			T G_strain(System& s) const
+			{
+				return (s.dof*(s.pressure() - s.pressure_ref)*s.volume() + 2 * s.kinetic_energy()) / s.n;
+			}
+
+			template <having_coordinates<T, State> System>
+			void U4_forward(System& s, T deltat)
+			{
+				// U4 thermostat
+				p_th[n_th-1] += G_th(s,n_th-1) * deltat;
+				for (size_t i = n_th-1; i --> 0; )
+					if (p_th[i+1])
+					{
+						T a = exp(-xi_th(i+1)*deltat);
+						p_th[i] = a * p_th[i] + (1 - a) * G_th(s,i) / xi_th(i+1);
+					}
+					else
+						p_th[i] += G_th(s,i) * deltat;
+				// U4 barostat
+				p_ba[n_th-1] += G_ba(s,n_th-1) * deltat;
+				for (size_t i = n_th-1; i --> 0; )
+					if (p_ba[i+1])
+					{
+						T a = exp(-xi_ba(i+1)*deltat);
+						p_ba[i] = a * p_ba[i] + (1 - a) * G_ba(s,i) / xi_ba(i+1);
+					}
+					else
+						p_ba[i] += G_ba(s,i) * deltat;
+			}
+
+			template <having_coordinates<T, State> System>
+			void U4_backward(System& s, T deltat)
+			{
+				// U4 barostat
+				for (size_t i = 0; i < n_th-1; ++i)
+					if (p_ba[i+1])
+					{
+						T a = exp(-xi_ba(i+1)*deltat);
+						p_ba[i] = a * p_ba[i] + (1 - a) * G_ba(s,i) / xi_ba(i+1);
+					}
+					else
+						p_ba[i] += G_ba(s,i) * deltat;
+				p_ba[n_th-1] += G_ba(s,n_th-1) * deltat;
+				// U4 thermostat
+				for (size_t i = 0; i < n_th-1; ++i)
+					if (p_th[i+1])
+					{
+						T a = exp(-xi_th(i+1)*deltat);
+						p_th[i] = a * p_th[i] + (1 - a) * G_th(s,i) / xi_th(i+1);
+					}
+					else
+						p_th[i] += G_th(s,i) * deltat;
+				p_th[n_th-1] += G_th(s,n_th-1) * deltat;
+			}
+	};
 
 	template <typename T, typename State>
 	struct pefrl : symplectic_integrator_base<T, State>
