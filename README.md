@@ -360,7 +360,7 @@ References:
 
 ### Martyna-Tobias-Klein equations
 
-Most real experiments are performed at constant temperature and pressure. So it is useful to approximate an isothermal-isobaric ensemble. Introduced by Hoover, the equations for a NPT ensemble were modified by Martyna et al. (1994), which are given by:
+Most real experiments are performed at constant temperature and pressure. So it is useful to approximate an isothermal-isobaric ensemble. Introduced by Hoover, the equations of motion for a NPT ensemble were modified by Martyna et al. (1994), which are given by:
 
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\dot{\mathrm{r}}_i=\frac{\mathrm{p}_i}{m_i}%2B\left(\frac{p_{\epsilon}}{W}\right)\mathrm{r}_i%2C"/>
@@ -372,16 +372,16 @@ Most real experiments are performed at constant temperature and pressure. So it 
 <img src="https://latex.codecogs.com/svg.image?\dot{V}=\left(\frac{p_{\epsilon}}{W}\right)Vd%2C"/>
 </div>
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\dot{p}_{\eta}=(\mathcal{P}-P)Vd%2B\sum_i\frac{\mathrm{p}_i^2}{m_i}-\left(\frac{p_{\eta_1^{%27}}}{Q_1^{%27}}\right)p_{\epsilon}"/>
+<img src="https://latex.codecogs.com/svg.image?\dot{p}_{\epsilon}=(\mathcal{P}-P)Vd%2B\frac{d}{g}\sum_i\frac{\mathrm{p}_i^2}{m_i}-\left(\frac{p_{\eta_1^{%27}}}{Q_1^{%27}}\right)p_{\epsilon}"/>
 </div>
 
 where <img src="https://latex.codecogs.com/svg.image?P"/> is the reference pressure and <img src="https://latex.codecogs.com/svg.image?\mathcal{P}"/> is the pressure of the system. <img src="https://latex.codecogs.com/svg.image?\alpha"/> is defined as:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\alpha=1%2B\frac{1}{N}"/>
+<img src="https://latex.codecogs.com/svg.image?\alpha=1%2B\frac{d}{g}"/>
 </div>
 
-Furthermore, <img src="https://latex.codecogs.com/svg.image?p_{\eta_1}"/> and <img src="https://latex.codecogs.com/svg.image?p_{\eta_1^{%27}}"/> are Nosé-Hoover thermostats momenta, which can be chained as described in the previous paragraph, while <img src="https://latex.codecogs.com/svg.image?p_{\epsilon}"/> and <img src="https://latex.codecogs.com/svg.image?W"/> are the momenta and the inertia associated to the barostat (strain) respectively.
+where <img src="https://latex.codecogs.com/svg.image?d"/> is the number of dimensions, so that for a system with no constraints <img src="https://latex.codecogs.com/svg.image?g=Nd"/>. Furthermore, <img src="https://latex.codecogs.com/svg.image?p_{\eta_1}"/> and <img src="https://latex.codecogs.com/svg.image?p_{\eta_1^{%27}}"/> are Nosé-Hoover thermostats momenta, which can be chained as described in the previous paragraph, while <img src="https://latex.codecogs.com/svg.image?p_{\epsilon}"/> and <img src="https://latex.codecogs.com/svg.image?W"/> are the momenta and the inertia associated to the barostat (strain) respectively.
 
 References:
 * G. J. Martyna, D. J. Tobias, M. L. Klein, *Constant-pressure molecular dynamics algorithms*, Journal of Chemical Physics, 97, pp. 2635-2643, 1994
