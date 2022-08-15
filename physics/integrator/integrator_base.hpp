@@ -36,6 +36,9 @@ namespace physics
 	// `dt` is the integration step and `first_step` is a boolean flag that shall
 	// be set to true for the first integration step.
 
+	// Important notice: these base classes are not meant for OOP! (there are no virtual methods).
+	// They are only used for constrained generic programming (concepts).
+
 	template <typename T, typename State>
 	struct symplectic_integrator_base : integrator_base<T, State> {};
 	// Inherit from this class if the following assumption about the problem

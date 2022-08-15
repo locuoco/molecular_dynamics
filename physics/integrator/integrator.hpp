@@ -473,7 +473,7 @@ namespace physics
 			template <having_coordinates<T, State> System>
 			void U4_forward(System& s, T deltat)
 			{
-				// U4 thermostat
+				// U4 thermostats coupled to particles momenta
 				p_th[n_th-1] += G_th(s,n_th-1) * deltat;
 				for (size_t i = n_th-1; i --> 0; )
 					if (p_th[i+1])
@@ -483,7 +483,7 @@ namespace physics
 					}
 					else
 						p_th[i] += G_th(s,i) * deltat;
-				// U4 barostat
+				// U4 thermostats coupled to barostat momentum
 				p_ba[n_th-1] += G_ba(s,n_th-1) * deltat;
 				for (size_t i = n_th-1; i --> 0; )
 					if (p_ba[i+1])
@@ -498,7 +498,7 @@ namespace physics
 			template <having_coordinates<T, State> System>
 			void U4_backward(System& s, T deltat)
 			{
-				// U4 barostat
+				// U4 thermostats coupled to barostat momentum
 				for (size_t i = 0; i < n_th-1; ++i)
 					if (p_ba[i+1])
 					{
@@ -508,7 +508,7 @@ namespace physics
 					else
 						p_ba[i] += G_ba(s,i) * deltat;
 				p_ba[n_th-1] += G_ba(s,n_th-1) * deltat;
-				// U4 thermostat
+				// U4 thermostats coupled to particles momenta
 				for (size_t i = 0; i < n_th-1; ++i)
 					if (p_th[i+1])
 					{

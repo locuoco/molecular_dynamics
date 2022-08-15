@@ -2,7 +2,7 @@
 
 ![Screenshot of the program](screenshot.png)
 <!---
-$V(\mathrm{r}_i)&=\sum_{i \sim j}K_{ij}^r \left(r_{ij} - r_{ij}^0\right)^2
+$V(\mathbf{r}_i)&=\sum_{i \sim j}K_{ij}^r \left(r_{ij} - r_{ij}^0\right)^2
 + \sum_{i\sim j\sim k}K_{ijk}^{\theta} \left(\theta_{ijk} - \theta_{ijk}^0\right)^2
 + \sum_{i\sim\cdot\sim k}K_{ik}^{UB} \left(r_{ik} - r_{ik}^0\right)^2 \\
 &+ \sum_{i\sim j\sim k\sim l, n}K_{ijkl}^{\chi} \left(1 + \cos\left(n\chi_{ijkl} - \delta_{ijkl}\right) \right)
@@ -217,10 +217,10 @@ For more examples, see the `examples` directory in this repository.
 In a cubic periodic system of side <img src="https://latex.codecogs.com/svg.image?L"/>, the electrostatic potential is given by:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?V_C=\frac{1}{2}\sum_{ij}^N\sum_{\mathrm{n}\in%20Z^3}^{%27}\frac{z_i%20z_j}{\left|\mathrm{r}_{ij}%2B\mathrm{n}L\right|}"/>
+<img src="https://latex.codecogs.com/svg.image?V_C=\frac{1}{2}\sum_{ij}^N\sum_{\mathbf{n}\in%20Z^3}^{%27}\frac{z_i%20z_j}{\left|\mathbf{r}_{ij}%2B\mathbf{n}L\right|}"/>
 </div>
 
-where the prime symbol means that the <img src="https://latex.codecogs.com/svg.image?i=j"/> term must be excluded for <img src="https://latex.codecogs.com/svg.image?\mathrm{n}=\mathrm{0}"/>, and <img src="https://latex.codecogs.com/svg.image?z_i=\sqrt{k_C}q_i"/>. As it is not practical to calculate all the contributions directly, it is more convenient to calculate the long-range part in Fourier space, leading to a formula which converges much faster than the previous equation. To do so, the Green's function must be separated in the following way:
+where the prime symbol means that the <img src="https://latex.codecogs.com/svg.image?i=j"/> term must be excluded for <img src="https://latex.codecogs.com/svg.image?\mathbf{n}=\mathbf{0}"/>, and <img src="https://latex.codecogs.com/svg.image?z_i=\sqrt{k_C}q_i"/>. As it is not practical to calculate all the contributions directly, it is more convenient to calculate the long-range part in Fourier space, leading to a formula which converges much faster than the previous equation. To do so, the Green's function must be separated in the following way:
 
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\frac{1}{r}=\frac{f(r)}{r}%2B\frac{1-f(r)}{r}"/>
@@ -232,62 +232,62 @@ where <img src="https://latex.codecogs.com/svg.image?f(r)"/> is sometimes referr
 <img src="https://latex.codecogs.com/svg.image?V_C=V^{(r)}%2BV^{(k)}%2BV^{(s)}%2BV^{(d)}"/>
 </div>
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?V^{(r)}=\frac{1}{2}\sum_{ij}^N\sum_{\mathrm{n}\in%20Z^3}^{%27}z_i%20z_j\frac{\text{erfc}\left(\kappa\left|\mathrm{r}_{ij}%2B\mathrm{n}L\right|\right)}{\left|\mathrm{r}_{ij}%2B\mathrm{n}L\right|}"/>
+<img src="https://latex.codecogs.com/svg.image?V^{(r)}=\frac{1}{2}\sum_{ij}^N\sum_{\mathbf{n}\in%20Z^3}^{%27}z_i%20z_j\frac{\text{erfc}\left(\kappa\left|\mathbf{r}_{ij}%2B\mathbf{n}L\right|\right)}{\left|\mathbf{r}_{ij}%2B\mathbf{n}L\right|}"/>
 </div>
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?V^{(k)}=\frac{1}{2L^3}\sum_{\mathrm{n}\neq\mathrm{0}}\frac{4\pi}{k_{\mathrm{n}}^2}e^{-k_{\mathrm{n}}^2/4\kappa^2}\left|\tilde{\rho}(\mathrm{k_n})\right|^2=\frac{1}{2L^3}\sum_{\mathrm{n}\neq\mathrm{0}}\tilde{g}(k_{\mathrm{n}})\tilde{\gamma}(k_{\mathrm{n}})\left|\tilde{\rho}(\mathrm{k_n})\right|^2"/>
+<img src="https://latex.codecogs.com/svg.image?V^{(k)}=\frac{1}{2L^3}\sum_{\mathbf{n}\neq\mathbf{0}}\frac{4\pi}{k_{\mathbf{n}}^2}e^{-k_{\mathbf{n}}^2/4\kappa^2}\left|\tilde{\rho}(\mathbf{k_n})\right|^2=\frac{1}{2L^3}\sum_{\mathbf{n}\neq\mathbf{0}}\tilde{g}(k_{\mathbf{n}})\tilde{\gamma}(k_{\mathbf{n}})\left|\tilde{\rho}(\mathbf{k_n})\right|^2"/>
 </div>
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?V^{(s)}=-\frac{\kappa}{\sqrt{\pi}}\sum_i%20z_i^2"/>
 </div>
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?V^{(d)}=\frac{2\pi}{(1+2\epsilon_r)L^3}\left(\sum_i%20z_i\mathrm{r}_i\right)^2"/>
+<img src="https://latex.codecogs.com/svg.image?V^{(d)}=\frac{2\pi}{(1+2\epsilon_r)L^3}\left(\sum_i%20z_i\mathbf{r}_i\right)^2"/>
 </div>
 
 where <img src="https://latex.codecogs.com/svg.image?V^{(r)}"/> is the contribution from real space (short-range), <img src="https://latex.codecogs.com/svg.image?V^{(k)}"/> is the contribution from the reciprocal space (long-range), <img src="https://latex.codecogs.com/svg.image?V^{(s)}"/> is the self-energy correction and <img src="https://latex.codecogs.com/svg.image?V^{(d)}"/> is the dipole correction. The Fourier transform of the charge density <img src="https://latex.codecogs.com/svg.image?\tilde{\rho}"/> is defined as:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\tilde{\rho}(\mathrm{k})=\int_V%20\rho(\mathrm{r})e^{-i\mathrm{k}\cdot\mathrm{r}}d^3r=\sum_{j=1}^Nz_je^{-i\mathrm{k}\cdot\mathrm{r}_j"/>
+<img src="https://latex.codecogs.com/svg.image?\tilde{\rho}(\mathbf{k})=\int_V%20\rho(\mathbf{r})e^{-i\mathbf{k}\cdot\mathbf{r}}d^3r=\sum_{j=1}^Nz_je^{-i\mathbf{k}\cdot\mathbf{r}_j"/>
 </div>
 
-The <img src="https://latex.codecogs.com/svg.image?\mathrm{k_n}"/>-vectors are given by <img src="https://latex.codecogs.com/svg.image?\mathrm{k_n}=2\pi\mathrm{n}/L"/>, while <img src="https://latex.codecogs.com/svg.image?\epsilon_r"/> is the relative dielectric constant (equal to 1 in vacuum) and <img src="https://latex.codecogs.com/svg.image?\kappa"/> is a free parameter, known as the Ewald parameter.
+The <img src="https://latex.codecogs.com/svg.image?\mathbf{k_n}"/>-vectors are given by <img src="https://latex.codecogs.com/svg.image?\mathbf{k_n}=2\pi\mathbf{n}/L"/>, while <img src="https://latex.codecogs.com/svg.image?\epsilon_r"/> is the relative dielectric constant (equal to 1 in vacuum) and <img src="https://latex.codecogs.com/svg.image?\kappa"/> is a free parameter, known as the Ewald parameter.
 
 References:
 * P. Ewald, *Die Berechnung optischer und elektrostatischer Gitterpotentiale*, Annalen der Physik, 369, pp. 253-287, 1921
 
 ### PPPM method
 
-The particle-particle, particle-mesh (PPPM, or P<sup>3</sup>M) method can be applied to speed up the calculation of the reciprocal space term of Ewald summation thanks to fast Fourier transform (FFT) algorithms. Since FFT is based on discrete Fourier transforms (DFT), it requires sample points to be equally spaced, so a necessary preparatory step is to interpolate the charges on a 3-dimensional lattice (called mesh) with spacing <img src="https://latex.codecogs.com/svg.image?h"/>. The charge of a single mesh point <img src="https://latex.codecogs.com/svg.image?\mathrm{r_p}"/> is given by:
+The particle-particle, particle-mesh (PPPM, or P<sup>3</sup>M) method can be applied to speed up the calculation of the reciprocal space term of Ewald summation thanks to fast Fourier transform (FFT) algorithms. Since FFT is based on discrete Fourier transforms (DFT), it requires sample points to be equally spaced, so a necessary preparatory step is to interpolate the charges on a 3-dimensional lattice (called mesh) with spacing <img src="https://latex.codecogs.com/svg.image?h"/>. The charge of a single mesh point <img src="https://latex.codecogs.com/svg.image?\mathbf{r_p}"/> is given by:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?z_M(\mathrm{r_p})=\int_VW(\mathrm{r_p}-\mathrm{r})\rho(\mathrm{r})d^3r=\sum_{i=1}^Nz_iW(\mathrm{r_p}-\mathrm{r}_i)"/>
+<img src="https://latex.codecogs.com/svg.image?z_M(\mathbf{r_p})=\int_VW(\mathbf{r_p}-\mathbf{r})\rho(\mathbf{r})d^3r=\sum_{i=1}^Nz_iW(\mathbf{r_p}-\mathbf{r}_i)"/>
 </div>
 
-where <img src="https://latex.codecogs.com/svg.image?\mathrm{p}=h\mathrm{n}"/> and <img src="https://latex.codecogs.com/svg.image?W"/> is the charge assignment function, which is chosen so that the sum behaves as a convolution with a small window (so that the cost of the computation of <img src="https://latex.codecogs.com/svg.image?z_M"/> is <img src="https://latex.codecogs.com/svg.image?O(N)"/>). Its Fourier transform can be written as a DFT:
+where <img src="https://latex.codecogs.com/svg.image?\mathbf{p}=h\mathbf{n}"/> and <img src="https://latex.codecogs.com/svg.image?W"/> is the charge assignment function, which is chosen so that the sum behaves as a convolution with a small window (so that the cost of the computation of <img src="https://latex.codecogs.com/svg.image?z_M"/> is <img src="https://latex.codecogs.com/svg.image?O(N)"/>). Its Fourier transform can be written as a DFT:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\tilde{z}_M(\mathrm{k_n})=\sum_{\mathrm{r_p}\in%20M}z_M(\mathrm{r_p})e^{-i\mathrm{k_n}\cdot\mathrm{r_p}"/>
+<img src="https://latex.codecogs.com/svg.image?\tilde{z}_M(\mathbf{k_n})=\sum_{\mathbf{r_p}\in%20M}z_M(\mathbf{r_p})e^{-i\mathbf{k_n}\cdot\mathbf{r_p}"/>
 </div>
 
 The reciprical space term of the potential is then given by:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?V^{(k)}=\frac{1}{2L^3}\sum_{\mathrm{n}\neq\mathrm{0}}\tilde{G}_{opt}(k_{\mathrm{n}})\left|\tilde{z}_M(\mathrm{k_n})\right|^2"/>
+<img src="https://latex.codecogs.com/svg.image?V^{(k)}=\frac{1}{2L^3}\sum_{\mathbf{n}\neq\mathbf{0}}\tilde{G}_{opt}(k_{\mathbf{n}})\left|\tilde{z}_M(\mathbf{k_n})\right|^2"/>
 </div>
 
 where <img src="https://latex.codecogs.com/svg.image?\tilde{G}_{opt}"/> is the optimal influence function:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\tilde{G}_{opt}(\mathrm{k})=\frac{\tilde{\mathrm{D}}(\mathrm{k})\cdot\sum_{\mathrm{m}\in%20Z^3}\tilde{U}^2\left(\mathrm{k}%2B\frac{2\pi}{h}\mathrm{m}\right)\tilde{\mathrm{R}}\left(\mathrm{k}%2B\frac{2\pi}{h}\mathrm{m}\right)}{\left|\tilde{\mathrm{D}}(\mathrm{k})\right|^2\left[\sum_{\mathrm{m}\in%20Z^3}\tilde{U}^2\left(\mathrm{k}%2B\frac{2\pi}{h}\mathrm{m}\right)\right]^2}"/>
+<img src="https://latex.codecogs.com/svg.image?\tilde{G}_{opt}(\mathbf{k})=\frac{\tilde{\mathbf{D}}(\mathbf{k})\cdot\sum_{\mathbf{m}\in%20Z^3}\tilde{U}^2\left(\mathbf{k}%2B\frac{2\pi}{h}\mathbf{m}\right)\tilde{\mathbf{R}}\left(\mathbf{k}%2B\frac{2\pi}{h}\mathbf{m}\right)}{\left|\tilde{\mathbf{D}}(\mathbf{k})\right|^2\left[\sum_{\mathbf{m}\in%20Z^3}\tilde{U}^2\left(\mathbf{k}%2B\frac{2\pi}{h}\mathbf{m}\right)\right]^2}"/>
 </div>
 
-where <img src="https://latex.codecogs.com/svg.image?\tilde{U}(\mathrm{k})=\tilde{W}(\mathrm{k})/h^3"/>, while <img src="https://latex.codecogs.com/svg.image?\tilde{\mathrm{D}}(\mathrm{k})"/> is the Fourier transform of the differential operator and <img src="https://latex.codecogs.com/svg.image?\tilde{\mathrm{R}}(\mathrm{k})"/> is the Fourier transform of the true reference force:
+where <img src="https://latex.codecogs.com/svg.image?\tilde{U}(\mathbf{k})=\tilde{W}(\mathbf{k})/h^3"/>, while <img src="https://latex.codecogs.com/svg.image?\tilde{\mathbf{D}}(\mathbf{k})"/> is the Fourier transform of the differential operator and <img src="https://latex.codecogs.com/svg.image?\tilde{\mathbf{R}}(\mathbf{k})"/> is the Fourier transform of the true reference force:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\tilde{\mathrm{R}}(\mathrm{k})=-i\mathrm{k}\tilde{g}(k)\tilde{\gamma}(k)"/>
+<img src="https://latex.codecogs.com/svg.image?\tilde{\mathbf{R}}(\mathbf{k})=-i\mathbf{k}\tilde{g}(k)\tilde{\gamma}(k)"/>
 </div>
 
-Note that the influence function does not depend on the particles positions and thus can be calculated just once at the beginning of the simulation, as long as the volume of the simulation box does not vary. The series are highly convergent and can usually be truncated at <img src="https://latex.codecogs.com/svg.image?|\mathrm{m}|=2"/>. Note also that the same steps can be performed for the calculation of the dispersion forces (i.e. the ones arising from
+Note that the influence function does not depend on the particles positions and thus can be calculated just once at the beginning of the simulation, as long as the volume of the simulation box does not vary. The series are highly convergent and can usually be truncated at <img src="https://latex.codecogs.com/svg.image?|\mathbf{m}|=2"/>. Note also that the same steps can be performed for the calculation of the dispersion forces (i.e. the ones arising from
 <img src="https://latex.codecogs.com/svg.image?1/r^6"/> part of the Lennard-Jones potential or the Buckingham potential).
 
 To obtain the forces, two schemes can be used depending on the application: in the *ik*-differentiation scheme the gradient is computed analytically in Fourier space, while in the *ad*-differentiation scheme the gradient is calculated in real space. The first method conserves the total momentum but not the energy and it is preferred in canonical ensembles because it is more accurate, while the second method conserves the energy but not the momentum, which is preferred in microcanonical ensembles (Ballenegger et al., 2012).
@@ -303,18 +303,18 @@ References:
 Simulating a system by integrating the Hamilton's equations of motion will naturally result in a microcanonical (NVE) ensemble, in which the total energy is conserved. In many applications, the internal energy of the system is not known a priori and it is more useful to control the temperature, and, in particular, one is interested in simulating a canonical (NVT) ensemble. One way to control the temperature is to employ isokinetic equations of motions, which are derived to constrain the kinetic energy to be conserved through a friction coefficient <img src="https://latex.codecogs.com/svg.image?\xi"/>:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\dot{\mathrm{r}}_i=\frac{\mathrm{p}_i}{m_i}%2C\qquad\dot{\mathrm{p}}_i=\mathrm{f}_i-\xi\mathrm{p}_i%2C\\"/>
+<img src="https://latex.codecogs.com/svg.image?\dot{\mathbf{r}}_i=\frac{\mathbf{p}_i}{m_i}%2C\qquad\dot{\mathbf{p}}_i=\mathbf{f}_i-\xi\mathbf{p}_i%2C\\"/>
 </div>
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\xi=\frac{\sum_i\mathrm{p}_i\cdot\mathrm{f}_i/m_i}{\sum_ip_i^2/m_i}"/>
+<img src="https://latex.codecogs.com/svg.image?\xi=\frac{\sum_i\mathbf{p}_i\cdot\mathbf{f}_i/m_i}{\sum_ip_i^2/m_i}"/>
 </div>
 
-In this way, the temperature can be controlled by rescaling the kinetic energy accordingly at the beggining of the simulation. Using this method, configurations sample the canonical ensemble, but not the momenta (not following the Maxwell-Boltzmann distribution).
+where <img src="https://latex.codecogs.com/svg.image?\mathbf{f}_i=-\partial\mathcal{V}/\partial\mathbf{r}_i"/>. In this way, the temperature can be controlled by rescaling the kinetic energy accordingly at the beginning of the simulation. Using this method, configurations sample the canonical ensemble, but not the momenta (not following the Maxwell-Boltzmann distribution).
 
 The Nosé-Hoover thermostat equations, instead, are (without scaling, given by Hoover, 1985):
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\dot{\mathrm{r}}_i=\frac{\mathrm{p}_i}{m_i}%2C\qquad\dot{\mathrm{p}}_i=\mathrm{f}_i-\frac{p_{\eta}}{Q}\mathrm{p}_i%2C"/>
+<img src="https://latex.codecogs.com/svg.image?\dot{\mathbf{r}}_i=\frac{\mathbf{p}_i}{m_i}%2C\qquad\dot{\mathbf{p}}_i=\mathbf{f}_i-\frac{p_{\eta}}{Q}\mathbf{p}_i%2C"/>
 </div>
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\dot{\eta}=\frac{p_{\eta}}{Q}%2C\qquad\dot{p}_{\eta}=\sum_i\frac{p_i^2}{m_i}-gk_BT"/>
@@ -329,7 +329,7 @@ where <img src="https://latex.codecogs.com/svg.image?g"/> is the number of degre
 For systems with few degrees of freedom, the system shows lack of ergodicity and the Nosé-Hoover thermostat shows problems in sampling the equilibrium distribution. It is possible, in this case, to use a thermostats chain:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\dot{\mathrm{r}}_i=\frac{\mathrm{p}_i}{m_i}%2C\qquad\dot{\mathrm{p}}_i=\mathrm{f}_i-\frac{p_{\eta_1}}{Q_1}\mathrm{p}_i"/>
+<img src="https://latex.codecogs.com/svg.image?\dot{\mathbf{r}}_i=\frac{\mathbf{p}_i}{m_i}%2C\qquad\dot{\mathbf{p}}_i=\mathbf{f}_i-\frac{p_{\eta_1}}{Q_1}\mathbf{p}_i"/>
 </div>
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\dot{\eta}_j=\frac{p_{\eta_j}}{Q_j}%2C\qquad\dot{p}_{\eta_j}=G_j-\frac{p_{\eta_{j+1}}}{Q_{j+1}}p_{\eta_j}%2C\qquad\dot{p}_{\eta_M}=G_M"/>
@@ -363,25 +363,29 @@ References:
 Most real experiments are performed at constant temperature and pressure. So it is useful to approximate an isothermal-isobaric ensemble. Introduced by Hoover, the equations of motion for a NPT ensemble were modified by Martyna et al. (1994), which are given by:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\dot{\mathrm{r}}_i=\frac{\mathrm{p}_i}{m_i}%2B\left(\frac{p_{\epsilon}}{W}\right)\mathrm{r}_i%2C"/>
+<img src="https://latex.codecogs.com/svg.image?\dot{\mathbf{r}}_i=\frac{\mathbf{p}_i}{m_i}%2B\left(\frac{p_{\epsilon}}{W}\right)\mathbf{r}_i%2C"/>
 </div>
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\dot{\mathrm{p}}_i=\mathrm{f}_i-\alpha\left(\frac{p_{\epsilon}}{W}\right)\mathrm{p}_i-\left(\frac{p_{\eta_1}}{Q_1}\right)\mathrm{p}_i%2C"/>
+<img src="https://latex.codecogs.com/svg.image?\dot{\mathbf{p}}_i=\mathbf{f}_i-\alpha\left(\frac{p_{\epsilon}}{W}\right)\mathbf{p}_i-\left(\frac{p_{\eta_1}}{Q_1}\right)\mathbf{p}_i%2C"/>
 </div>
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\dot{V}=\left(\frac{p_{\epsilon}}{W}\right)Vd%2C"/>
 </div>
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\dot{p}_{\epsilon}=(\mathcal{P}-P)Vd%2B\frac{d}{g}\sum_i\frac{\mathrm{p}_i^2}{m_i}-\left(\frac{p_{\eta_1^{%27}}}{Q_1^{%27}}\right)p_{\epsilon}"/>
+<img src="https://latex.codecogs.com/svg.image?\dot{p}_{\epsilon}=(\mathcal{P}-P)Vd%2B\frac{d}{g}\sum_i\frac{\mathbf{p}_i^2}{m_i}-\left(\frac{p_{\eta_1^{%27}}}{Q_1^{%27}}\right)p_{\epsilon}"/>
 </div>
 
-where <img src="https://latex.codecogs.com/svg.image?P"/> is the reference pressure and <img src="https://latex.codecogs.com/svg.image?\mathcal{P}"/> is the pressure of the system. <img src="https://latex.codecogs.com/svg.image?\alpha"/> is defined as:
+where <img src="https://latex.codecogs.com/svg.image?P"/> is the reference pressure and <img src="https://latex.codecogs.com/svg.image?\mathcal{P}"/> is the istantaneous pressure of the system (calculated from the virial). <img src="https://latex.codecogs.com/svg.image?\alpha"/> is defined as:
 
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\alpha=1%2B\frac{d}{g}"/>
 </div>
 
-where <img src="https://latex.codecogs.com/svg.image?d"/> is the number of dimensions, so that for a system with no constraints <img src="https://latex.codecogs.com/svg.image?g=Nd"/>. Furthermore, <img src="https://latex.codecogs.com/svg.image?p_{\eta_1}"/> and <img src="https://latex.codecogs.com/svg.image?p_{\eta_1^{%27}}"/> are Nosé-Hoover thermostats momenta, which can be chained as described in the previous paragraph, while <img src="https://latex.codecogs.com/svg.image?p_{\epsilon}"/> and <img src="https://latex.codecogs.com/svg.image?W"/> are the momenta and the inertia associated to the barostat (strain) respectively.
+where <img src="https://latex.codecogs.com/svg.image?d"/> is the number of dimensions, so that for a system with no constraints <img src="https://latex.codecogs.com/svg.image?g=Nd"/>. Furthermore, <img src="https://latex.codecogs.com/svg.image?p_{\eta_1}"/> and <img src="https://latex.codecogs.com/svg.image?p_{\eta_1^{%27}}"/> are Nosé-Hoover thermostats momenta, which can be chained as described in the previous paragraph, while <img src="https://latex.codecogs.com/svg.image?p_{\epsilon}"/> and <img src="https://latex.codecogs.com/svg.image?W"/> are the momenta and the inertia associated to the barostat (strain) respectively. The (conserved) Hamiltonian for this extended system is:
+
+<div align="center">
+<img src="https://latex.codecogs.com/svg.image?\mathcal{H}_{tot}=\mathcal{T}%2B\mathcal{V}%2BPV%2B\frac{p_{\epsilon}^2}{2W}%2B\sum_{j=1}^M\left(\frac{p_{\eta_j}^2}{2Q_j}%2B\frac{p_{\eta_j^{%27}}^2}{2Q_j^{%27}}%2Bk_BT\eta_j^{%27}\right)%2Bgk_BT\eta_1%2B\sum_{j=2}^Mk_BT\eta_j"/>
+</div>
 
 References:
 * G. J. Martyna, D. J. Tobias, M. L. Klein, *Constant-pressure molecular dynamics algorithms*, Journal of Chemical Physics, 97, pp. 2635-2643, 1994
