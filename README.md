@@ -2,14 +2,6 @@
 
 ![Screenshot of the program](screenshot.png)
 <!---
-$V(\mathbf{r}_i)&=\sum_{i \sim j}K_{ij}^r \left(r_{ij} - r_{ij}^0\right)^2
-+ \sum_{i\sim j\sim k}K_{ijk}^{\theta} \left(\theta_{ijk} - \theta_{ijk}^0\right)^2
-+ \sum_{i\sim\cdot\sim k}K_{ik}^{UB} \left(r_{ik} - r_{ik}^0\right)^2 \\
-&+ \sum_{i\sim j\sim k\sim l, n}K_{ijkl}^{\chi} \left(1 + \cos\left(n\chi_{ijkl} - \delta_{ijkl}\right) \right)
-+ \sum_{ijkl\ \text{impropers}}K_{ijkl}^{\psi} \left( \psi_{ijkl} - \psi_{ijkl}^0 \right)^2 \\
-&+ \sum_{ij} \epsilon_{ij} \left( \left( \frac{R_{ij}}{r_{ij}} \right)^{12} - 2 \left(\frac{R_{ij}}{r_{ij}} \right)^{6} \right)
-+ \sum_{ij} k_C \frac{q_i q_j}{r_{ij}^2}$
-
 Old URL:
 https://render.githubusercontent.com/render/math?math=\displaystyle+
 
@@ -19,7 +11,7 @@ Comma (,) = %2C
 --->
 This is an interactive program for molecular dynamics using classical force fields. A force field is defined from the following potential (using CHARMM convention):
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?V=\sum_{i\sim%20j}K_{ij}^r\left(r_{ij}-r_{ij}^0\right)^2%2B\sum_{i\sim%20j\sim%20k}K_{ijk}^{\theta}%20\left(\theta_{ijk}-\theta_{ijk}^0\right)^2%2B\sum_{i\sim\cdot\sim%20k}K_{ik}^{UB}\left(r_{ik}-r_{ik}^0\right)^2\\"/>
+<img src="https://latex.codecogs.com/svg.image?\mathcal{V}=\sum_{i\sim%20j}K_{ij}^r\left(r_{ij}-r_{ij}^0\right)^2%2B\sum_{i\sim%20j\sim%20k}K_{ijk}^{\theta}%20\left(\theta_{ijk}-\theta_{ijk}^0\right)^2%2B\sum_{i\sim\cdot\sim%20k}K_{ik}^{UB}\left(r_{ik}-r_{ik}^0\right)^2\\"/>
 </div>
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\qquad%2B\sum_{i\sim%20j\sim%20k\sim%20l%2Cn}K_{ijkl}^{\chi}%20\left(1%2B\cos\left(n\chi_{ijkl}-\delta_{ijkl}\right)\right)%2B\sum_{ijkl\%20\text{impropers}}K_{ijkl}^{\psi}\left(\psi_{ijkl}-\psi_{ijkl}^0\right)^2\\"/>
@@ -146,22 +138,24 @@ It is possible to set the algorithm used for the summation of long-range forces:
 ```c++
     physics::molecular_system<long double, physics::ewald> my_system;
 ```
-It is also possible to change the floating point type and the numerical integrator to be used for the simulation:
-```c++
-    physics::molecular_system<long double, physics::pppm, physics::pefrl> my_system;
-```
-By default, the floating point type is `double` (64-bit floating point), the summation algorithm is `physics::pppm` and the integrator is `physics::leapfrog`. Currently available summation algorithms are:
+By default, the floating point type is `double` (64-bit floating point) and the summation algorithm is `physics::pppm`. Currently available summation algorithms are:
 
 * `physics::ewald`: Ewald summation, O(N^2) complexity, more accurate
 * `physics::pppm`: Particle-particle, particle-mesh method, O(N log N) complexity, faster, speed and accuracy depend on parameters
 
-Some currently available numerical integrators are:
+To integrate the equations of motion it is needed to declare a numerical integrator object, and then call the `simulate` method:
+```c++
+    using namespace physics::literals; // for _fs
+    physics::leapfrog<physics::molecular_system<>> my_integ;
+
+    my_integ.simulate(my_system, 1_fs, 10000);
+```
+which simulates the system for 10000 steps with a time step of 1 femtosecond. The literal suffix `_fs` is needed to convert the value into AKMA units, which are used inside the `molecular_system` class. Some currently available numerical integrators are:
 
 * `physics::symplectic_euler`: Symplectic Euler method (1st order, 1 stage)
-* `physics::leapfrog`: Leapfrog method (2nd order, 1 stage), *default*
+* `physics::leapfrog`: Leapfrog method (2nd order, 1 stage)
 * `physics::multi_timestep_leapfrog`: Multi-timestep leapfrog method (2nd order, 1 stage for long-range forces)
 * `physics::stochastic_leapfrog`: Stochastic "leapfrog" method (1 stage): integrates Langevin equation
-* `physics::damped_leapfrog`: Damped "leapfrog" method (1 stage)
 * `physics::isokinetic_leapfrog`: Isokinetic "leapfrog" method (2nd order, 1 stage)
 * `physics::nose_hoover`: Nosé-Hoover thermostats chain integrator (2nd order, 1 stage): it approximates a canonical (NVT) ensemble
 * `physics::martyna_tobias_klein`: Martyna-Tobias-Klein equations integrator (2nd order, 1 stage): it approximates an isothermal-isobaric (NPT) ensemble
@@ -179,11 +173,7 @@ Some currently available numerical integrators are:
   * `physics::butcher6`: Butcher method (6th order, 7 stages)
   * `physics::verner8`: Verner method (8th order, 11 stages)
 
-It is possible to set a custom time step (in picoseconds) by adding a parameter to the `step` method:
-```c++
-    my_system.step(5e-4);
-```
-The biggest value for the time step so that leapfrog integration is stable is `2e-3` (2 femtoseconds, 1 is the default). This value corresponds more or less the same order of magnitude of the vibration period of O–H bonds.
+The biggest value for the time step so that leapfrog integration is stable is `2_fs`. This value corresponds more or less the same order of magnitude of the vibration period of O–H bonds.
 
 To create a window, simply do:
 ```c++
@@ -197,19 +187,15 @@ int main()
     return 0;
 }
 ```
-To draw a frame of our system inside it, call the method:
-```c++
-    my_window.draw(my_system);
-```
-If we want to simulate the system until the window is closed:
+If we want to simulate the system and draw the configuration at each step until the window is closed, we can write:
 ```c++
     while (!my_window.should_close())
     {
-        my_system.step();
+        my_integ.step(my_system, 1_fs);
         my_window.draw(my_system);
     }
 ```
-For more examples, see the `examples` directory in this repository.
+For some examples, see the `examples` directory in this repository.
 <!--- __________________________________________________________ --->
 
 ### Ewald summation
@@ -381,7 +367,7 @@ where <img src="https://latex.codecogs.com/svg.image?P"/> is the reference press
 <img src="https://latex.codecogs.com/svg.image?\alpha=1%2B\frac{d}{g}"/>
 </div>
 
-where <img src="https://latex.codecogs.com/svg.image?d"/> is the number of dimensions, so that for a system with no constraints <img src="https://latex.codecogs.com/svg.image?g=Nd"/>. Furthermore, <img src="https://latex.codecogs.com/svg.image?p_{\eta_1}"/> and <img src="https://latex.codecogs.com/svg.image?p_{\eta_1^{%27}}"/> are Nosé-Hoover thermostats momenta, which can be chained as described in the previous paragraph, while <img src="https://latex.codecogs.com/svg.image?p_{\epsilon}"/> and <img src="https://latex.codecogs.com/svg.image?W"/> are the momenta and the inertia associated to the barostat (strain) respectively. The (conserved) Hamiltonian for this extended system is:
+where <img src="https://latex.codecogs.com/svg.image?d"/> is the number of dimensions, so that, for a system with no constraints, the number of degrees of freedom is <img src="https://latex.codecogs.com/svg.image?g=Nd"/>. Furthermore, <img src="https://latex.codecogs.com/svg.image?p_{\eta_1}"/> and <img src="https://latex.codecogs.com/svg.image?p_{\eta_1^{%27}}"/> are Nosé-Hoover thermostats momenta, which can be chained as described in the previous paragraph, while <img src="https://latex.codecogs.com/svg.image?p_{\epsilon}"/> and <img src="https://latex.codecogs.com/svg.image?W"/> are the momenta and the inertia associated to the barostat (strain) respectively. The (conserved) Hamiltonian for this extended system is:
 
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\mathcal{H}_{tot}=\mathcal{T}%2B\mathcal{V}%2BPV%2B\frac{p_{\epsilon}^2}{2W}%2B\sum_{j=1}^M\left(\frac{p_{\eta_j}^2}{2Q_j}%2B\frac{p_{\eta_j^{%27}}^2}{2Q_j^{%27}}%2Bk_BT\eta_j^{%27}\right)%2Bgk_BT\eta_1%2B\sum_{j=2}^Mk_BT\eta_j"/>

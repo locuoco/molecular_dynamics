@@ -61,6 +61,10 @@ namespace physics
 	template <std::floating_point T = double>
 	inline constexpr T kg_per_m3 = 6.02214076e-4L;
 
+	// 1 g/cm^3 in AKMA units
+	template <std::floating_point T = double>
+	inline constexpr T g_per_cm3 = 6.02214076e-1L;
+
 	// 1 picosecond (1 ps = 10^-12 s) in AKMA units
 	template <std::floating_point T = double>
 	inline constexpr T picosecond = 20.4548282844073286665866518779L;
@@ -79,19 +83,15 @@ namespace physics
 
 	// density of ice in AKMA units (u.m.a. / A^3)
 	template <std::floating_point T = double>
-	inline constexpr T ice_density = 0.552230307692L;
+	inline constexpr T ice_density = 917*kg_per_m3<long double>;
 
 	// density of water at 4 °C in AKMA units (a.m.u. / A^3)
 	template <std::floating_point T = double>
-	inline constexpr T water_density4 = 0.602214076L;
+	inline constexpr T water_density4 = 1000*kg_per_m3<long double>;
 
 	// density of water at 25 °C in AKMA units (a.m.u. / A^3)
 	template <std::floating_point T = double>
-	inline constexpr T water_density25 = 0.600407433772L;
-
-	// density of TIP3P water at 25 °C in AKMA units (a.m.u. / A^3)
-	template <std::floating_point T = double>
-	inline constexpr T tip3p_density25 = 0.59016979448L;
+	inline constexpr T water_density25 = 997.13L*kg_per_m3<long double>;
 
 	// water molecular mass (in atomic mass units)
 	template <std::floating_point T = double>
@@ -120,6 +120,41 @@ namespace physics
 	// CsCl lattice constant
 	template <std::floating_point T = double>
 	inline constexpr T cscl_lattice = 4.119L;
+
+	namespace literals
+	{
+		// literals suffixes to convert to AKMA units
+
+		// picoseconds to AKMA units
+		constexpr long double operator""_ps(long double x)
+		{
+			return x * picosecond<long double>;
+		}
+		constexpr long double operator""_ps(unsigned long long x)
+		{
+			return x * picosecond<long double>;
+		}
+
+		// femtoseconds to AKMA units
+		constexpr long double operator""_fs(long double x)
+		{
+			return x * femtosecond<long double>;
+		}
+		constexpr long double operator""_fs(unsigned long long x)
+		{
+			return x * femtosecond<long double>;
+		}
+
+		// atmospheres to AKMA units
+		constexpr long double operator""_atm(long double x)
+		{
+			return x * atm<long double>;
+		}
+		constexpr long double operator""_atm(unsigned long long x)
+		{
+			return x * atm<long double>;
+		}
+	}
 
 	enum class atom_type : unsigned char
 	{
@@ -349,22 +384,16 @@ namespace physics
 
 	template <
 		std::floating_point T = double,
-		template <typename, typename> typename LRSummationT = pppm,
-		template <typename, typename, template <typename...> typename...> typename IntegT = leapfrog,
-		template <typename...> typename ... IntegPars
+		template <typename, typename> typename LRSummationT = pppm
 	>
-	requires integrator<IntegT<T, state<T, 3>, IntegPars...>, T, state<T, 3>>
 	class molecular_system : public physical_system_base<T, state<T, 3>>
 	{
 		using LRSum = LRSummationT<T, state<T, 3>>;
-		using Integ = IntegT<T, state<T, 3>, IntegPars...>;
 
 		std::normal_distribution<T> n_dist = std::normal_distribution<T>(0, 1);
 		T kin; // kinetic energy
 
 		public:
-
-		using scalar_type = T;
 
 		state<T, 3> x, p, v, f; // position, momentum, velocity, force
 		state<T, 3> noise;      // gaussian noise
@@ -379,7 +408,6 @@ namespace physics
 			// total mass, total charge, sum of charges^2, trace of dispersion matrix, sum of all dispersion terms coefficients
 		unsigned n = 0, dof = 0; // total number of atoms, degrees of freedom
 		utils::thread_pool tp; // thread pool
-		Integ integ; // integrator
 		LRSum lrsum; // long-range summation algorithm
 		std::mt19937_64 mersenne_twister = std::mt19937_64(0);
 		T side, temperature_ref, pressure_ref; // box side, reference temperature (for constant-T), reference pressure (for constant-P)
@@ -387,15 +415,14 @@ namespace physics
 		T t = 0, potential, virial, D; // time, potential energy, virial, diffusion coefficient
 		bool rescale_temperature = false, first_step = true, dispersion_correction = true;
 
-		molecular_system(T temp = 298.15, T p = 1*atm<T>, T side = 50, T D = DW25<T>, Integ integ = Integ(), LRSum lrsum = LRSum())
+		molecular_system(T temp = 298.15, T p = 1*atm<T>, T side = 50, T D = DW25<T>, LRSum lrsum = LRSum())
 		// constructor:
 		// `side` is the side of the cubic box of the system to simulate (in angstrom)
 		// `temp` is the temperature to give to the initial configuration and reference temperature (in Kelvin)
 		// `p` is the reference pressure (in AKMA units)
 		// `D` is the diffusion coefficient used in stochastic integrators (in AKMA units)
-		// `integ` is the integrator to be used
 		// `lrsum` is the long-range summation algorithm to be used
-			: integ(integ), lrsum(lrsum), side(side), temperature_ref(temp), pressure_ref(p), D(D)
+			: lrsum(lrsum), side(side), temperature_ref(temp), pressure_ref(p), D(D)
 		{}
 
 		void add_molecule(const molecule<T>& mol, const vec3<T>& pos = 0)
@@ -587,6 +614,7 @@ namespace physics
 
 		T total_energy()
 		// total energy of the system in kcal/mol
+		// `force` must be called before this method so that the potential is updated.
 		{
 			return kinetic_energy() + potential;
 		}
@@ -645,27 +673,6 @@ namespace physics
 		{
 			fetch();
 			return (virial - dot(x, f)) / (3*volume());
-		}
-
-		void step(T dt = 1e-3L)
-		// perform an integration step of `dt` picoseconds
-		{
-			fetch();
-			integ.step(*this, T(dt * picosecond<T>), first_step);
-			first_step = false;
-
-			// rescale temperature if asked for
-			if (rescale_temperature)
-				rescale_temp();
-		}
-
-		void simulate(std::size_t n_steps, T dt = 1e-3L)
-		// make a simulation of `n_steps` steps with an integration step of `dt` picoseconds.
-		// Same as:
-		//	for (size_t i = 0; i < n_steps; ++i) step(dt);
-		{
-			for (std::size_t i = 0; i < n_steps; ++i)
-				step(dt);
 		}
 
 		const state<T, 3>& force(bool eval = true) override
@@ -758,6 +765,17 @@ namespace physics
 			gamma = (kT_ref() / D) / m;
 		}
 
+		void rescale_temp()
+		// rescale the temperature of the system to a temperature fixed by the member
+		// variable: temperature_ref
+		{
+			using std::sqrt;
+
+			T temp = temperature();
+			if (temp > 0)
+				p *= sqrt(temperature_ref / temp);
+		}
+
 		void fetch()
 		// during simulation, a std::valarray because its implementation supports efficient
 		// expression templates through operator overloading, making it a more useful choice
@@ -798,17 +816,6 @@ namespace physics
 			copy(begin(v), end(v), begin(v_tmp));
 			copy(begin(f), end(f), begin(f_tmp));
 			copy(begin(m), end(m), begin(m_tmp));
-		}
-
-		void rescale_temp()
-		// rescale the temperature of the system to a temperature fixed by the member
-		// variable: temperature_ref
-		{
-			using std::sqrt;
-
-			T temp = temperature();
-			if (temp > 0)
-				p *= sqrt(temperature_ref / temp);
 		}
 
 		vec3<T> gen_gaussian()
@@ -1075,12 +1082,8 @@ namespace physics
 			first_step(other.first_step), dispersion_correction(other.dispersion_correction)
 		{}
 
-		template <
-			template <typename, typename, template <typename...> typename...> typename IntegU,
-			template <typename, typename> typename LRSummationU,
-			template <typename...> typename ... IntegPars2
-		>
-		molecular_system(const molecular_system<T, IntegU, LRSummationU, IntegPars2...>& other)
+		template <template <typename, typename> typename LRSummationU>
+		molecular_system(const molecular_system<T, LRSummationU>& other)
 		// template copy constructor
 			: x(other.x), p(other.p), v(other.v), f(other.f), noise(other.noise), m(other.m), gamma(other.gamma),
 			x_tmp(other.x_tmp), p_tmp(other.p_tmp), v_tmp(other.v_tmp), f_tmp(other.f_tmp), m_tmp(other.m_tmp),
@@ -1134,12 +1137,8 @@ namespace physics
 			return *this;
 		}
 
-		template <
-			template <typename, typename, template <typename...> typename...> typename IntegU,
-			template <typename, typename> typename LRSummationU,
-			template <typename...> typename ... IntegPars2
-		>
-		molecular_system& operator=(const molecular_system<T, IntegU, LRSummationU, IntegPars2...>& other)
+		template <template <typename, typename> typename LRSummationU>
+		molecular_system& operator=(const molecular_system<T, LRSummationU>& other)
 		// template copy-assignment operator
 		{
 			x = other.x; p = other.p;

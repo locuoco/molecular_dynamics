@@ -21,46 +21,69 @@
 
 namespace physics
 {
-	template <typename T, typename State>
-	struct integrator_base {};
+	template <typename System>
+	struct integrator_base
+	{
+		bool first_step = true;
 
-	// All integrators derive from `integrator_base` and will have a template method
+		virtual ~integrator_base() = default;
+
+		virtual void step(System& s, scalar_type_of<System> dt) = 0;
+
+		void simulate(System& s, scalar_type_of<System> dt, std::size_t n_steps)
+		// Integrate for `n_steps` steps.
+		// Same as:
+		//	for (std::size_t i = 0; i < n_steps; ++i) step(s, dt);
+		{
+			for (std::size_t i = 0; i < n_steps; ++i)
+				step(s, dt);
+		}
+
+		void reset()
+		// reset integrator (for a new simulation)
+		{
+			first_step = true;
+		}
+	};
+
+	// All integrators derive from `integrator_base` and will have a method
 	// called `step` with the following signature:
 
-	//		template <constraint<T, State> System>
-	//		void step(System& s, T dt, bool first_step = false);
+	//		void step(System& s, scalar_type_of<System> dt);
 
-	// where `T` and `State` are template arguments of the integrator class,
-	// while `constraint` is a template concept that puts constraints to the
-	// generic `System` class, depending on the integrator (see also physical_system.hpp).
+	// where `System` is the template argument of the integrator class, corresponding to
+	// the class of the system to integrate.
 	// `dt` is the integration step and `first_step` is a boolean flag that shall
 	// be set to true for the first integration step.
 
-	// Important notice: these base classes are not meant for OOP! (there are no virtual methods).
-	// They are only used for constrained generic programming (concepts).
-
-	template <typename T, typename State>
-	struct symplectic_integrator_base : integrator_base<T, State> {};
+	template <typename System>
+	struct symplectic_integrator_base : virtual integrator_base<System>
 	// Inherit from this class if the following assumption about the problem
 	// to be solved is thought to be valid:
 	// 	H = T(p) + V(x), with f = -grad V(x) and v = grad T(p)
 	// Furthermore, H must be explicitly independent on time
+	{
+		virtual ~symplectic_integrator_base() = default;
+	};
 
-	template <typename T, typename State>
-	struct stochastic_integrator_base : integrator_base<T, State> {};
+	template <typename System>
+	struct stochastic_integrator_base : virtual integrator_base<System>
 	// Inherit from this class if the integrator is stochastic (which could
 	// arise in the resolution of stochastic processes)
+	{
+		virtual ~stochastic_integrator_base() = default;
+	};
 
 	// concepts associated to these template classes (can be used as constraints in template
 	// type arguments)
-	template <typename Integ, typename T, typename State>
-	concept integrator = std::is_base_of_v<integrator_base<T, State>, Integ>;
+	template <typename Integ, typename System>
+	concept integrator = std::is_base_of_v<integrator_base<System>, Integ>;
 
-	template <typename Integ, typename T, typename State>
-	concept symplectic_integrator = std::is_base_of_v<symplectic_integrator_base<T, State>, Integ>;
+	template <typename Integ, typename System>
+	concept symplectic_integrator = std::is_base_of_v<symplectic_integrator_base<System>, Integ>;
 
-	template <typename Integ, typename T, typename State>
-	concept stochastic_integrator = std::is_base_of_v<stochastic_integrator_base<T, State>, Integ>;
+	template <typename Integ, typename System>
+	concept stochastic_integrator = std::is_base_of_v<stochastic_integrator_base<System>, Integ>;
 
 } // namespace physics
 

@@ -18,7 +18,11 @@ echo ======== PPPM ========
 echo ======== TENSOR ========
 ./tensor.sh
 ./tensor
-cd ../utils
+cd ./integrator
+echo ======== INTEGRATOR ========
+./integrator.sh
+./integrator
+cd ../../utils
 echo ======== PARALLEL_SORT ========
 ./parallel_sort.sh
 ./parallel_sort

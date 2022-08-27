@@ -30,23 +30,28 @@ namespace physics
 	// The `eval` argument will be true if a new evaluation of the forces or the velocities is probably required,
 	// and false if it is not (because it would give the same result as the last evaluation). If the actual
 	// values are stored internally, the implementation may take advantage of this.
-	// Note: a reference to const is returned, so returning a temporary object is allowed because C++
-	// ensures temporaries to have lifetime extended for the whole duration of the lifetime of the reference to const.
 	{
+		using scalar_type = T;
+		using state_type = State;
+
 		virtual const State& force(bool eval = true) = 0;
 		virtual const State& vel(bool eval = true) = 0;
 		virtual ~physical_system_base() = default;
 	};
 
-	template <typename System, typename T, typename State>
-	concept physical_system = std::is_base_of_v<physical_system_base<T, State>, System>;
-	// A `physical_system` is any class that is derived from a `physical_system_base` template class,
-	// where `T`, being the scalar type, and `State`, being a vector type, must be specified.
-	// For example, `State x;` may define the positions of the particles of the system.
+	template <typename System>
+	using scalar_type_of = typename System::scalar_type;
 
-	template <typename System, typename T, typename State>
-	concept having_coordinates = physical_system<System, T, State>
-		&& requires(System& s, T dt)
+	template <typename System>
+	using state_type_of = typename System::state_type;
+
+	template <typename System>
+	concept physical_system = std::is_base_of_v<physical_system_base<scalar_type_of<System>, state_type_of<System>>, System>;
+	// A `physical_system` is any class that is derived from a `physical_system_base` template class.
+
+	template <typename System>
+	concept having_coordinates = physical_system<System>
+		&& requires(System& s, scalar_type_of<System> dt)
 	// A system `having_coordinates` requires to be a physical system
 	// and has `x` (positions), `p` (momenta) and `t` (time coordinate) defined.
 	// The following operations are required to be defined.

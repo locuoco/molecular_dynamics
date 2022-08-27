@@ -25,9 +25,9 @@
 
 namespace physics
 {
-	template <typename System, typename T, typename State>
-	concept coulomb_and_lj = physical_system<System, T, State>
-		&& requires(System& s, T t, std::size_t i)
+	template <typename System>
+	concept coulomb_and_lj = physical_system<System>
+		&& requires(System& s, scalar_type_of<System> t, std::size_t i)
 	// A `coulomb_and_lj` system `s` is a `physical_system` so that the following
 	// instructions are well-formed (compilable).
 	// `n` is the number of atoms.
@@ -51,9 +51,9 @@ namespace physics
 			s.virial += dot(s.x[i], s.x[i]);
 		};
 
-	template <typename System, typename T, typename State>
-	concept coulomb_and_lj_periodic = coulomb_and_lj<System, T, State>
-		&& requires(System& s, std::size_t i, T t)
+	template <typename System>
+	concept coulomb_and_lj_periodic = coulomb_and_lj<System>
+		&& requires(System& s, scalar_type_of<System> t, std::size_t i)
 	// A `coulomb_and_lj_periodic` system `s` is a `coulomb_and_lj` system so that the following
 	// instructions are well-formed (compilable).
 	// `side` must be the side of the simulation box.
@@ -67,9 +67,17 @@ namespace physics
 			t += s.Z2;
 		};
 
-	template <bool Bidirectional, typename T, typename System>
-	void eval_direct(System& s, T& uC, T& uLJ, T& vLJ, std::size_t i, std::size_t j,
-		std::add_const_t<std::remove_reference_t<decltype(System::x[i])>>& r, T r2)
+	template <bool Bidirectional, coulomb_and_lj System>
+	void eval_direct(
+		System&                                                            s,
+		scalar_type_of<System>&                                            uC,
+		scalar_type_of<System>&                                            uLJ,
+		scalar_type_of<System>&                                            vLJ,
+		std::size_t                                                        i,
+		std::size_t                                                        j,
+		std::add_const_t<std::remove_reference_t<decltype(System::x[i])>>& r,
+		scalar_type_of<System>                                             r2
+	)
 	// compute force between two particles `i` and `j`. It represents a single
 	// iteration of a direct summation.
 	// `s` is the physical system (`coulomb_and_lj` constraints required).
@@ -89,15 +97,15 @@ namespace physics
 	{
 		using std::sqrt;
 
-		T Rij = s.lj_halfR[i] + s.lj_halfR[j];
+		scalar_type_of<System> Rij = s.lj_halfR[i] + s.lj_halfR[j];
 
-		T r2_ = 1/r2;
-		T d_ = sqrt(r2_);
-		T t = Rij * Rij * r2_;
+		scalar_type_of<System> r2_ = 1/r2;
+		scalar_type_of<System> d_ = sqrt(r2_);
+		scalar_type_of<System> t = Rij * Rij * r2_;
 		t = t * t * t;
-		T epsijt = s.lj_sqrteps[i] * s.lj_sqrteps[j] * t;
-		T coulomb = s.z[i] * s.z[j] * d_;
-		T lennard_jones = 12 * epsijt * (t - 1);
+		scalar_type_of<System> epsijt = s.lj_sqrteps[i] * s.lj_sqrteps[j] * t;
+		scalar_type_of<System> coulomb = s.z[i] * s.z[j] * d_;
+		scalar_type_of<System> lennard_jones = 12 * epsijt * (t - 1);
 		auto fij = ((lennard_jones + coulomb) * r2_) * r;
 		s.f[i] += fij;
 		if constexpr (Bidirectional)
@@ -107,8 +115,15 @@ namespace physics
 		vLJ += lennard_jones;
 	}
 
-	template <bool Bidirectional, typename T, typename System>
-	void eval_direct(System& s, T& uC, T& uLJ, T& vLJ, std::size_t i, std::size_t j)
+	template <bool Bidirectional, coulomb_and_lj System>
+	void eval_direct(
+		System&                 s,
+		scalar_type_of<System>& uC,
+		scalar_type_of<System>& uLJ,
+		scalar_type_of<System>& vLJ,
+		std::size_t             i,
+		std::size_t             j
+	)
 	// compute force between two particles `i` and `j`. It represents a single
 	// iteration of a direct summation.
 	// `s` is the physical system (`coulomb_and_lj` constraints required).
@@ -124,7 +139,7 @@ namespace physics
 	// particles and then calls eval_direct<Bidirectional>(s, uC, uLJ, v, i, j, r, r2).
 	{
 		auto r = s.x[i] - s.x[j];
-		T r2 = dot(r, r);
+		scalar_type_of<System> r2 = dot(r, r);
 		eval_direct<Bidirectional>(s, uC, uLJ, vLJ, i, j, r, r2);
 	}
 
@@ -140,7 +155,7 @@ namespace physics
 			return 0;
 		}
 
-		template <coulomb_and_lj<T, State> System>
+		template <coulomb_and_lj System>
 		void operator()(System& s)
 		// single-threaded implementation
 		// `s` is the physical system.
@@ -154,7 +169,7 @@ namespace physics
 			s.virial += energy_coulomb;
 		}
 
-		template <coulomb_and_lj<T, State> System>
+		template <coulomb_and_lj System>
 		void operator()(System& s, utils::thread_pool& tp)
 		// multi-threaded implementation
 		// `s` is the physical system (`coulomb_and_lj` constraints required).
@@ -216,7 +231,7 @@ namespace physics
 			return 0;
 		}
 
-		template <coulomb_and_lj_periodic<T, State> System>
+		template <coulomb_and_lj_periodic System>
 		void operator()(System& s, utils::thread_pool& tp)
 		// multi-threaded implementation
 		// `s` is the physical system (`coulomb_and_lj_periodic` constraints required).

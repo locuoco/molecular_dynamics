@@ -1,4 +1,4 @@
-//  Molecular dynamics example: caesium chloride lattice
+//  Molecular dynamics example: water drop
 //  Copyright (C) 2022 Alessandro Lo Cuoco (alessandro.locuoco@gmail.com)
 
 //  This program is free software: you can redistribute it and/or modify
@@ -15,12 +15,12 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <sstream>
-#include <limits> // infinity
+#include <cmath> // sqrt
 
 /*
 
 Compilation:
-g++ caesium_chloride.cpp -o caesium_chloride -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\Users\aless\Desktop\myLib\lib -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1
+g++ drop.cpp -o drop -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\Users\aless\Desktop\myLib\lib -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1
 
 */
 
@@ -33,29 +33,35 @@ int main()
 {
 	graphics window;
 
-	unsigned n_side = 12; // 12x12x12 = 1728 unit cubic cells = 3456 ions
+	double dist = std::cbrt(physics::water_mass<> / physics::water_density25<>);
+
+	unsigned n_side = 4; // 4x4x4 = 64 water molecules
 
 	using my_molecular_system = physics::molecular_system<double, physics::pppm>;
 
 	my_molecular_system molsys;
-	physics::nose_hoover<my_molecular_system> integ;
+	physics::isokinetic_leapfrog<my_molecular_system> integ;
 
-	// set dielectric to infinity to ignore dipole correction
-	molsys.lrsum.dielectric(std::numeric_limits<double>::infinity());
-
+	molsys.temperature_ref = 273.15+50;
 	molsys.lrsum.cell_multiplier(1);
 
-	molsys.primitive_cubic_lattice(n_side, physics::cscl_lattice<>, physics::caesium_ion<>, physics::chloride_ion<>);
+	// set a simple cubic lattice as initial condition
+	molsys.primitive_cubic_lattice(n_side, dist, physics::water_fba_eps<>);
+
+	molsys.side *= 3;
 
 	while (!window.should_close())
 	{
-		integ.step(molsys, 4_fs);
 		std::stringstream custom_text;
+
+		integ.simulate(molsys, 1_fs, 10);
+
 		custom_text << "Ewald parameter = " << molsys.lrsum.ewald_par();
 		custom_text << " A^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;
 		custom_text << " kcal/(mol A)\nEstimated dispersion force RMSE = " << molsys.lrsum.estimated_error_lj;
 		custom_text << " kcal/(mol A)\nEstimated total force RMSE = " << molsys.lrsum.estimated_error;
-		// the primitive cubic structure is stable!
+
+		// draw all steps in real time
 		window.draw(molsys, custom_text.str());
 	}
 

@@ -27,13 +27,18 @@ g++ rocksalt.cpp -o rocksalt -std=c++20 -I C:\Users\aless\Desktop\myLib\include 
 #include "../physics/physics.hpp"
 #include "../gui/graphics.hpp"
 
+using namespace physics::literals;
+
 int main()
 {
 	graphics window;
 
 	unsigned n_side = 8; // 8x8x8 = 512 unit cubic cells = 4096 ions
 
-	physics::molecular_system<double, physics::pppm, physics::nose_hoover> molsys;
+	using my_molecular_system = physics::molecular_system<double, physics::pppm>;
+
+	my_molecular_system molsys;
+	physics::nose_hoover<my_molecular_system> integ;
 
 	// set dielectric to infinity to ignore dipole correction
 	molsys.lrsum.dielectric(std::numeric_limits<double>::infinity());
@@ -44,7 +49,7 @@ int main()
 
 	while (!window.should_close())
 	{
-		molsys.step(4e-3);
+		integ.step(molsys, 4_fs);
 		std::stringstream custom_text;
 		custom_text << "Ewald parameter = " << molsys.lrsum.ewald_par();
 		custom_text << " A^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;

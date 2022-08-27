@@ -21,26 +21,30 @@
 
 namespace physics
 {
-	template <typename T, typename State>
-	struct runge_kutta_base {};
+	template <having_coordinates System>
+	struct runge_kutta_base : virtual integrator_base<System>
 	// all Runge-Kutta methods inherit from this class
+	{
+		virtual ~runge_kutta_base() = default;
+	};
 
-	template <typename Integ, typename T, typename State>
-	concept runge_kutta_method = std::is_base_of_v<runge_kutta_base<T, State>, Integ>;
+	template <typename Integ, typename System>
+	concept runge_kutta_method = std::is_base_of_v<runge_kutta_base<System>, Integ>;
 
-	template <typename T, typename State, std::size_t Stages>
-	struct explicit_runge_kutta_base : runge_kutta_base<T, State>
+	template <having_coordinates System, std::size_t Stages>
+	struct explicit_runge_kutta_base : virtual runge_kutta_base<System>
 	// all explicit Runge-Kutta methods inherit from this class
 	// `Stages` is the number of stages of the method (number of force evaluations).
 	{
 		template <typename ... Ts>
 		requires (sizeof...(Ts) == Stages*Stages)
-		explicit_runge_kutta_base(Ts ... pars) : pars{T(pars)...} {}
+		explicit_runge_kutta_base(Ts ... pars) : pars{scalar_type_of<System>(pars)...} {}
 		// constructor: `pars...` is a variadic argument which contains
 		// the parameters for the explicit Runge-Kutta method
 
-		template <having_coordinates<T, State> System>
-		void step(System& s, T dt, bool first_step = false) const
+		virtual ~explicit_runge_kutta_base() = default;
+
+		void step(System& s, scalar_type_of<System> dt) override
 		{
 			using std::size_t;
 
@@ -49,7 +53,7 @@ namespace physics
 			prev_t = s.t;
 
 			kx[0] = s.vel();
-			kp[0] = s.force(first_step);
+			kp[0] = s.force(runge_kutta_base<System>::first_step);
 			for (size_t i = 1; i < Stages; ++i)
 			{
 				s.x = 0;
@@ -57,7 +61,7 @@ namespace physics
 				// sum smaller contributes (in dt) first to minimize rounding errors
 				for (size_t j = 0; j < i; ++j)
 				{
-					T mult = pars[(i-1)*Stages + j+1] * dt;
+					scalar_type_of<System> mult = pars[(i-1)*Stages + j+1] * dt;
 					s.x += kx[j] * mult;
 					s.p += kp[j] * mult;
 				}
@@ -73,7 +77,7 @@ namespace physics
 			s.p = 0;
 			for (size_t i = 0; i < Stages; ++i)
 			{
-				T mult = pars[(Stages-1)*Stages + i] * dt;
+				scalar_type_of<System> mult = pars[(Stages-1)*Stages + i] * dt;
 				s.x += kx[i] * mult;
 				s.p += kp[i] * mult;
 			}
@@ -81,73 +85,76 @@ namespace physics
 			s.p += prev_p;
 			s.t = prev_t + dt;
 			s.force();
+			runge_kutta_base<System>::first_step = false;
 		}
 
 		private:
 
-			const std::array<T, Stages*Stages> pars;
-			State kx[Stages], kp[Stages], prev_x, prev_p;
-			T prev_t;
+			const std::array<scalar_type_of<System>, Stages*Stages> pars;
+			state_type_of<System> kx[Stages], kp[Stages], prev_x, prev_p;
+			scalar_type_of<System> prev_t;
 	};
 
-	template <typename Integ, typename T, typename State, std::size_t Stages>
-	concept explicit_runge_kutta_method = std::is_base_of_v<explicit_runge_kutta_base<T, State, Stages>, Integ>;
+	template <typename Integ, typename System, std::size_t Stages>
+	concept explicit_runge_kutta_method = std::is_base_of_v<explicit_runge_kutta_base<System, Stages>, Integ>;
 
-	template <typename T, typename State>
-	struct euler : explicit_runge_kutta_base<T, State, 1>
+	template <having_coordinates System>
+	struct euler : explicit_runge_kutta_base<System, 1>
 	// Euler method (1st order, 1 stage)
 	{
 		euler()
-			: explicit_runge_kutta_base<T, State, 1>{1}
+			: explicit_runge_kutta_base<System, 1>{1}
 		{}
 	};
 
-	template <typename T, typename State>
-	struct rk2 : explicit_runge_kutta_base<T, State, 2>
+	template <having_coordinates System>
+	struct rk2 : virtual explicit_runge_kutta_base<System, 2>
 	// Parametrized Runge-Kutta 2 method (2nd order, 2 stages)
 	// All second-order explicit Runge-Kutta methods can be written
 	// as setting the parameter of this method properly
 	{
 		rk2(long double a)
 		// constructor: `a` is the parameter of the parametrized Runge-Kutta 2 method
-			: explicit_runge_kutta_base<T, State, 2>
+			: explicit_runge_kutta_base<System, 2>
 			{
 				a, a,
 				1 - 1/(2*a), 1/(2*a)
 			}
 		{}
+
+		virtual ~rk2() = default;
 	};
 
-	template <typename T, typename State>
-	struct midpoint : rk2<T, State>
+	template <having_coordinates System>
+	struct midpoint : rk2<System>
 	// Midpoint method (2nd order, 2 stages)
 	{
-		midpoint() : rk2<T, State>(.5L)
+		midpoint() : rk2<System>(.5L)
 		{}
 	};
 
-	template <typename T, typename State>
-	struct heun2 : rk2<T, State>
+	template <having_coordinates System>
+	struct heun2 : rk2<System>
 	// Heun method (2nd order, 2 stages)
 	{
-		heun2() : rk2<T, State>(1)
+		heun2() : rk2<System>(1)
 		{}
 	};
 
-	template <typename T, typename State>
-	struct ralston2 : rk2<T, State>
+	template <having_coordinates System>
+	struct ralston2 : rk2<System>
 	// Ralston method (2nd order, 2 stages)
 	{
-		ralston2() : rk2<T, State>(2/3.L)
+		ralston2() : rk2<System>(2/3.L)
 		{}
 	};
 
-	template <typename T, typename State>
-	struct rk4 : explicit_runge_kutta_base<T, State, 4>
+	template <having_coordinates System>
+	struct rk4 : explicit_runge_kutta_base<System, 4>
 	// Classical Runge-Kutta 4 method (4th order, 4 stages)
 	{
 		rk4()
-			: explicit_runge_kutta_base<T, State, 4>
+			: explicit_runge_kutta_base<System, 4>
 			{
 				.5L, .5L, 0, 0,
 				.5L, 0, .5L, 0,
@@ -157,12 +164,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State>
-	struct rk4_38 : explicit_runge_kutta_base<T, State, 4>
+	template <having_coordinates System>
+	struct rk4_38 : explicit_runge_kutta_base<System, 4>
 	// 3/8-rule Runge-Kutta 4 method (4th order, 4 stages)
 	{
 		rk4_38()
-			: explicit_runge_kutta_base<T, State, 4>
+			: explicit_runge_kutta_base<System, 4>
 			{
 				1/3.L, 1/3.L, 0, 0,
 				2/3.L, -1/3.L, 1, 0,
@@ -172,12 +179,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State>
-	struct ralston4 : explicit_runge_kutta_base<T, State, 4>
+	template <having_coordinates System>
+	struct ralston4 : explicit_runge_kutta_base<System, 4>
 	// Ralston method (4th order, 4 stages)
 	{
 		ralston4()
-			: explicit_runge_kutta_base<T, State, 4>
+			: explicit_runge_kutta_base<System, 4>
 			{
 				.4L, .4L, 0, 0,
 				.45573725L, .29697761L, .15875964L, 0,
@@ -187,12 +194,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State>
-	struct butcher6 : explicit_runge_kutta_base<T, State, 7>
+	template <having_coordinates System>
+	struct butcher6 : explicit_runge_kutta_base<System, 7>
 	// Butcher method (6th order, 7 stages)
 	{
 		butcher6()
-			: explicit_runge_kutta_base<T, State, 7>
+			: explicit_runge_kutta_base<System, 7>
 			{
 				1/3.L, 1/3.L, 0, 0, 0, 0, 0,
 				2/3.L, 0, 2/3.L, 0, 0, 0, 0,
@@ -205,12 +212,12 @@ namespace physics
 		{}
 	};
 
-	template <typename T, typename State>
-	struct verner8 : explicit_runge_kutta_base<T, State, 11>
+	template <having_coordinates System>
+	struct verner8 : explicit_runge_kutta_base<System, 11>
 	// Verner method (8th order, 11 stages)
 	{
 		verner8()
-			: explicit_runge_kutta_base<T, State, 11>
+			: explicit_runge_kutta_base<System, 11>
 			{
 				.5L, .5L, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 				.5L, .25L, .25L, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -236,19 +243,20 @@ namespace physics
 	// H = p^2/2m + V(q)
 	// only quadratic kinetic energy!
 
-	template <typename T, typename State, std::size_t Stages>
-	struct runge_kutta_nystrom_base : runge_kutta_base<T, State>, symplectic_integrator_base<T, State>
+	template <having_coordinates System, std::size_t Stages>
+	struct runge_kutta_nystrom_base : runge_kutta_base<System>, symplectic_integrator_base<System>
 	// all Runge-Kutta-Nystrom methods inherit from this class
 	// `Stages` is the number of stages of the method (number of force evaluations).
 	{
 		template <typename ... Ts>
 		requires (sizeof...(Ts) == (Stages+1)*Stages)
-		runge_kutta_nystrom_base(Ts ... pars) : pars{T(pars)...} {}
+		runge_kutta_nystrom_base(Ts ... pars) : pars{scalar_type_of<System>(pars)...} {}
 		// constructor: `pars...` is a variadic argument which contains
 		// the parameters for the Runge-Kutta-Nystrom method
 
-		template <having_coordinates<T, State> System>
-		void step(System& s, T dt, bool first_step = false) const
+		virtual ~runge_kutta_nystrom_base() = default;
+
+		void step(System& s, scalar_type_of<System> dt) override
 		{
 			using std::size_t;
 
@@ -256,7 +264,7 @@ namespace physics
 			prev_v = s.vel();
 			prev_p = s.p;
 
-			k[0] = s.force(first_step);
+			k[0] = s.force(runge_kutta_base<System>::first_step);
 			for (size_t i = 1; i < Stages; ++i)
 			{
 				s.x = 0;
@@ -281,12 +289,13 @@ namespace physics
 			s.p += prev_p;
 			s.t += dt;
 			s.force();
+			runge_kutta_base<System>::first_step = false;
 		}
 
 		private:
 
-			const std::array<T, (Stages+1)*Stages> pars;
-			State k[Stages], prev_x, prev_v, prev_p;
+			const std::array<scalar_type_of<System>, (Stages+1)*Stages> pars;
+			state_type_of<System> k[Stages], prev_x, prev_v, prev_p;
 	};
 
 	// TODO (not needed now)

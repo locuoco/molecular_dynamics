@@ -31,11 +31,20 @@
 
 namespace physics
 {
-	template <bool Fast = true, typename T, typename System>
-	void eval_ewald_r(System& s, T& uC, T& uLJ, T& vLJ, T kappa, std::size_t i, std::size_t j,
-		std::add_const_t<std::remove_reference_t<decltype(System::x[i])>>& r, T r2)
+	template <bool Fast = true, coulomb_and_lj_periodic System>
+	void eval_ewald_r(
+		System&                                                            s,
+		scalar_type_of<System>&                                            uC,
+		scalar_type_of<System>&                                            uLJ,
+		scalar_type_of<System>&                                            vLJ,
+		scalar_type_of<System>                                             kappa,
+		std::size_t                                                        i,
+		std::size_t                                                        j,
+		std::add_const_t<std::remove_reference_t<decltype(System::x[i])>>& r,
+		scalar_type_of<System>                                             r2
+	)
 	// Calculate the real space part of Ewald summation between two particles `i` and `j`.
-	// `s` is the physical system (`coulomb_and_lj` constraints required).
+	// `s` is the physical system (`coulomb_and_lj_periodic` constraints required).
 	// `uC` is a variable which accumulates the electrostatic potential energy.
 	// `uLJ` is a variable which accumulates the Lennard-Jones potential energy.
 	// `vLJ` is a variable which accumulates the Lennard-Jones virial.
@@ -50,36 +59,43 @@ namespace physics
 	// the same time, but Ewald summation is performed only for Coulomb potential.
 	{
 		using std::sqrt;
+		using scalar_type = scalar_type_of<System>;
 
-		T Rij = s.lj_halfR[i] + s.lj_halfR[j];
+		scalar_type Rij = s.lj_halfR[i] + s.lj_halfR[j];
 
-		T r2_ = 1/r2;
-		T d = sqrt(r2);
-		T d_ = 1/d;
-		T kd = kappa * d;
-		T t = Rij * Rij * r2_;
+		scalar_type r2_ = 1/r2, d = sqrt(r2), d_ = 1/d;
+		scalar_type kd = kappa * d;
+		scalar_type t = Rij * Rij * r2_;
 		t = t * t * t;
-		T epsijt = s.lj_sqrteps[i] * s.lj_sqrteps[j] * t;
-		T zij_d = s.z[i] * s.z[j] * d_;
-		T coulomb;
+		scalar_type epsijt = s.lj_sqrteps[i] * s.lj_sqrteps[j] * t;
+		scalar_type zij_d = s.z[i] * s.z[j] * d_;
+		scalar_type coulomb;
 		if constexpr (Fast)
 			coulomb = zij_d * math::fasterfc(kd);
 		else
 			coulomb = zij_d * std::erfc(kd);
-		T lennard_jones = 12 * epsijt * (t - 1);
+		scalar_type lennard_jones = 12 * epsijt * (t - 1);
 		decltype(-r) fij;
 		if constexpr (Fast)
-			fij = ((lennard_jones + coulomb + zij_d * (2 * std::numbers::inv_sqrtpi_v<T>) * kd * math::fastexp(-kd*kd)) * r2_) * r;
+			fij = ((lennard_jones + coulomb + zij_d * (2 * std::numbers::inv_sqrtpi_v<scalar_type>) * kd * math::fastexp(-kd*kd)) * r2_) * r;
 		else
-			fij = ((lennard_jones + coulomb + zij_d * (2 * std::numbers::inv_sqrtpi_v<T>) * kd * std::exp(-kd*kd)) * r2_) * r;
+			fij = ((lennard_jones + coulomb + zij_d * (2 * std::numbers::inv_sqrtpi_v<scalar_type>) * kd * std::exp(-kd*kd)) * r2_) * r;
 		s.f[i] += fij;
 		uC += coulomb;
 		uLJ += epsijt * (t - 2);
 		vLJ += lennard_jones;
 	}
 
-	template <bool Fast = false, typename T, typename System>
-	void eval_ewald_r(System& s, T& uC, T& uLJ, T& vLJ, T kappa, std::size_t i, std::size_t j)
+	template <bool Fast = false, coulomb_and_lj_periodic System>
+	void eval_ewald_r(
+		System&                 s,
+		scalar_type_of<System>& uC,
+		scalar_type_of<System>& uLJ,
+		scalar_type_of<System>& vLJ,
+		scalar_type_of<System>  kappa,
+		std::size_t             i,
+		std::size_t             j
+	)
 	// Calculate the real space part of Ewald summation between two particles `i` and `j`.
 	// `s` is the physical system (`coulomb_and_lj` constraints required).
 	// `uC` is a variable which accumulates the electrostatic potential energy.
@@ -93,12 +109,17 @@ namespace physics
 	// particles and then calls eval_ewald_r(s, uC, uLJ, v, kappa, i, j, r, r2).
 	{
 		auto r = remainder(s.x[i] - s.x[j], s.side);
-		T r2 = dot(r, r);
-		eval_ewald_r<Fast>(s, uC, uLJ, vLJ, kappa, i, j, r, r2);
+		eval_ewald_r<Fast>(s, uC, uLJ, vLJ, kappa, i, j, r, dot(r, r));
 	}
 
-	template <typename T, typename System>
-	void eval_ewald_scd(System& s, T& uC, T kappa, T volume, T dielectric = 1)
+	template <coulomb_and_lj_periodic System>
+	void eval_ewald_scd(
+		System&                 s,
+		scalar_type_of<System>& uC,
+		scalar_type_of<System>  kappa,
+		scalar_type_of<System>  volume,
+		scalar_type_of<System>  dielectric = 1
+	)
 	// Calculate self-energy, charged system and dipole corrections.
 	// `s` is the physical system (`coulomb_and_lj` constraints required). Additional
 	// requirements are s.Z which is the total charge of the system and s.Z2 which is the sum
@@ -111,13 +132,15 @@ namespace physics
 	// (1 for vacuum).
 	{
 		using std::size_t;
-		vec3<T> xsum = 0;
+		using scalar_type = scalar_type_of<System>;
+
+		vec3<scalar_type> xsum = 0;
 		for (size_t i = 0; i < s.n; ++i)
 			xsum += s.z[i] * s.x[i];
-		T fact = math::two_pi<T>/((1+2*dielectric)*volume);
-		T u = fact*dot(xsum, xsum); // dipole correction
-		u += -kappa*std::numbers::inv_sqrtpi_v<T> * s.Z2; // self-energy correction
-		u += -std::numbers::pi_v<T>/(2*kappa*kappa*volume)*s.Z*s.Z; // charged system correction
+		scalar_type fact = math::two_pi<scalar_type>/((1+2*dielectric)*volume);
+		scalar_type u = fact*dot(xsum, xsum); // dipole correction
+		u += -kappa*std::numbers::inv_sqrtpi_v<scalar_type> * s.Z2; // self-energy correction
+		u += -std::numbers::pi_v<scalar_type>/(2*kappa*kappa*volume)*s.Z*s.Z; // charged system correction
 		uC += u;
 		xsum *= fact*2;
 		for (size_t i = 0; i < s.n; ++i)
@@ -193,7 +216,7 @@ namespace physics
 			update = true;
 		}
 
-		template <coulomb_and_lj_periodic<T, State> System>
+		template <coulomb_and_lj_periodic System>
 		void operator()(System& s, utils::thread_pool& tp)
 		// Perform Ewald summation with multi-threading.
 		// `s` is the physical system.

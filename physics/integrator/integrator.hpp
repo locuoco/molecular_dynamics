@@ -17,44 +17,53 @@
 #ifndef PHYSICS_INTEGRATOR_INTEGRATOR_H
 #define PHYSICS_INTEGRATOR_INTEGRATOR_H
 
+#include <vector>
 #include <cmath> // exp, sqrt
 
 #include "integrator_base.hpp"
 
 namespace physics
 {
-	template <typename T, typename State>
-	struct symplectic_euler : symplectic_integrator_base<T, State>
+	template <having_coordinates System>
+	struct symplectic_euler : symplectic_integrator_base<System>
 	// Symplectic Euler method (1st order, 1 stage)
-	// It is equivalent to leapfrog after correcting the initial conditions
+	// It is equivalent to leapfrog after correcting the first and the last steps
 	{
-		template <having_coordinates<T, State> System>
-		void step(System& s, T dt, bool = false) const
+		void step(System& s, scalar_type_of<System> dt) override
 		{
-			s.p += s.force() * dt;
+			s.p += s.force(symplectic_integrator_base<System>::first_step) * dt;
 			s.x += s.vel() * dt;
 
+			s.force();
+
 			s.t += dt;
+			symplectic_integrator_base<System>::first_step = false;
 		}
 	};
 
-	template <typename T, typename State>
-	struct leapfrog : symplectic_integrator_base<T, State>
+	template <having_coordinates System>
+	struct leapfrog : symplectic_integrator_base<System>
 	// Leapfrog method (2nd order, 1 stage)
 	{
-		template <having_coordinates<T, State> System>
-		void step(System& s, T dt, bool first_step = false) const
+		void step(System& s, scalar_type_of<System> dt) override
 		{
-			s.p += s.force(first_step) * (dt/2);
+			s.p += s.force(symplectic_integrator_base<System>::first_step) * (dt/2);
 			s.x += s.vel() * dt;
 			s.p += s.force() * (dt/2);
 
 			s.t += dt;
+			symplectic_integrator_base<System>::first_step = false;
 		}
 	};
 
-	template <typename T, typename State>
-	struct multi_timestep_leapfrog : symplectic_integrator_base<T, State>
+	template <having_coordinates System>
+	requires requires(System& s, scalar_type_of<System> dt)
+		{
+			s.p += s.force_long() * dt;
+			s.p += s.force_short() * dt;
+			s.p += s.force_long(false) * dt;
+		}
+	struct multi_timestep_leapfrog : symplectic_integrator_base<System>
 	// Multi-timestep leapfrog method (2nd order, 1 long stage, n_short short stages)
 	// If the force is divided into a high frequency and a low frequency part,
 	// and the low frequency is much more expensive to compute, then this method
@@ -65,28 +74,22 @@ namespace physics
 		multi_timestep_leapfrog(std::size_t n_short = 10) : n_short(n_short)
 		{}
 
-		template <having_coordinates<T, State> System>
-		requires requires(System& s, T dt)
-			{
-				s.p += s.force_long() * dt;
-				s.p += s.force_short() * dt;
-				s.p += s.force_long(false) * dt;
-			}
-		void step(System& s, T dt, bool first_step = false) const
+		void step(System& s, scalar_type_of<System> dt) override
 		{
-			T deltat = dt/n_short;
-			s.p += s.force_long(first_step) * (dt/2);
-			s.p += s.force_short() * (deltat/2);
+			scalar_type_of<System> dt_short = dt/n_short;
+			s.p += s.force_long(symplectic_integrator_base<System>::first_step) * (dt/2);
+			s.p += s.force_short() * (dt_short/2);
 			for (std::size_t i = 0; i < n_short-1; ++i)
 			{
-				s.x += s.vel() * deltat;
-				s.p += s.force_short() * deltat;
+				s.x += s.vel() * dt_short;
+				s.p += s.force_short() * dt_short;
 			}
-			s.x += s.vel() * deltat;
-			s.p += s.force_short() * (deltat/2);
+			s.x += s.vel() * dt_short;
+			s.p += s.force_short() * (dt_short/2);
 			s.p += s.force_long() * (dt/2);
 
 			s.t += dt;
+			symplectic_integrator_base<System>::first_step = false;
 		}
 
 		private:
@@ -94,29 +97,94 @@ namespace physics
 			std::size_t n_short;
 	};
 
-	template <typename System, typename T, typename State>
-	concept having_coordinates_damped = having_coordinates<System, T, State>
-		&& requires(System& s, T dt, std::size_t i)
+	template <having_coordinates System>
+	struct pefrl : symplectic_integrator_base<System>
+	// Position-extended Forest-Ruth-like (4th order, 4 stages)
+	// OMELYAN, MRYGLOD, FOLK
+	// OPTIMIZED FOREST-RUTH- AND SUZUKI-LIKE ALGORITHMS FOR INTEGRATION
+	// OF MOTION IN MANY-BODY SYSTEMS
+	// 2008
+	// important notice: the final force (and potential energy)
+	// will not be synchronized with the final state of the system,
+	// so energy may need to be computed separately from the force.
+	// The VEFRL variant does not have this annoyance.
+	{
+		void step(System& s, scalar_type_of<System> dt) override
+		{
+			s.x += s.vel(symplectic_integrator_base<System>::first_step) * (xi * dt);
+			s.p += s.force() * ((1 - 2*lambda) * dt/2);
+			s.x += s.vel() * (chi * dt);
+			s.p += s.force() * (lambda * dt);
+			s.x += s.vel() * ((1 - 2*(chi + xi)) * dt);
+			s.p += s.force() * (lambda * dt);
+			s.x += s.vel() * (chi * dt);
+			s.p += s.force() * ((1 - 2*lambda) * dt/2);
+			s.x += s.vel() * (xi * dt);
+
+			s.t += dt;
+			symplectic_integrator_base<System>::first_step = false;
+		}
+
+		private:
+
+			static constexpr scalar_type_of<System> xi = 0.1786178958448091L;
+			static constexpr scalar_type_of<System> lambda = -0.2123418310626054L;
+			static constexpr scalar_type_of<System> chi = -0.6626458266981849e-1L;
+	};
+
+	template <having_coordinates System>
+	struct vefrl : symplectic_integrator_base<System>
+	// Velocity-extended Forest-Ruth-like (4th order, 4 stages)
+	// OMELYAN, MRYGLOD, FOLK
+	// OPTIMIZED FOREST-RUTH- AND SUZUKI-LIKE ALGORITHMS FOR INTEGRATION
+	// OF MOTION IN MANY-BODY SYSTEMS
+	// 2008
+	{
+		void step(System& s, scalar_type_of<System> dt) override
+		{
+			s.p += s.force(symplectic_integrator_base<System>::first_step) * (xi * dt);
+			s.x += s.vel() * ((1 - 2*lambda) * dt/2);
+			s.p += s.force() * (chi * dt);
+			s.x += s.vel() * (lambda * dt);
+			s.p += s.force() * ((1 - 2*(chi + xi)) * dt);
+			s.x += s.vel() * (lambda * dt);
+			s.p += s.force() * (chi * dt);
+			s.x += s.vel() * ((1 - 2*lambda) * dt/2);
+			s.p += s.force() * (xi * dt);
+
+			s.t += dt;
+			symplectic_integrator_base<System>::first_step = false;
+		}
+
+		private:
+
+			static constexpr scalar_type_of<System> xi = 0.1644986515575760L;
+			static constexpr scalar_type_of<System> lambda = -0.2094333910398989e-1L;
+			static constexpr scalar_type_of<System> chi = 0.1235692651138917e+1L;
+	};
+
+	template <typename System>
+	concept having_coordinates_damped = having_coordinates<System>
+		&& requires(System& s, scalar_type_of<System> dt, std::size_t i)
 	// A system `having_coordinates_damped` requires to be a `having_coordinates`,
 	// and has `gamma` (the damping coefficient, which must be dereferenceable) defined.
 	// The following operations are required to be defined.
 		{
-			{s.gamma[i]} -> std::convertible_to<T>;
+			{s.gamma[i]} -> std::convertible_to<scalar_type_of<System>>;
 			s.p[i] = s.p[i] * dt;
 			i < s.n;
 		};
 
-	template <typename T, typename State>
-	struct damped_leapfrog : integrator_base<T, State>
+	template <having_coordinates_damped System>
+	struct damped_leapfrog : integrator_base<System>
 	// damped integrator (2nd order?, 1 stage)
 	// dp = f dt - gamma p dt
 	{
-		template <having_coordinates_damped<T, State> System>
-		void step(System& s, T dt, bool first_step = false) const
+		void step(System& s, scalar_type_of<System> dt) override
 		{
 			using std::exp;
 
-			s.p += s.force(first_step) * (dt/2);
+			s.p += s.force(integrator_base<System>::first_step) * (dt/2);
 			s.x += s.vel() * (dt/2);
 			for (std::size_t i = 0; i < s.n; ++i)
 				s.p[i] *= exp(-s.gamma[i] * dt);
@@ -124,25 +192,26 @@ namespace physics
 			s.p += s.force() * (dt/2);
 
 			s.t += dt;
+			integrator_base<System>::first_step = false;
 		}
 	};
 
-	template <typename System, typename T, typename State>
-	concept having_coordinates_stochastic = having_coordinates_damped<System, T, State>
-		&& requires(System& s, T dt, std::size_t i)
+	template <typename System>
+	concept having_coordinates_stochastic = having_coordinates_damped<System>
+		&& requires(System& s, scalar_type_of<System> dt, std::size_t i)
 	// A system `having_coordinates_stochastic` requires to be a `having_coordinates_damped`,
 	// and has `D` (the diffusion coefficient, which is a scalar), `noise` and `rand` defined. `rand`
 	// is a method that must generate random numbers for the `noise` vector (which must be
 	// deferenceable and its elements should be convertible to s.p[i]).
 	// The following operations are required to be defined.
 		{
-			{s.D} -> std::convertible_to<T>;
+			{s.D} -> std::convertible_to<scalar_type_of<System>>;
 			s.p[i] = s.p[i] * dt + s.noise[i] * dt;
 			s.rand();
 		};
 
-	template <typename T, typename State>
-	struct stochastic_leapfrog : stochastic_integrator_base<T, State>
+	template <having_coordinates_stochastic System>
+	struct stochastic_leapfrog : stochastic_integrator_base<System>
 	// stochastic leapfrog (2nd order?, 1 stage)
 	// dp = f dt - gamma p dt + sigma dw
 	// with sigma dw = sqrt(2 gamma) * noise
@@ -158,13 +227,12 @@ namespace physics
 	P. 383-389
 */
 	{
-		template <having_coordinates_stochastic<T, State> System>
-		void step(System& s, T dt, bool first_step = false) const
+		void step(System& s, scalar_type_of<System> dt) override
 		{
 			using std::exp;
 			using std::sqrt;
 
-			s.p += s.force(first_step) * (dt/2);
+			s.p += s.force(stochastic_integrator_base<System>::first_step) * (dt/2);
 			s.x += s.vel() * (dt/2);
 			s.rand();
 			if (s.D == 0) // gamma -> inf
@@ -179,47 +247,47 @@ namespace physics
 			s.p += s.force() * (dt/2);
 
 			s.t += dt;
+			stochastic_integrator_base<System>::first_step = false;
 		}
 	};
 
-	template <typename T, typename State>
-	struct isokinetic_leapfrog : integrator_base<T, State>
+	template <having_coordinates System>
+	requires requires(System& s, scalar_type_of<System> t, std::size_t i)
+		{
+			t += dot(s.p[i], s.p[i]) / s.m[i];
+			t += dot(s.p[i], s.f[i]) / s.m[i];
+			t += dot(s.f[i], s.f[i]) / s.m[i];
+		}
+	struct isokinetic_leapfrog : integrator_base<System>
 	// (gaussian) isokinetic integrator (2nd order, 1 stage)
 	// it assumes quadratic kinetic energy
 	// not symplectic, but still time-reversible
 	// it conserves the kinetic energy rather than the total hamiltonian
-	// at equilibrium, its configurations sample a canonical ensemble rather than a microcanonical one
+	// at equilibrium, its configurations sample a canonical ensemble
 	// unfortunately, momenta do not follow the MB distribution
 	// dp = f dt - xi p dt
 	// xi = sum(p * f / m) / sum(p^2 / m)
 	{
-		template <having_coordinates<T, State> System>
-		void step(System& s, T dt, bool first_step = false) const
+		void step(System& s, scalar_type_of<System> dt) override
 		{
-			kick(s, dt/2, first_step);
+			kick(s, dt/2, integrator_base<System>::first_step);
 			s.x += s.vel() * dt;
 			kick(s, dt/2);
 
 			s.t += dt;
+			integrator_base<System>::first_step = false;
 		}
 
 		private:
 
-			template <having_coordinates<T, State> System>
-			requires requires(System& s, T t, std::size_t i)
-				{
-					t += dot(s.p[i], s.p[i]) / s.m[i];
-					t += dot(s.p[i], s.f[i]) / s.m[i];
-					t += dot(s.f[i], s.f[i]) / s.m[i];
-				}
-			void kick(System& s, T tau, bool eval = true) const
+			void kick(System& s, scalar_type_of<System> tau, bool eval = true) const
 			{
 				using std::size_t;
 				using std::sqrt;
 				using std::sinh;
 				using std::cosh;
 
-				T den = 0, xi0 = 0, omega02 = 0, omega0, a, b;
+				scalar_type_of<System> den = 0, xi0 = 0, omega02 = 0, omega0, a, b;
 				for (size_t i = 0; i < s.n; ++i)
 					den += dot(s.p[i], s.p[i]) / s.m[i];
 				s.force(eval);
@@ -251,21 +319,28 @@ namespace physics
 			}
 	};
 
-	template <typename T, typename State>
-	struct nose_hoover : integrator_base<T, State>
+	template <having_coordinates System>
+	requires requires(System& s, scalar_type_of<System> t)
+		{
+			t = 2*s.kinetic_energy() - s.dof*s.kT_ref();
+		}
+	struct nose_hoover : integrator_base<System>
 	// Nosé-Hoover thermostats chain integrator (2nd order, 1 stage)
-	// It approximates a canonical (NVT) ensemble
+	// It approximates a canonical (NVT) ensemble.
 	// See Allen, Computer simulation of liquids, 2017, pp. 134-139
 	{
-		nose_hoover(std::size_t n_th = 10, T tau = .2) : tau_relax(tau), n_th(n_th), p_th(n_th), m_th(n_th)
-		{}
+		nose_hoover(std::size_t n_th = 10, scalar_type_of<System> tau = .2L) : tau_relax(tau), n_th(n_th), p_th(n_th), m_th(n_th)
+		// constructor:
+		// `n_th` is the number of thermostats in the chain
+		// `tau` is the characteristic time of the oscillations
+		{
+			for (auto& p : p_th)
+				p = 0;
+		}
 
-		template <having_coordinates<T, State> System>
-		requires requires(System& s, T t)
-			{
-				t += 2*s.kinetic_energy() - s.dof*s.kT_ref();
-			}
-		void step(System& s, T dt, bool first_step = false)
+		void step(System& s, scalar_type_of<System> dt) override
+		// throw a `std::runtime_error` if member variable `n_th` is equal to 0.
+		// (n_th == 0 would be the same as leapfrog integration).
 		{
 			using std::size_t;
 			using std::exp;
@@ -275,7 +350,7 @@ namespace physics
 			p_th.resize(n_th);
 			m_th.resize(n_th);
 
-			T tau2 = s.kT_ref() * tau_relax*tau_relax;
+			scalar_type_of<System> tau2 = s.kT_ref() * tau_relax*tau_relax;
 			m_th[0] = s.dof * tau2;
 			for (size_t i = 1; i < n_th; ++i)
 				m_th[i] = tau2;
@@ -285,7 +360,7 @@ namespace physics
 			for (size_t i = n_th-1; i --> 0; )
 				if (p_th[i+1])
 				{
-					T a = exp(-xi(i+1)*(dt/2));
+					scalar_type_of<System> a = exp(-xi(i+1)*(dt/2));
 					p_th[i] = a * p_th[i] + (1 - a) * G(s,i) / xi(i+1);
 				}
 				else
@@ -293,7 +368,7 @@ namespace physics
 			// U3
 			s.p *= exp(-xi(0) * (dt/2));
 			// U2
-			s.p += s.force(first_step) * (dt/2);
+			s.p += s.force(integrator_base<System>::first_step) * (dt/2);
 			// U1
 			s.x += s.vel() * dt;
 			// U2
@@ -304,7 +379,7 @@ namespace physics
 			for (size_t i = 0; i < n_th-1; ++i)
 				if (p_th[i+1])
 				{
-					T a = exp(-xi(i+1)*(dt/2));
+					scalar_type_of<System> a = exp(-xi(i+1)*(dt/2));
 					p_th[i] = a * p_th[i] + (1 - a) * G(s,i) / xi(i+1);
 				}
 				else
@@ -312,22 +387,22 @@ namespace physics
 			p_th[n_th-1] += G(s,n_th-1) * (dt/2);
 
 			s.t += dt;
+			integrator_base<System>::first_step = false;
 		}
 
-		T tau_relax;
+		scalar_type_of<System> tau_relax;
 		std::size_t n_th;
 
 		private:
 
-			std::vector<T> p_th, m_th;
+			std::vector<scalar_type_of<System>> p_th, m_th;
 
-			T xi(std::size_t i) const
+			scalar_type_of<System> xi(std::size_t i) const
 			{
 				return p_th[i]/m_th[i];
 			}
 
-			template <having_coordinates<T, State> System>
-			T G(System& s, std::size_t i) const
+			scalar_type_of<System> G(System& s, std::size_t i) const
 			{
 				if (i == 0)
 					return 2*s.kinetic_energy() - s.dof*s.kT_ref();
@@ -336,41 +411,48 @@ namespace physics
 			}
 	};
 
-	template <typename T, typename State>
-	struct martyna_tobias_klein : integrator_base<T, State>
+	template <having_coordinates System>
+	requires requires(System& s, scalar_type_of<System> t)
+		{
+			t = 2*s.kinetic_energy() - s.dof*s.kT_ref();
+			t = (s.dof*(s.pressure() - s.pressure_ref)*s.volume() + 2 * s.kinetic_energy()) / s.n;
+			s.side *= t;
+		}
+	struct mtk : integrator_base<System>
 	// Martyna-Tobias-Klein equations integrator (2nd order, 1 stage)
-	// It approximates an isothermal-isobaric (NPT) ensemble
+	// It approximates an isothermal-isobaric (NPT) ensemble if n_th > 0.
 	// See Allen et al., "Computer simulation of liquids", 2017, pp. 140-144
 	// and Tuckerman et al., "A Liouville-operator derived measure-preserving integrator
 	// for molecular dynamics simulations in the isothermal-isobaric ensemble", 2006
 	// Here, the velocity of the particles is assumed to be the same as p/m instead of dx/dt
 	// (they are not the same due to position rescaling).
 	{
-		martyna_tobias_klein(std::size_t n_th = 10, T tau_th = T(.2), T tau_ba = 5)
-			: tau_th(tau_th), tau_ba(tau_ba), n_th(n_th), p_th(n_th), m_th(n_th), p_ba(n_th), m_ba(n_th)
-		{}
+		mtk(std::size_t n_th = 10, scalar_type_of<System> tau_th = .2L, scalar_type_of<System> tau_ba = 5)
+		// constructor:
+		// `n_th` is the number of thermostats in the chain.
+		// `tau_th` is the characteristic time of the oscillations of the thermostats coupled
+		// to particles momenta.
+		// `tau_ba` is the characteristic time of the oscillations of the thermostats coupled
+		// to the barostat momentum and of the barostat.
+			: tau_th(tau_th), tau_ba(tau_ba), n_th(n_th), p_th(n_th), m_th(n_th), p_ba(n_th), m_ba(n_th), p_strain(0)
+		{
+			for (auto& p : p_th)
+				p = 0;
+			for (auto& p : p_ba)
+				p = 0;
+		}
 
-		template <having_coordinates<T, State> System>
-		requires requires(System& s, T t)
-			{
-				t += 2*s.kinetic_energy() - s.dof*s.kT_ref();
-				t += ((s.pressure() - s.pressure_ref)*s.volume() + 2 * s.kinetic_energy() / s.n)*t;
-				s.side *= t;
-			}
-		void step(System& s, T dt, bool first_step = false)
+		void step(System& s, scalar_type_of<System> dt) override
 		{
 			using std::size_t;
 			using std::exp;
-			using std::log;
-			if (n_th == 0)
-				throw std::runtime_error("Error: number of thermostats must be greater than 0.");
 
-			p_th.resize(n_th);
-			m_th.resize(n_th);
-			p_ba.resize(n_th);
-			m_ba.resize(n_th);
+			p_th.resize(n_th == 0 ? 1 : n_th);
+			m_th.resize(n_th == 0 ? 1 : n_th);
+			p_ba.resize(n_th == 0 ? 1 : n_th);
+			m_ba.resize(n_th == 0 ? 1 : n_th);
 
-			T tau2 = s.kT_ref() * tau_th*tau_th;
+			scalar_type_of<System> tau2 = s.kT_ref() * tau_th*tau_th;
 			m_th[0] = s.dof * tau2;
 			for (size_t i = 1; i < n_th; ++i)
 				m_th[i] = tau2;
@@ -380,25 +462,28 @@ namespace physics
 			for (size_t i = 0; i < n_th; ++i)
 				m_ba[i] = tau2;
 
-			// U4
-			U4_forward(s, dt/2);
-			// U3
-			s.p *= exp(-xi_th(0) * (dt/2));
-			p_strain *= exp(-xi_ba(0) * (dt/2));
+			if (n_th > 0)
+			{
+				// U4
+				U4_forward(s, dt/2);
+				// U3
+				s.p *= exp(-xi_th(0) * (dt/2));
+				p_strain *= exp(-xi_ba(0) * (dt/2));
+			}
 			// U2
 			p_strain += G_strain(s) * (dt/2);
 			if (p_strain)
 			{
-				T ax = (1 + T(1)/s.n) * xi_strain();
-				T a = exp(-ax*(dt/2));
-				s.p = a * s.p + (1 - a) / ax * s.force(first_step);
+				scalar_type_of<System> ax = (1 + scalar_type_of<System>(1)/s.n) * xi_strain();
+				scalar_type_of<System> a = exp(-ax*(dt/2));
+				s.p = a * s.p + (1 - a) / ax * s.force(integrator_base<System>::first_step);
 			}
 			else
-				s.p += s.force(first_step) * (dt/2);
+				s.p += s.force(integrator_base<System>::first_step) * (dt/2);
 			// U1
 			if (p_strain)
 			{
-				T a = exp(xi_strain()*dt);
+				scalar_type_of<System> a = exp(xi_strain()*dt);
 				s.x = a * s.x + (a - 1) / xi_strain() * s.vel();
 				s.side *= a;
 			}
@@ -407,47 +492,51 @@ namespace physics
 			// U2
 			if (p_strain)
 			{
-				T ax = (1 + T(1)/s.n) * xi_strain();
-				T a = exp(-ax*(dt/2));
+				scalar_type_of<System> ax = (1 + scalar_type_of<System>(1)/s.n) * xi_strain();
+				scalar_type_of<System> a = exp(-ax*(dt/2));
 				s.p = a * s.p + (1 - a) / ax * s.force();
 			}
 			else
 				s.p += s.force() * (dt/2);
 			p_strain += G_strain(s) * (dt/2);
-			// U3
-			p_strain *= exp(-xi_ba(0) * (dt/2));
-			s.p *= exp(-xi_th(0) * (dt/2));
-			// U4
-			U4_backward(s, dt/2);
+
+			if (n_th > 0)
+			{
+				// U3
+				p_strain *= exp(-xi_ba(0) * (dt/2));
+				s.p *= exp(-xi_th(0) * (dt/2));
+				// U4
+				U4_backward(s, dt/2);
+			}
 
 			s.t += dt;
+			integrator_base<System>::first_step = false;
 		}
 
-		T tau_th, tau_ba;
+		scalar_type_of<System> tau_th, tau_ba;
 		std::size_t n_th;
 
 		private:
 
-			std::vector<T> p_th, m_th, p_ba, m_ba;
-			T p_strain, m_strain;
+			std::vector<scalar_type_of<System>> p_th, m_th, p_ba, m_ba;
+			scalar_type_of<System> p_strain, m_strain;
 
-			T xi_th(std::size_t i) const
+			scalar_type_of<System> xi_th(std::size_t i) const
 			{
 				return p_th[i]/m_th[i];
 			}
 
-			T xi_ba(std::size_t i) const
+			scalar_type_of<System> xi_ba(std::size_t i) const
 			{
 				return p_ba[i]/m_ba[i];
 			}
 
-			T xi_strain() const
+			scalar_type_of<System> xi_strain() const
 			{
 				return p_strain/m_strain;
 			}
 
-			template <having_coordinates<T, State> System>
-			T G_th(System& s, std::size_t i) const
+			scalar_type_of<System> G_th(System& s, std::size_t i) const
 			{
 				if (i == 0)
 					return 2*s.kinetic_energy() - s.dof*s.kT_ref();
@@ -455,8 +544,7 @@ namespace physics
 					return p_th[i-1]*xi_th(i-1) - s.kT_ref();
 			}
 
-			template <having_coordinates<T, State> System>
-			T G_ba(const System& s, std::size_t i) const
+			scalar_type_of<System> G_ba(const System& s, std::size_t i) const
 			{
 				if (i == 0)
 					return p_strain*xi_strain() - s.kT_ref();
@@ -464,21 +552,20 @@ namespace physics
 					return p_ba[i-1]*xi_ba(i-1) - s.kT_ref();
 			}
 
-			template <having_coordinates<T, State> System>
-			T G_strain(System& s) const
+			scalar_type_of<System> G_strain(System& s) const
 			{
 				return (s.dof*(s.pressure() - s.pressure_ref)*s.volume() + 2 * s.kinetic_energy()) / s.n;
 			}
 
-			template <having_coordinates<T, State> System>
-			void U4_forward(System& s, T deltat)
+			void U4_forward(System& s, scalar_type_of<System> deltat)
 			{
+				using std::exp;
 				// U4 thermostats coupled to particles momenta
 				p_th[n_th-1] += G_th(s,n_th-1) * deltat;
 				for (size_t i = n_th-1; i --> 0; )
 					if (p_th[i+1])
 					{
-						T a = exp(-xi_th(i+1)*deltat);
+						scalar_type_of<System> a = exp(-xi_th(i+1)*deltat);
 						p_th[i] = a * p_th[i] + (1 - a) * G_th(s,i) / xi_th(i+1);
 					}
 					else
@@ -488,21 +575,21 @@ namespace physics
 				for (size_t i = n_th-1; i --> 0; )
 					if (p_ba[i+1])
 					{
-						T a = exp(-xi_ba(i+1)*deltat);
+						scalar_type_of<System> a = exp(-xi_ba(i+1)*deltat);
 						p_ba[i] = a * p_ba[i] + (1 - a) * G_ba(s,i) / xi_ba(i+1);
 					}
 					else
 						p_ba[i] += G_ba(s,i) * deltat;
 			}
 
-			template <having_coordinates<T, State> System>
-			void U4_backward(System& s, T deltat)
+			void U4_backward(System& s, scalar_type_of<System> deltat)
 			{
+				using std::exp;
 				// U4 thermostats coupled to barostat momentum
 				for (size_t i = 0; i < n_th-1; ++i)
 					if (p_ba[i+1])
 					{
-						T a = exp(-xi_ba(i+1)*deltat);
+						scalar_type_of<System> a = exp(-xi_ba(i+1)*deltat);
 						p_ba[i] = a * p_ba[i] + (1 - a) * G_ba(s,i) / xi_ba(i+1);
 					}
 					else
@@ -512,79 +599,13 @@ namespace physics
 				for (size_t i = 0; i < n_th-1; ++i)
 					if (p_th[i+1])
 					{
-						T a = exp(-xi_th(i+1)*deltat);
+						scalar_type_of<System> a = exp(-xi_th(i+1)*deltat);
 						p_th[i] = a * p_th[i] + (1 - a) * G_th(s,i) / xi_th(i+1);
 					}
 					else
 						p_th[i] += G_th(s,i) * deltat;
 				p_th[n_th-1] += G_th(s,n_th-1) * deltat;
 			}
-	};
-
-	template <typename T, typename State>
-	struct pefrl : symplectic_integrator_base<T, State>
-	// Position-extended Forest-Ruth-like (4th order, 4 stages)
-	// OMELYAN, MRYGLOD, FOLK
-	// OPTIMIZED FOREST-RUTH- AND SUZUKI-LIKE ALGORITHMS FOR INTEGRATION
-	// OF MOTION IN MANY-BODY SYSTEMS
-	// 2008
-	// important notice: the final force (and potential energy)
-	// will not be synchronized with the final state of the system,
-	// so energy may need to be computed separately from the force.
-	// The VEFRL variant does not have this annoyance.
-	{
-		template <having_coordinates<T, State> System>
-		void step(System& s, T dt, bool first_step = false) const
-		{
-			s.x += s.vel(first_step) * (xi * dt);
-			s.p += s.force() * ((1 - 2*lambda) * dt/2);
-			s.x += s.vel() * (chi * dt);
-			s.p += s.force() * (lambda * dt);
-			s.x += s.vel() * ((1 - 2*(chi + xi)) * dt);
-			s.p += s.force() * (lambda * dt);
-			s.x += s.vel() * (chi * dt);
-			s.p += s.force() * ((1 - 2*lambda) * dt/2);
-			s.x += s.vel() * (xi * dt);
-
-			s.t += dt;
-		}
-
-		private:
-
-			static constexpr T xi = 0.1786178958448091L;
-			static constexpr T lambda = -0.2123418310626054L;
-			static constexpr T chi = -0.6626458266981849e-1L;
-	};
-
-	template <typename T, typename State>
-	struct vefrl : symplectic_integrator_base<T, State>
-	// Velocity-extended Forest-Ruth-like (4th order, 4 stages)
-	// OMELYAN, MRYGLOD, FOLK
-	// OPTIMIZED FOREST-RUTH- AND SUZUKI-LIKE ALGORITHMS FOR INTEGRATION
-	// OF MOTION IN MANY-BODY SYSTEMS
-	// 2008
-	{
-		template <having_coordinates<T, State> System>
-		void step(System& s, T dt, bool first_step = false) const
-		{
-			s.p += s.force(first_step) * (xi * dt);
-			s.x += s.vel() * ((1 - 2*lambda) * dt/2);
-			s.p += s.force() * (chi * dt);
-			s.x += s.vel() * (lambda * dt);
-			s.p += s.force() * ((1 - 2*(chi + xi)) * dt);
-			s.x += s.vel() * (lambda * dt);
-			s.p += s.force() * (chi * dt);
-			s.x += s.vel() * ((1 - 2*lambda) * dt/2);
-			s.p += s.force() * (xi * dt);
-
-			s.t += dt;
-		}
-
-		private:
-
-			static constexpr T xi = 0.1644986515575760L;
-			static constexpr T lambda = -0.2094333910398989e-1L;
-			static constexpr T chi = 0.1235692651138917e+1L;
 	};
 
 } // namespace physics

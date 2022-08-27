@@ -295,7 +295,7 @@ namespace physics
 			update = true;
 		}
 
-		template <coulomb_and_lj_periodic<T, State> System>
+		template <coulomb_and_lj_periodic System>
 		void operator()(System& s, utils::thread_pool& tp)
 		// Perform summation using the PPPM method with multi-threading.
 		// `s` is the physical system.

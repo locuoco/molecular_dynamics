@@ -26,25 +26,25 @@
 
 namespace math
 {
-	template <typename T>
+	template <typename T = double>
 	inline constexpr T half_pi = 1.5707963267948966192313216916398L; // pi/2
 
-	template <typename T>
+	template <typename T = double>
 	inline constexpr T pi_4 = 0.78539816339744830961566084581988L; // pi/4
 
-	template <typename T>
+	template <typename T = double>
 	inline constexpr T two_pi = 6.283185307179586476925286766559L; // 2 pi
 
-	template <typename T>
+	template <typename T = double>
 	inline constexpr T sqrtpi = 1.7724538509055160272981674833411L; // square root of pi
 
-	template <typename T>
+	template <typename T = double>
 	inline constexpr T cbrtpi = 1.4645918875615232630201425272638L; // cube root of pi
 
-	template <typename T>
+	template <typename T = double>
 	inline constexpr T inv_sqrt2 = 0.70710678118654752440084436210485L; // 1/sqrt(2)
 
-	template <typename T>
+	template <typename T = double>
 	inline constexpr T two1_6 = 1.1224620483093729814335330496792L; // 2^(1/6)
 
 	template <typename T>

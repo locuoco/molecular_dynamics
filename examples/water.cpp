@@ -27,6 +27,8 @@ g++ water.cpp -o water -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\
 #include "../physics/physics.hpp"
 #include "../gui/graphics.hpp"
 
+using namespace physics::literals;
+
 int main()
 {
 	graphics window;
@@ -35,7 +37,10 @@ int main()
 
 	unsigned n_side = 12; // 12x12x12 = 1728 water molecules
 
-	physics::molecular_system<double, physics::pppm, physics::martyna_tobias_klein> molsys;
+	using my_molecular_system = physics::molecular_system<double, physics::pppm>;
+
+	my_molecular_system molsys;
+	physics::mtk<my_molecular_system> integ;
 
 	// set a simple cubic lattice as initial condition
 	molsys.primitive_cubic_lattice(n_side, dist, physics::water_fba_eps<>);
@@ -53,12 +58,12 @@ int main()
 		if (i <= 0)
 		{
 			custom_text << "EQUILIBRATION (other " << -i << " steps to go)\n";
-			molsys.step(1e-3);
+			integ.step(molsys, 1_fs);
 		}
 		else
 		{
 			custom_text << "SIMULATION (" << i << " steps)\n";
-			molsys.step(1e-3);
+			integ.step(molsys, 1_fs);
 
 			// update statistics
 			double pressure = molsys.pressure()/physics::atm<>;

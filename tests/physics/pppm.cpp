@@ -26,7 +26,8 @@ g++ pppm.cpp -o pppm -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-er
 */
 
 #include "../../physics/physics.hpp"
-#include "../../physics/tensor.hpp" // rms
+
+using namespace physics::literals;
 
 void test_charge_assignment_function(size_t order, double x)
 // test property of charge assignment function, i.e.:
@@ -49,6 +50,7 @@ void test_force_accuracy(std::string scheme)
 {
 	physics::molecular_system<double, physics::pppm> sys;
 	physics::molecular_system<double, physics::ewald> sys_ref;
+	physics::leapfrog<physics::molecular_system<double, physics::pppm>> integ;
 
 	// Set parameters in order to increase accuracy
 	// Also, cutoff radius must be large enough so that LJ truncation error is negligible
@@ -65,7 +67,8 @@ void test_force_accuracy(std::string scheme)
 	double dist = std::cbrt(physics::water_mass<> / physics::water_density25<>);
 
 	sys.primitive_cubic_lattice(8, dist, physics::water_tip3p<>);
-	sys.simulate(20);
+	// simulate for 20 steps, to break the perfect-lattice structure
+	integ.simulate(sys, 1_fs, 20);
 
 	sys_ref = sys; // copy content
 

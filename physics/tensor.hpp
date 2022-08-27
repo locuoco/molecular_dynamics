@@ -57,7 +57,10 @@ namespace physics
 	template <typename T, std::size_t Dim>
 	using row_vec = tensor<T, 1, Dim>;
 
-	// tensor, mat, vec traits
+	template <typename T>
+	using scalar = tensor<T, 1, 1>;
+
+	// tensor, mat, vec, scalar traits
 
 	template <typename T>
 	inline constexpr bool is_tensor = false;
@@ -74,14 +77,20 @@ namespace physics
 	template <typename T>
 	inline constexpr bool is_vec = false;
 
-	template <typename T, std::size_t N>
-	inline constexpr bool is_vec<vec<T, N>> = true;
+	template <typename T, std::size_t Dim>
+	inline constexpr bool is_vec<vec<T, Dim>> = true;
 
 	template <typename T>
 	inline constexpr bool is_row_vec = false;
 
-	template <typename T, std::size_t N>
-	inline constexpr bool is_row_vec<row_vec<T, N>> = true;
+	template <typename T, std::size_t Dim>
+	inline constexpr bool is_row_vec<row_vec<T, Dim>> = true;
+
+	template <typename T>
+	inline constexpr bool is_scalar = false;
+
+	template <typename T>
+	inline constexpr bool is_scalar<scalar<T>> = true;
 
 	template <typename T, std::size_t Dim>
 	constexpr vec<T, Dim> make_filled_vec(T scal) noexcept
@@ -146,7 +155,7 @@ namespace physics
 		// the elements of the array are initialized with ts...
 		// this overload is choosen only if the number of variadic arguments is 2 or greater.
 
-		constexpr tensor(T t) noexcept : base(make_filled<tensor<T, Ns...>, (Ns * ...)>(t)) {}
+		constexpr tensor(T t) noexcept : base(make_filled<base, (Ns * ...)>(t)) {}
 		// constructor:
 		// the array is filled with `t`'s value.
 
@@ -172,11 +181,28 @@ namespace physics
 		template <std::convertible_to<std::size_t> ... Ts>
 		requires (sizeof...(Ts) == sizeof...(Ns) && sizeof...(Ns) >= 2)
 		constexpr const T& operator()(Ts ... is) const
-		// access operator
+		// access operator (const overload)
 		// access tensor element with index `is...` respecting row-major ordering.
 		// return a reference to const of the element.
 		{
 			return (*this)[static_multi_index<Ns...>(is...)];
+		}
+
+		template <std::size_t NumElements = (Ns * ...)>
+		requires (NumElements == 1)
+		operator T&()
+		// (implicit) conversion operator to `T` if the tensor is a scalar
+		{
+			return (*this)[0];
+		}
+
+		template <std::size_t NumElements = (Ns * ...)>
+		requires (NumElements == 1)
+		operator const T&() const
+		// (implicit) conversion operator to `T` if the tensor is a scalar
+		// (const overload)
+		{
+			return (*this)[0];
 		}
 
 		constexpr bool all(T t) const
@@ -323,7 +349,7 @@ namespace physics
 	constexpr tensor<T, Ns...> operator-(typename tensor<T, Ns...>::value_type scal, tensor<T, Ns...> rhs)
 	// subtract operator between a scalar and a tensor
 	{
-		return rhs - scal;
+		return -(rhs - scal);
 	}
 	template <typename T, std::size_t ... Ns>
 	constexpr tensor<T, Ns...> operator*(tensor<T, Ns...> lhs, typename tensor<T, Ns...>::value_type scal)
@@ -347,7 +373,10 @@ namespace physics
 	constexpr tensor<T, Ns...> operator/(typename tensor<T, Ns...>::value_type scal, tensor<T, Ns...> rhs)
 	// (element-wise) divide operator between a scalar and a tensor
 	{
-		return rhs / scal;
+		tensor<T, Ns...> res;
+		for (std::size_t i = 0; i < (Ns * ...); ++i)
+			res[i] = scal / rhs[i];
+		return res;
 	}
 
 	template <typename T, std::size_t M, std::size_t N, std::size_t K>
@@ -453,6 +482,14 @@ namespace physics
 		return res;
 	}
 
+	template <typename T>
+	constexpr T dot(const T& u, const T& v)
+	// scalar product between two scalars `u` and `v`.
+	// return a scalar of type `T` (u*v)
+	{
+		return u*v;
+	}
+
 	template <std::floating_point T, std::size_t Dim>
 	T norm(const vec<T, Dim>& v)
 	// norm of a vector
@@ -470,22 +507,27 @@ namespace physics
 		return v / n;
 	}
 
-	// generate vec aliases vec2<T>, vec3<T>, ... using a macro
+	// generate vec aliases vec2<T>, row_vec3<T>, ... using a macro
 
 #define PHYSICS_GEN_VECN_ALIAS(N) \
 	template <typename T> \
-	using vec##N = vec<T, N>
+	using vec##N = vec<T, N>; \
+	template <typename T> \
+	using row_vec##N = vec<T, N>
 
 	PHYSICS_GEN_VECN_ALIAS(2);
 	PHYSICS_GEN_VECN_ALIAS(3);
 	PHYSICS_GEN_VECN_ALIAS(4);
 
-	// generate vec aliases vec2f, vec3d, ... using a macro
+	// generate vec aliases vec2f, row_vec3d, ... using a macro
 
 #define PHYSICS_GEN_VECNT_ALIAS(TYPE, SUFFIX) \
 	using vec2##SUFFIX = vec2<TYPE>; \
 	using vec3##SUFFIX = vec3<TYPE>; \
-	using vec4##SUFFIX = vec4<TYPE>
+	using vec4##SUFFIX = vec4<TYPE>; \
+	using row_vec2##SUFFIX = row_vec2<TYPE>; \
+	using row_vec3##SUFFIX = row_vec3<TYPE>; \
+	using row_vec4##SUFFIX = row_vec4<TYPE>
 
 	PHYSICS_GEN_VECNT_ALIAS(int, i);
 	PHYSICS_GEN_VECNT_ALIAS(float, f);
@@ -513,6 +555,16 @@ namespace physics
 	PHYSICS_GEN_MATNT_ALIAS(float, f);
 	PHYSICS_GEN_MATNT_ALIAS(double, d);
 	PHYSICS_GEN_MATNT_ALIAS(long double, ld);
+
+	// generate scalar aliases scalarf, scalard, ... using a macro
+
+#define PHYSICS_GEN_SCALART_ALIAS(TYPE, SUFFIX) \
+	using scalar##SUFFIX = scalar<TYPE>
+
+	PHYSICS_GEN_SCALART_ALIAS(int, i);
+	PHYSICS_GEN_SCALART_ALIAS(float, f);
+	PHYSICS_GEN_SCALART_ALIAS(double, d);
+	PHYSICS_GEN_SCALART_ALIAS(long double, ld);
 
 	template <typename T>
 	constexpr vec3<T> cross(const vec3<T>& u, const vec3<T>& v)
