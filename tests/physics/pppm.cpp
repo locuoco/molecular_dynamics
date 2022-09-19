@@ -112,8 +112,6 @@ void test_madelung_nacl()
 {
 	physics::molecular_system<double, physics::pppm> sys;
 
-	// set dielectric to infinity to ignore dipole correction
-	sys.lrsum.dielectric(std::numeric_limits<double>::infinity());
 	// Set parameters in order to increase accuracy
 	sys.lrsum.charge_assignment_order(7);
 	sys.lrsum.cutoff_radius(20);
@@ -136,8 +134,6 @@ void test_madelung_cscl()
 {
 	physics::molecular_system<double, physics::pppm> sys;
 
-	// set dielectric to infinity to ignore dipole correction
-	sys.lrsum.dielectric(std::numeric_limits<double>::infinity());
 	// Set parameters in order to increase accuracy
 	sys.lrsum.charge_assignment_order(7);
 	sys.lrsum.cutoff_radius(20);

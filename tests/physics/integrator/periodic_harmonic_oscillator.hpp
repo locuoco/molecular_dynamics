@@ -72,7 +72,7 @@ struct periodic_harmonic_oscillator : physics::physical_system_base<double, phys
 	}
 
 	double temperature() const noexcept
-	// Instantaneous temperature of the oscillator
+	// Instantaneous temperature of the oscillator.
 	// Boltzmann constant is assumed to be 1.
 	{
 		return 2*kinetic_energy();
@@ -83,6 +83,12 @@ struct periodic_harmonic_oscillator : physics::physical_system_base<double, phys
 	// It is a length since we are in 1-d.
 	{
 		return side;
+	}
+
+	double density() const noexcept
+	// Return the (linear) density of the oscillator
+	{
+		return m / volume();
 	}
 
 	double pressure() const noexcept

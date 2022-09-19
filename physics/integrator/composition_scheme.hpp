@@ -58,8 +58,7 @@ namespace physics
 		void step(System& s, scalar_type_of<System> dt) override
 		{
 			for (size_t i = 0; i < Stages; ++i)
-				IntegT<System>::step(s, d[std::min(i, Stages-i-1)] * dt, IntegT<System>::first_step);
-			IntegT<System>::first_step = false;
+				IntegT<System>::step(s, d[std::min(i, Stages-i-1)] * dt);
 		}
 
 		private:

@@ -17,7 +17,6 @@
 #include <iostream> // cout, endl
 #include <cassert>
 #include <cmath> // abs
-#include <limits> // infinity
 
 /*
 
@@ -27,7 +26,7 @@ g++ ewald.cpp -o ewald -std=c++20 -Wall -Wextra -pedantic -Ofast -pthread -fmax-
 */
 
 #include "../../physics/physics.hpp"
-#include "nist_test.hpp"
+#include "nist_test.hpp" // load_nist_sample
 
 void test_accuracy_nist()
 // test Ewald summation and dispersion calculation against reference data.
@@ -36,8 +35,6 @@ void test_accuracy_nist()
 {
 	using std::abs;
 	physics::molecular_system<double, physics::ewald> sys;
-	// set dielectric to infinity to ignore dipole correction
-	sys.lrsum.dielectric(std::numeric_limits<double>::infinity());
 	// set parameters used in reference calculation
 	sys.lrsum.ewald_par(5.6/20);
 	// The reference calculation used a reciprocal-space spherical cutoff (n^2 < 27), while
@@ -89,10 +86,6 @@ void test_madelung_nacl()
 // lattice constant and `N` is the number of atoms. Note that in AKMA units e = 1.
 {
 	physics::molecular_system<double, physics::ewald> sys;
-	//sys.lrsum.max_n(10);
-
-	// set dielectric to infinity to ignore dipole correction
-	sys.lrsum.dielectric(std::numeric_limits<double>::infinity());
 
 	sys.face_centered_cubic_lattice(2, physics::nacl_lattice<>, physics::sodium_ion<>, physics::chloride_ion<>);
 
@@ -110,10 +103,6 @@ void test_madelung_cscl()
 // lattice constant and `N` is the number of atoms. Note that in AKMA units e = 1.
 {
 	physics::molecular_system<double, physics::ewald> sys;
-	//sys.lrsum.max_n(10);
-
-	// set dielectric to infinity to ignore dipole correction
-	sys.lrsum.dielectric(std::numeric_limits<double>::infinity());
 
 	sys.primitive_cubic_lattice(2, physics::cscl_lattice<>, physics::caesium_ion<>, physics::chloride_ion<>);
 

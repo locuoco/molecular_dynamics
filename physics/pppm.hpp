@@ -373,7 +373,7 @@ namespace physics
 			std::mt19937_64 mersenne_twister = std::mt19937_64(0);
 			std::uniform_real_distribution<T> u_dist = std::uniform_real_distribution<T>(0, 1);
 			T *zMG_real, *electric_field_real[3];
-			T kappa = 0.4, cutoff = 6, dielec = 1, cell_size, side;
+			T kappa = 0.4, cutoff = 6, dielec = std::numeric_limits<T>::infinity(), cell_size, side;
 			std::size_t order = 5, num_cells, m, m_real, num_threads;
 			std::ptrdiff_t ch_num_cells = 0, maxn_ = 2; // maxn_ is the max n for the influence function summations
 			unsigned update_counter, update_max_count = 100;

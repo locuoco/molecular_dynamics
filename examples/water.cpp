@@ -15,7 +15,6 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <sstream>
-#include <cmath> // sqrt
 
 /*
 
@@ -41,12 +40,12 @@ int main()
 
 	my_molecular_system molsys;
 	physics::mtk<my_molecular_system> integ;
+	physics::thermodynamical_statistics stat_integ(integ);
 
 	// set a simple cubic lattice as initial condition
 	molsys.primitive_cubic_lattice(n_side, dist, physics::water_fba_eps<>);
 
-	double sumpressure = 0, sumdensity = 0, sumtemp = 0;
-	double sumpressure2 = 0, sumdensity2 = 0, sumtemp2 = 0;
+	// run `equilibration_steps` steps before starting to calculate statistics
 	int equilibration_steps = 5000;
 
 	for (int i = -equilibration_steps; !window.should_close(); ++i)
@@ -54,48 +53,36 @@ int main()
 		if (i == 0)
 			continue;
 
-		std::stringstream custom_text;
+		std::wstringstream custom_text;
 		if (i <= 0)
 		{
-			custom_text << "EQUILIBRATION (other " << -i << " steps to go)\n";
 			integ.step(molsys, 1_fs);
+			custom_text << "EQUILIBRATION (other " << -i << " steps to go)\n";
 		}
 		else
 		{
+			stat_integ.step(molsys, 1_fs);
 			custom_text << "SIMULATION (" << i << " steps)\n";
-			integ.step(molsys, 1_fs);
-
-			// update statistics
-			double pressure = molsys.pressure()/physics::atm<>;
-			sumpressure += pressure;
-			sumpressure2 += pressure*pressure;
-			double density = molsys.density()/physics::kg_per_m3<>;
-			sumdensity += density;
-			sumdensity2 += density*density;
-			double temp = molsys.temperature();
-			sumtemp += temp;
-			sumtemp2 += temp*temp;
 		}
 
 		custom_text << "Ewald parameter = " << molsys.lrsum.ewald_par();
 		custom_text << " A^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;
 		custom_text << " kcal/(mol A)\nEstimated dispersion force RMSE = " << molsys.lrsum.estimated_error_lj;
 		custom_text << " kcal/(mol A)\nEstimated total force RMSE = " << molsys.lrsum.estimated_error;
-		double meanpressure = sumpressure/i;
-		custom_text << " kcal/(mol A)\n<P> = " << meanpressure << " +/- " << std::sqrt((sumpressure2/i - meanpressure*meanpressure)/i);
+		custom_text << " kcal/(mol A)\n<P> = " << stat_integ.pressure_mean()/physics::atm<>
+		            << " +/- " << stat_integ.pressure_sd()/physics::atm<>;
 		// average pressure should be 1 atm, although, due to the very large oscillations, the convergence
 		// is very slow. These oscillations are due to water incompressibility (very small changes in configuration
 		// space result into significant changes in instant pressure). Oscillations decrease as the number of atoms
 		// increase.
-		double meandensity = sumdensity/i;
-		custom_text << " atm\n<rho> = " << meandensity << " +/- " << std::sqrt((sumdensity2/i - meandensity*meandensity)/i);
+		custom_text << L" atm\n<ρ> = " << stat_integ.density_mean()/physics::kg_per_m3<>
+		            << " +/- " << stat_integ.density_sd()/physics::kg_per_m3<>;
 		// average density should be around 997 kg/m^3
-		double meantemp = sumtemp/i;
-		custom_text << " kg/m^3\n<T> = " << meantemp << " +/- " << std::sqrt((sumtemp2/i - meantemp*meantemp)/i);
+		custom_text << " kg/m^3\n<T> = " << stat_integ.temperature_mean() << " +/- " << stat_integ.temperature_sd();
 		// average temperature should be 298.15 K
 		custom_text << " K\ntotal momentum magnitude = " << norm(molsys.p.sum());
 		// total momentum should be around 0 for PPPM ik-differentiation, but increase as the square root of the
-		// number of time stpes (due to numerical errors). If ad-differentiation is used instead, total momentum
+		// number of time steps (due to rounding errors). If ad-differentiation is used instead, total momentum
 		// might drift randomly, since ad-differentiation does not conserve momentum.
 
 		// draw all steps in real time
@@ -107,7 +94,7 @@ int main()
 
 // result from a run at 70318 steps:
 //	<P> = 1.02049 +/- 2.69440 atm
-//	<rho> = 996.637 +/- 0.021 kg/m^3
+//	<ρ> = 996.637 +/- 0.021 kg/m^3
 // 	<T> = 298.169 +/- 0.013 K
 
 

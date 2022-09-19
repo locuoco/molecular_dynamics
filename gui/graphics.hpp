@@ -92,13 +92,13 @@ class graphics
 			glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 			// Forward compatibility is needed for OpenGL 3.2+ support in MacOS (see GLFW docs)
 			glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-			// Make the window resizable
+			// Make the window not resizable
 			glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
 			// vidmode is used to know the bit-depth for each color channel of the monitor being used
 			vidmode = glfwGetVideoMode(glfwGetPrimaryMonitor());
 
-			// full-HD and higher monitors have more pixels per inch squared,
+			// full-HD and better monitors have more pixels per inch squared,
 			// so the window needs to be rescaled accordingly
 			glfwGetMonitorContentScale(glfwGetPrimaryMonitor(), &xscale, &yscale);
 			w = 1280*xscale, h = 720*yscale;
@@ -130,6 +130,7 @@ class graphics
 		graphics& operator=(const graphics&) = delete;
 
 		~graphics()
+		// destructor
 		{
 			delete text;
 			delete camera_controls;
@@ -157,8 +158,8 @@ class graphics
 			return glfwWindowShouldClose(window) || glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
 		}
 
-		template <typename MolSys>
-		void draw(MolSys& molsys, const std::string& custom_text = "")
+		template <typename MolSys, typename CharT = char>
+		void draw(MolSys& molsys, const std::basic_string<CharT>& custom_text = "")
 		// draw all the atoms inside `molsys`
 		// `Molsys` must be a `molecular_system` type.
 		// Throw a `std::runtime_error` if `CHECK_GL_ERROR` finds an error
@@ -246,6 +247,7 @@ class graphics
 
 			std::clog << "GLEW version: " << glewGetString(GLEW_VERSION) << std::endl;
 
+			// initialize buffers
 			init_atom_vertex_buffers();
 			init_post_vertex_buffers();
 			init_framebuffer();
@@ -283,7 +285,7 @@ class graphics
 		}
 
 		void init_atom_vertex_buffers()
-		// initialize vertex buffers for drawing atoms.
+		// initialize vertex buffers to draw atoms.
 		// Throw a `std::runtime_error` if `CHECK_GL_ERROR` finds an error
 		{
 			// create a vertex array object and bind to it
@@ -346,8 +348,8 @@ class graphics
 
 			// glVertexAttribDivisor(id, n) is used for instanced draw and will cause the following to happen:
 			// if n = 0 => reuse the entire vertex buffer for the specified id for each instance (mesh)
-			// otherwise, use a different element for the specified id every n instance
-			// for n = 1 we have an instancing buffer (`atom_attribs`)
+			// otherwise, use a different element for the specified id every `n` instances
+			// for n = 1 for an instancing buffer (like `pb_inst`, content copied from `atom_attribs`)
 			glVertexAttribDivisor(0, 0);
 			glVertexAttribDivisor(10, 1);
 
@@ -410,7 +412,7 @@ class graphics
 		// Throw a `std::runtime_error` if `CHECK_GL_ERROR` finds an error
 		{
 			// generate a framebuffer, onto which we can attach a texture and a render buffer
-			// and do nasty things (i.e. rendering the scene)
+			// and do nasty things (i.e. rendering the scene)...
 			glGenFramebuffers(1, &fb);
 			// ... and bind to it
 			glBindFramebuffer(GL_FRAMEBUFFER, fb);
@@ -494,7 +496,7 @@ class graphics
 		// represented by the texture `tex_scene`)
 		// `n` is the number of particles to draw (given by `molsys.n`).
 		{
-			// convert view and projection matrices into single-precision floating point matrices
+			// convert view and projection matrices into single-precision floating-point matrices
 			physics::mat4f fview = camera_controls->view;
 			physics::mat4f fproj = camera_controls->proj;
 
@@ -532,7 +534,7 @@ class graphics
 			// clear color and depth buffers
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			// set the viewport as the whole window/screen
-			// one might choose to draw only on a part of the window by setting the parameters properly
+			// one might choose to draw only on a part of the window by setting the parameters accordingly
 			glViewport(0, 0, w, h);
 
 			// use the shader program that draws spheres (loaded in init method)
@@ -568,9 +570,9 @@ class graphics
 			glBufferSubData(GL_ARRAY_BUFFER, 0, atom_attribs.size()*sizeof(float), atom_attribs.data());
 
 			glDrawArraysInstanced(
-				GL_TRIANGLE_STRIP,   // type of primitive
-				0,                   // offset
-				mesh_size/2,         // number of vertices
+				GL_TRIANGLE_STRIP,    // type of primitive
+				0,                    // offset
+				mesh_size/2,          // number of vertices per instance
 				atom_attribs.size()/4 // number of instances
 			);
 		}
@@ -614,8 +616,8 @@ class graphics
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 		}
 
-		template <typename Molsys>
-		void draw_text(Molsys& molsys, const std::string& custom_text)
+		template <typename Molsys, typename CharT>
+		void draw_text(Molsys& molsys, const std::basic_string<CharT>& custom_text)
 		// draw text on screen
 		{
 			// bind to default (0) framebuffer (i.e. the screen)
@@ -626,20 +628,22 @@ class graphics
 			// is calculated. The destination color is the one already in the buffer while
 			// the source color is the color that must be added/blended.
 			glEnable(GL_BLEND);
+
 			// blended colors are added in this way:
 			// c_r = c_s * f_s + c_d * f_d
 			// where c_r is the resulting color, c_s is the source color, c_d is the destination
 			// color, while f_s is the source blend factor and f_d is the destination blend factor.
 			glBlendEquation(GL_FUNC_ADD);
+
 			// source blend factor (f_s) is given by the source alpha channel
 			// destination blend factor (f_d) is given by 1-alpha, where alpha is the source alpha channel
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 			// disable depth test
 			glDisable(GL_DEPTH_TEST);
 
 			text->begin();
-			// opaque green color
-			text->color(0, 1, 0, 1);
+			text->color(0, 1, 0, 1); // opaque green color
 			text->draw(
 				std::string("FPS: ") + std::to_string(fps) + '\n' + std::to_string(camera_controls->pos[0]) + ' '
 																  + std::to_string(camera_controls->pos[1]) + ' '
@@ -651,13 +655,13 @@ class graphics
 				w-160*xscale, 36*yscale, 0.5f*xscale
 			);
 			text->draw(
-				std::string("T = ") + std::to_string(molsys.temperature()) +
-				" K\nP = " + std::to_string(molsys.pressure()/physics::atm<>) +
-				" atm\nV = " + std::to_string(molsys.volume()/1'000) +
-				" nm^3\nE = " + std::to_string(molsys.total_energy()) +
-				" kcal/mol\nN = " + std::to_string(molsys.n) +
-				"\nrho = " + std::to_string(molsys.density()/physics::kg_per_m3<>) +
-				" kg/m^3",
+				std::wstring(L"T = ") + std::to_wstring(molsys.temperature()) +
+				L" K\nP = " + std::to_wstring(molsys.pressure()/physics::atm<>) +
+				L" atm\nV = " + std::to_wstring(molsys.volume()/1'000) +
+				L" nm^3\nE = " + std::to_wstring(molsys.total_energy()) +
+				L" kcal/mol\nN = " + std::to_wstring(molsys.n) +
+				L"\nρ = " + std::to_wstring(molsys.density()/physics::kg_per_m3<>) +
+				L" kg/m^3",
 				w-160*xscale, h-36*yscale, 0.5f*xscale
 			);
 			text->draw(custom_text, 12*xscale, h-36*yscale, 0.5f*xscale);

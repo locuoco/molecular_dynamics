@@ -175,10 +175,11 @@ void test_nose_hoover()
 // The test passes if the average pressure of the harmonic oscillator corresponds to the
 // one calculated analytically for a finite-volume harmonic oscillator (using the
 // canonical ensemble), and if the average temperature corresponds to the reference
-// temperature.
+// temperature (both within 3 standard deviations).
 {
 	periodic_harmonic_oscillator sys;
-	physics::nose_hoover<periodic_harmonic_oscillator> integ(10, 7e-2);
+	physics::nose_hoover<periodic_harmonic_oscillator> integ(10, .7);
+	physics::thermodynamical_statistics stat_integ(integ);
 
 	double a = sys.elastic_k * sys.side*sys.side / (8*sys.kT_ref());
 	double pressure_analytical = std::sqrt(sys.elastic_k * sys.kT_ref() / math::two_pi<>) * std::exp(-a) / std::erf(std::sqrt(a));
@@ -186,19 +187,10 @@ void test_nose_hoover()
 	// initial condition
 	sys.x = 1;
 
-	unsigned n_steps = 10'000'000;
-	double sump = 0, sumtemp = 0;
+	stat_integ.simulate(sys, 1e-2, 1'000'000);
 
-	for (unsigned i = 0; i < n_steps; ++i)
-	{
-		integ.step(sys, 1e-3);
-
-		sump += sys.pressure();
-		sumtemp += sys.temperature();
-	}
-
-	assert(std::abs((sump/n_steps - pressure_analytical) / pressure_analytical) < 1e-2);
-	assert(std::abs((sumtemp/n_steps - sys.temperature_ref) / sys.temperature_ref) < 1e-2);
+	assert(std::abs(stat_integ.pressure_mean() - pressure_analytical) < 3*stat_integ.pressure_sd());
+	assert(std::abs(stat_integ.temperature_mean() - sys.temperature_ref) < 3*stat_integ.temperature_sd());
 }
 
 void test_mtk()
@@ -206,12 +198,13 @@ void test_mtk()
 // integrator for Martyna-Tobias-Klein (MTK) equations.
 // The test passes if:
 // * the average volume of the harmonic oscillator corresponds to the one calculated analytically
-//   (using the isothermal-isobaric ensemble);
-// * the average temperature corresponds to the reference temperature;
-// * the average pressure corresponds to the reference pressure.
+//   (using the isothermal-isobaric ensemble) within 3 standard deviations;
+// * the average temperature corresponds to the reference temperature within 3 standard deviations;
+// * the average pressure corresponds to the reference pressure within 3 standard deviations.
 {
 	periodic_harmonic_oscillator sys;
-	physics::mtk<periodic_harmonic_oscillator> integ(5, 5e-2, 2e-2);
+	physics::mtk<periodic_harmonic_oscillator> integ(5, .5, .2);
+	physics::thermodynamical_statistics stat_integ(integ);
 
 	double a = 2 * sys.pressure_ref*sys.pressure_ref / (sys.elastic_k * sys.kT_ref());
 	double volume_analytical
@@ -222,21 +215,11 @@ void test_mtk()
 	// initial condition
 	sys.x = 1;
 
-	unsigned n_steps = 10'000'000;
-	double sump = 0, sumtemp = 0, sumvol = 0;
+	stat_integ.simulate(sys, 1e-2, 1'000'000);
 
-	for (unsigned i = 0; i < n_steps; ++i)
-	{
-		integ.step(sys, 1e-3);
-
-		sump += sys.pressure();
-		sumtemp += sys.temperature();
-		sumvol += sys.volume();
-	}
-
-	assert(std::abs((sumvol/n_steps - volume_analytical) / volume_analytical) < 1e-2);
-	assert(std::abs((sumtemp/n_steps - sys.temperature_ref) / sys.temperature_ref) < 1e-2);
-	assert(std::abs((sump/n_steps - sys.pressure_ref) / sys.pressure_ref) < 1e-2);
+	assert(std::abs(stat_integ.volume_mean() - volume_analytical) < 3*stat_integ.volume_sd());
+	assert(std::abs(stat_integ.temperature_mean() - sys.temperature_ref) < 3*stat_integ.temperature_sd());
+	assert(std::abs(stat_integ.pressure_mean() - sys.pressure_ref) < 3*stat_integ.pressure_sd());
 }
 
 int main()

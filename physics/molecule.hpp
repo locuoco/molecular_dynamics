@@ -31,7 +31,6 @@
 #include "../math/helper.hpp" // deg2rad, two1_6, is_even
 
 #include "tensor.hpp"
-#include "integrator/integrator.hpp"
 #include "pppm.hpp"
 #include "../utils/thread_pool.hpp"
 
@@ -176,7 +175,7 @@ namespace physics
 	// maximum bond coordination number assumed (not more than `max_bonds` bonds per atoms are allowed)
 	inline constexpr std::size_t max_bonds = 4;
 
-	// maximum dihedral parameters multiplicity
+	// maximum dihedral multiplicity
 	inline constexpr std::size_t max_dihedrals = 6;
 
 	// maximum number of atoms
@@ -349,7 +348,7 @@ namespace physics
 	template <std::floating_point T = double>
 	inline const molecule<T> water_spc_e
 	// SPC/E water model
-	// only for testing Ewald summation, do not use for simulations! (fixed bonds not supported)
+	// only used for testing Ewald summation, do not use for simulations! (fixed bonds not supported)
 	{
 		.x     = { {-0.75695L, 0.58588L}, {0}, {0.75695L, 0.58588L} }, // oxygen at the origin
 		.id    = {atom_type::HSE, atom_type::OSE, atom_type::HSE},
@@ -464,7 +463,8 @@ namespace physics
 			for (size_t i = 0; i < mol.n; ++i)
 				M += m_tmp[n + i];
 			// momenta are initialized by sampling from a gaussian distribution
-			// with variance proportional to mass and temperature
+			// with variance proportional to mass and temperature. With a proper
+			// configuration, this would correspond to a Maxwell-Boltzmann distribution.
 			for (size_t i = 0; i < mol.n; ++i)
 				p_tmp[n + i] = gen_gaussian() * sqrt(m_tmp[n + i] * kT_ref());
 
@@ -613,7 +613,7 @@ namespace physics
 		}
 
 		T total_energy()
-		// total energy of the system in kcal/mol
+		// total energy of the system in kcal/mol.
 		// `force` must be called before this method so that the potential is updated.
 		{
 			return kinetic_energy() + potential;
@@ -668,7 +668,7 @@ namespace physics
 		}
 
 		T external_pressure()
-		// instantaneous pressure calculated from external virial in kcal/(mol angstrom^3)
+		// instantaneous pressure calculated from external virial in kcal/(mol angstrom^3);
 		// not valid if the system is periodic
 		{
 			fetch();
@@ -676,7 +676,7 @@ namespace physics
 		}
 
 		const state<T, 3>& force(bool eval = true) override
-		// calculate all forces and update energies
+		// calculate all forces and update energies;
 		// if `eval` is false, reuse old values
 		{
 			fetch();
@@ -702,7 +702,7 @@ namespace physics
 		}
 
 		const state<T, 3>& force_long(bool eval = true)
-		// calculate long-range forces only
+		// calculate long-range forces only;
 		// if `eval` is false, reuse old values
 		// required by multi_timestep_leapfrog integrator
 		{
@@ -717,7 +717,7 @@ namespace physics
 		}
 
 		const state<T, 3>& force_short(bool eval = true)
-		// calculate short-range forces only
+		// calculate short-range forces only;
 		// if `eval` is false, reuse old values
 		// required by multi_timestep_leapfrog integrator
 		{
@@ -766,8 +766,7 @@ namespace physics
 		}
 
 		void rescale_temp()
-		// rescale the temperature of the system to a temperature fixed by the member
-		// variable: temperature_ref
+		// rescale the temperature of the system to a temperature fixed by the member variable: temperature_ref
 		{
 			using std::sqrt;
 
@@ -777,9 +776,9 @@ namespace physics
 		}
 
 		void fetch()
-		// during simulation, a std::valarray because its implementation supports efficient
+		// during simulation, a std::valarray is used because its implementation supports efficient
 		// expression templates through operator overloading, making it a more useful choice
-		// with respect to std::vector
+		// with respect to std::vector.
 		// Important: this function needs to be explicitly called if x,p,m need to be accessed
 		// right after `add_molecule` is called (i.e. before any of `step`, `force`, `force_short`
 		// `force_long`, `vel`, `rand`, `kinetic_energy`, `total_energy`, `temperature`, `kT`,

@@ -434,7 +434,7 @@ namespace physics
 		// to particles momenta.
 		// `tau_ba` is the characteristic time of the oscillations of the thermostats coupled
 		// to the barostat momentum and of the barostat.
-			: tau_th(tau_th), tau_ba(tau_ba), n_th(n_th), p_th(n_th), m_th(n_th), p_ba(n_th), m_ba(n_th), p_strain(0)
+			: tau_th(tau_th), tau_ba(tau_ba), n_th(n_th), p_th(n_th), m_th(n_th), p_ba(n_th), m_ba(n_th)
 		{
 			for (auto& p : p_th)
 				p = 0;
@@ -519,7 +519,7 @@ namespace physics
 		private:
 
 			std::vector<scalar_type_of<System>> p_th, m_th, p_ba, m_ba;
-			scalar_type_of<System> p_strain, m_strain;
+			scalar_type_of<System> p_strain = 0, m_strain = 0;
 
 			scalar_type_of<System> xi_th(std::size_t i) const
 			{

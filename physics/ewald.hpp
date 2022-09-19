@@ -22,6 +22,7 @@
 #include <cmath> // sqrt, sin, cos, remainder
 #include <numbers> // numbers::inv_sqrtpi_v, numbers::pi_v
 #include <complex>
+#include <limits> // infinity
 
 #include "tensor.hpp" // remainder
 #include "physical_system.hpp"
@@ -284,7 +285,7 @@ namespace physics
 			std::vector<std::complex<T>> structure; // structure factor
 			std::vector<T> partpot_r, partpot_k, partpot_lj, partvir_lj;
 			std::vector<T> factor;
-			T cutoff = 0, kappa = 0, dielec = 1, prev_side;
+			T cutoff = 0, kappa = 0, dielec = std::numeric_limits<T>::infinity(), prev_side;
 			std::size_t maxn = 6, num_threads, maxn1, maxn3;
 			unsigned update_counter, update_max_count = 1000;
 			bool update = true, manual = false, fast = true, verbose = false;

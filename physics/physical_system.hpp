@@ -61,6 +61,18 @@ namespace physics
 			s.t += dt;
 		};
 
+	template <typename System>
+	concept thermodynamical_system = physical_system<System>
+		&& requires(System& s, scalar_type_of<System> t)
+	// A `thermodynamical_system` requires to be a physical system and has the following
+	// methods defined, whose return values have to be convertible to the scalar type.
+		{
+			t += s.pressure();
+			t += s.temperature();
+			t += s.volume();
+			t += s.density();
+		};
+
 	// abstract template class that can be inherited and used to satisfy the previous constraints.
 	template <typename T, typename State>
 	struct coordinates_system_base : physical_system_base<T, State>

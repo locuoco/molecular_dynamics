@@ -315,8 +315,8 @@ class font
 			glBindVertexArray(0);
 		}
 
-		template <typename T>
-		void draw(const std::basic_string<T>& text, float x, float y, const float scale) const
+		template <typename CharT>
+		void draw(const std::basic_string<CharT>& text, float x, float y, const float scale) const
 		// valid for string and wstring
 		{
 			if (!text.length())
@@ -392,7 +392,7 @@ class font
 
 						glDrawArrays(GL_TRIANGLES, 0, 6);
 
-						DBG_GL("font::draw(const std::basic_string<T>&, float, float, float)");
+						DBG_GL("font::draw(const std::basic_string<CharT>&, float, float, float)");
 
 						x += (ch.advance >> 6) * scale;
 					}

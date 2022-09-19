@@ -40,9 +40,6 @@ int main()
 	my_molecular_system molsys;
 	physics::nose_hoover<my_molecular_system> integ;
 
-	// set dielectric to infinity to ignore dipole correction
-	molsys.lrsum.dielectric(std::numeric_limits<double>::infinity());
-
 	molsys.lrsum.cell_multiplier(1);
 
 	molsys.primitive_cubic_lattice(n_side, physics::cscl_lattice<>, physics::caesium_ion<>, physics::chloride_ion<>);

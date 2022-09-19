@@ -25,10 +25,15 @@ namespace physics
 {
 	template <typename System>
 	struct energy_minimizer_base
+	// `System` is the template argument of the integrator class, corresponding to
+	// the class of the system whose energy is to be minimized.
+	// All energy minimizers derive from `energy_minimizer_base`.
 	{
 		virtual ~energy_minimizer_base() = default;
 
 		virtual void step(System& s) = 0;
+		// `s` is the system whose energy is to be minimized.
+		// All energy minimizers must override this method.
 
 		void minimize(System& s, std::size_t n_steps)
 		// Minimize for `n_steps` steps.
@@ -52,19 +57,11 @@ namespace physics
 		// return whether the minimization converged.
 		{
 			bool converged = true;
-			for (std::size_t i = 0; (converged = rms(s.f) >= f_rms) && i < max_steps; ++i)
+			for (std::size_t i = 0; !(converged = rms(s.f) <= f_rms) && i < max_steps; ++i)
 				step(s);
 			return converged;
 		}
 	};
-
-	// All energy minimizers derive from `energy_minimizer_base` and will have a method
-	// called `step` with the following signature:
-
-	//		void step(System& s);
-
-	// where `System` is the template argument of the integrator class, corresponding to
-	// the class of the system to integrate.
 
 	// concepts associated to these template classes (can be used as constraints in template
 	// type arguments)
