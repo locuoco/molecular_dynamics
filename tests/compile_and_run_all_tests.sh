@@ -6,6 +6,9 @@ echo ======== HELPER ========
 ./helper.sh
 ./helper
 cd ../physics
+echo ======== ENERGY_MINIMIZER ========
+./energy_minimizer.sh
+./energy_minimizer
 echo ======== EWALD ========
 ./ewald.sh
 ./ewald

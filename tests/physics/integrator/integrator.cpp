@@ -26,7 +26,7 @@ g++ integrator.cpp -o integrator -std=c++20 -Wall -Wextra -pedantic -Ofast -fmax
 
 */
 
-#include "periodic_harmonic_oscillator.hpp"
+#include "../periodic_harmonic_oscillator.hpp"
 #include "../../../physics/integrator/integrator.hpp"
 #include "../../../math/helper.hpp" // twopi
 

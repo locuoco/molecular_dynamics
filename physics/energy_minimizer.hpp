@@ -79,11 +79,17 @@ namespace physics
 	// FIRE (Fast Inertial Relaxation Engine) minimizer
 	// see E. Bitzek, P. Koskinen, F. Gahler, M. Moseler, P. Gumbsch, "Structural Relaxation Made Simple"
 	{
+		private:
+
+			using scalar_type = scalar_type_of<System>;
+
+		public:
+
 		fire(scalar_type init_dt, const IntegT<System>& integ = IntegT<System>())
 		// constructor:
 		// `init_dt` is the initial time-step.
 		// `integ` is the integrator to be used.
-			: dt_start(init_dt), integ(integ)
+			: integ(integ), dt_start(init_dt)
 		{
 			reset();
 		}
@@ -122,8 +128,6 @@ namespace physics
 		}
 
 		private:
-
-			using scalar_type = scalar_type_of<System>;
 
 			IntegT<System> integ;
 			std::size_t n_positive;

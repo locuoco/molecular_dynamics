@@ -19,8 +19,8 @@
 
 #include <cmath> // remainder
 
-#include "../../../physics/physical_system.hpp"
-#include "../../../physics/tensor.hpp" // scalard
+#include "../../physics/physical_system.hpp"
+#include "../../physics/tensor.hpp" // scalard
 
 struct periodic_harmonic_oscillator : physics::physical_system_base<double, physics::scalard>
 // 1-d harmonic oscillator with periodic boundaries

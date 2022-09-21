@@ -885,6 +885,15 @@ namespace physics
 		return sqrt(v.apply(sqr).sum().sum() / v.size());
 	}
 
+	template <typename T, std::size_t ... Ns>
+	auto rms(const tensor<T, Ns...>& x)
+	// calculate the root sum square of a tensor `x`, using the formula:
+	// rms(x) = sqrt( sum_i ||x_i||^2 )
+	{
+		using std::sqrt;
+		return sqrt((x*x).sum());
+	}
+
 } // namespace physics
 
 #endif // PHYSICS_TENSOR_H
