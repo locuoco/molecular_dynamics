@@ -16,6 +16,7 @@
 
 #include <iostream> // cout, endl
 #include <cassert>
+#include <cmath> // abs
 
 /*
 
@@ -29,7 +30,7 @@ g++ energy_minimizer.cpp -o energy_minimizer -std=c++20 -Wall -Wextra -pedantic 
 
 void test_fire()
 // test that FIRE algorithm converges for the harmonic oscillator in
-// less than 10 iterations with force less than 1e-6 (absolute value)
+// less than 100 iterations with force less than 1e-3 (absolute value)
 {
 	periodic_harmonic_oscillator sys;
 	physics::fire<periodic_harmonic_oscillator> minim(1e-2);
@@ -37,7 +38,8 @@ void test_fire()
 	// initial condition
 	sys.x = 1;
 
-	assert(minim.minimize(sys, 1e-6, 10));
+	assert(minim.minimize(sys, 1e-3, 100));
+	assert(std::abs(sys.x) < 1.001e-3/double(sys.elastic_k));
 }
 
 int main()

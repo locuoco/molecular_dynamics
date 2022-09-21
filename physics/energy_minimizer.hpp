@@ -57,8 +57,14 @@ namespace physics
 		// return whether the minimization converged.
 		{
 			bool converged = true;
-			for (std::size_t i = 0; !(converged = rms(s.f) <= f_rms) && i < max_steps; ++i)
+			std::size_t i = 0;
+
+			do
+			{
 				step(s);
+				++i;
+			} while (!(converged = rms(s.f) <= f_rms) && i < max_steps);
+
 			return converged;
 		}
 	};
