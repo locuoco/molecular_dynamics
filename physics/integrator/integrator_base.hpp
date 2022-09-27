@@ -29,18 +29,20 @@ namespace physics
 	// the class of the system to integrate.
 	{
 		using system_type = System;
+		using state_type = state_type_of<System>;
+		using scalar_type = scalar_type_of<System>;
 
 		bool first_step = true;
 		// `first_step` is a boolean flag that shall be set to true for the first integration step.
 
 		virtual ~integrator_base() = default;
 
-		virtual void step(System& s, scalar_type_of<System> dt) = 0;
+		virtual void step(System& s, scalar_type dt) = 0;
 		// `s` is the system to integrate.
 		// `dt` is the integration step.
 		// All integrators deriving from `integrator_base` must override this method.
 
-		void simulate(System& s, scalar_type_of<System> dt, std::size_t n_steps)
+		void simulate(System& s, scalar_type dt, std::size_t n_steps)
 		// Integrate for `n_steps` steps. Do not reset at the end.
 		// `s` is the system to integrate.
 		// `dt` is the integration step.

@@ -17,6 +17,8 @@
 #ifndef PHYSICS_RUNGE_KUTTA_H
 #define PHYSICS_RUNGE_KUTTA_H
 
+#include <array>
+
 #include "integrator_base.hpp"
 
 namespace physics
@@ -28,14 +30,16 @@ namespace physics
 		virtual ~runge_kutta_base() = default;
 	};
 
-	template <typename Integ, typename System>
-	concept runge_kutta_method = std::is_base_of_v<runge_kutta_base<System>, Integ>;
+	template <typename Integ>
+	concept runge_kutta_method = std::is_base_of_v<runge_kutta_base<typename Integ::system_type>, Integ>;
 
 	template <having_coordinates System, std::size_t Stages>
 	struct explicit_runge_kutta_base : virtual runge_kutta_base<System>
 	// all explicit Runge-Kutta methods inherit from this class
 	// `Stages` is the number of stages of the method (number of force evaluations).
 	{
+		static constexpr std::size_t num_stages = Stages;
+
 		template <typename ... Ts>
 		requires (sizeof...(Ts) == Stages*Stages)
 		explicit_runge_kutta_base(Ts ... pars) : pars{scalar_type_of<System>(pars)...} {}
@@ -88,15 +92,17 @@ namespace physics
 			runge_kutta_base<System>::first_step = false;
 		}
 
+		// parameters of the Runge-Kutta method
+		const std::array<scalar_type_of<System>, Stages*Stages> pars;
+
 		private:
 
-			const std::array<scalar_type_of<System>, Stages*Stages> pars;
 			state_type_of<System> kx[Stages], kp[Stages], prev_x, prev_p;
 			scalar_type_of<System> prev_t;
 	};
 
-	template <typename Integ, typename System, std::size_t Stages>
-	concept explicit_runge_kutta_method = std::is_base_of_v<explicit_runge_kutta_base<System, Stages>, Integ>;
+	template <typename Integ>
+	concept explicit_runge_kutta_method = std::is_base_of_v<explicit_runge_kutta_base<typename Integ::system_type, Integ::num_stages>, Integ>;
 
 	template <having_coordinates System>
 	struct euler : explicit_runge_kutta_base<System, 1>
@@ -108,7 +114,7 @@ namespace physics
 	};
 
 	template <having_coordinates System>
-	struct rk2 : virtual explicit_runge_kutta_base<System, 2>
+	struct rk2 : explicit_runge_kutta_base<System, 2>
 	// Parametrized Runge-Kutta 2 method (2nd order, 2 stages)
 	// All second-order explicit Runge-Kutta methods can be written
 	// as setting the parameter of this method properly
@@ -121,8 +127,6 @@ namespace physics
 				1 - 1/(2*a), 1/(2*a)
 			}
 		{}
-
-		virtual ~rk2() = default;
 	};
 
 	template <having_coordinates System>
@@ -165,10 +169,10 @@ namespace physics
 	};
 
 	template <having_coordinates System>
-	struct rk4_38 : explicit_runge_kutta_base<System, 4>
+	struct rk4_3_8 : explicit_runge_kutta_base<System, 4>
 	// 3/8-rule Runge-Kutta 4 method (4th order, 4 stages)
 	{
-		rk4_38()
+		rk4_3_8()
 			: explicit_runge_kutta_base<System, 4>
 			{
 				1/3.L, 1/3.L, 0, 0,
@@ -206,7 +210,7 @@ namespace physics
 				1/3.L, 1/12.L, 1/3.L, -1/12.L, 0, 0, 0,
 				.5L, -1/16.L, 9/8.L, -3/16.L, -3/8.L, 0, 0,
 				.5L, 0, 9/8.L, -3/8.L, -3/4.L, .5L, 0,
-				1, 9/44.L, -9/11.L, 63/44.L, 18/11.L, -16/11.L,
+				1, 9/44.L, -9/11.L, 63/44.L, 18/11.L, -16/11.L, 0,
 				11/120.L, 0, 27/40.L, 27/40.L, -4/15.L, -4/15.L, 11/120.L
 			}
 		{}
@@ -215,6 +219,7 @@ namespace physics
 	template <having_coordinates System>
 	struct verner8 : explicit_runge_kutta_base<System, 11>
 	// Verner method (8th order, 11 stages)
+	// S. Hippolyte, A. K. Richard, "A New Eighth Order Runge-Kutta Family Method", Journal of Mathematics Research, 2019
 	{
 		verner8()
 			: explicit_runge_kutta_base<System, 11>
@@ -223,7 +228,7 @@ namespace physics
 				.5L, .25L, .25L, 0, 0, 0, 0, 0, 0, 0, 0,
 				(7+s21)/14, 1/7.L, (-7-3*s21)/98, (21+5*s21)/49, 0, 0, 0, 0, 0, 0, 0,
 				(7+s21)/14, (11+s21)/84, 0, (18+4*s21)/63, (21-s21)/252, 0, 0, 0, 0, 0, 0,
-				5.L, (5+s21)/48, 0, (9+s21)/36, (-231+14*s21)/360, (63-7*s21)/80, 0, 0, 0, 0, 0,
+				.5L, (5+s21)/48, 0, (9+s21)/36, (-231+14*s21)/360, (63-7*s21)/80, 0, 0, 0, 0, 0,
 				(7-s21)/14, (10-s21)/42, 0, (-432+92*s21)/315, (633-145*s21)/90, (-504+115*s21)/70, (63-13*s21)/35, 0, 0, 0, 0,
 				(7-s21)/14, 1/14.L, 0, 0, 0, (14-3*s21)/126, (13-3*s21)/63, 1/9.L, 0, 0, 0,
 				.5L, 1/32.L, 0, 0, 0, (91-21*s21)/576, 11/72.L, (-385-75*s21)/1152, (63+13*s21)/128, 0, 0,
@@ -248,6 +253,8 @@ namespace physics
 	// all Runge-Kutta-Nystrom methods inherit from this class
 	// `Stages` is the number of stages of the method (number of force evaluations).
 	{
+		static constexpr std::size_t num_stages = Stages;
+
 		template <typename ... Ts>
 		requires (sizeof...(Ts) == (Stages+1)*Stages)
 		runge_kutta_nystrom_base(Ts ... pars) : pars{scalar_type_of<System>(pars)...} {}
@@ -292,9 +299,11 @@ namespace physics
 			runge_kutta_base<System>::first_step = false;
 		}
 
+		// parameters of the Runge-Kutta-Nystrom method
+		const std::array<scalar_type_of<System>, (Stages+1)*Stages> pars;
+
 		private:
 
-			const std::array<scalar_type_of<System>, (Stages+1)*Stages> pars;
 			state_type_of<System> k[Stages], prev_x, prev_v, prev_p;
 	};
 

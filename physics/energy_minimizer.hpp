@@ -48,22 +48,26 @@ namespace physics
 		template <typename S = System>
 		requires requires(S& s, scalar_type_of<S> t)
 			{
-				t = rms(s.f);
+				t = rms(s.force(false));
 			}
 		bool minimize(System& s, scalar_type_of<System> f_rms, std::size_t max_steps)
 		// Minimize until convergence (RMS of forces smaller than `f_rms`).
 		// `s` is the system for which the energy is minimized.
-		// `max_steps` is the maximum number of steps.
-		// return whether the minimization converged.
+		// `max_steps` is the maximum number of steps. If it is 0, do nothing.
+		// return whether the minimization converged (return false if `max_steps`
+		// is 0).
 		{
-			bool converged = true;
+			if (max_steps == 0)
+				return false;
+
+			bool converged;
 			std::size_t i = 0;
 
 			do
 			{
 				step(s);
 				++i;
-			} while (!(converged = rms(s.f) <= f_rms) && i < max_steps);
+			} while (!(converged = rms(s.force(false)) <= f_rms) && i < max_steps);
 
 			return converged;
 		}
@@ -77,7 +81,7 @@ namespace physics
 	template <having_coordinates System, template <typename> typename IntegT = leapfrog>
 	requires requires(System& s, scalar_type_of<System> t)
 		{
-			t = dot(s.f, s.p);
+			t = dot(s.force(false), s.p);
 			t = norm(s.f);
 			t = norm(s.p);
 		}
@@ -104,8 +108,8 @@ namespace physics
 		{
 			integ.step(s, dt);
 
-			scalar_type P = dot(s.f, s.p);
-			s.p = (1 - alpha) * s.p + alpha*norm(s.p)/norm(s.f) * s.f;
+			scalar_type P = dot(s.force(false), s.p);
+			s.p = (1 - alpha) * s.p + alpha*norm(s.p)/norm(s.force(false)) * s.force(false);
 			if (P > 0)
 			{
 				++n_positive;

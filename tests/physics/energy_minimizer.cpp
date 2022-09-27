@@ -39,7 +39,7 @@ void test_fire()
 	sys.x = 1;
 
 	assert(minim.minimize(sys, 1e-3, 100));
-	assert(std::abs(sys.x) < 1.001e-3/double(sys.elastic_k));
+	assert(std::abs(sys.elastic_k*sys.x) < 1.001e-3);
 }
 
 int main()

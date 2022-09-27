@@ -47,9 +47,14 @@ namespace physics
 	// `IntegT` is the 2nd order integrator which is going to be composed.
 	// `Stages` is the number of stages of the method (number of force evaluations).
 	{
+		template <typename S>
+		using base_integrator_template_type = IntegT<S>;
+
+		static constexpr std::size_t num_stages = Stages;
+
 		template <typename ... Ts>
 		requires (sizeof...(Ts) == (Stages+1)/2)
-		composition_scheme_base(Ts ... pars) : d{scalar_type_of<System>(pars)...} {}
+		composition_scheme_base(Ts ... pars) : pars{scalar_type_of<System>(pars)...} {}
 		// constructor: `pars...` is a variadic argument which contains
 		// the parameters for the composition scheme
 
@@ -58,16 +63,15 @@ namespace physics
 		void step(System& s, scalar_type_of<System> dt) override
 		{
 			for (size_t i = 0; i < Stages; ++i)
-				IntegT<System>::step(s, d[std::min(i, Stages-i-1)] * dt);
+				IntegT<System>::step(s, pars[std::min(i, Stages-i-1)] * dt);
 		}
 
-		private:
-
-			const std::array<scalar_type_of<System>, (Stages+1)/2> d;
+		// parameters of the composition scheme
+		const std::array<scalar_type_of<System>, (Stages+1)/2> pars;
 	};
 
-	template <typename Integ, typename System, template <typename> typename IntegT, std::size_t Stages>
-	concept composition_scheme = std::is_base_of_v<composition_scheme_base<System, IntegT, Stages>, Integ>;
+	template <typename Integ, template <typename> typename IntegT>
+	concept composition_scheme = std::is_base_of_v<composition_scheme_base<typename Integ::system_type, IntegT, Integ::num_stages>, Integ>;
 
 	template <typename System, template <typename> typename IntegT = leapfrog>
 	struct forest_ruth : composition_scheme_base<System, IntegT, 3>

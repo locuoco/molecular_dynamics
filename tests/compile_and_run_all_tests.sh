@@ -22,9 +22,15 @@ echo ======== TENSOR ========
 ./tensor.sh
 ./tensor
 cd ./integrator
+echo ======== COMPOSITION_SCHEME ========
+./composition_scheme.sh
+./composition_scheme
 echo ======== INTEGRATOR ========
 ./integrator.sh
 ./integrator
+echo ======== RUNGE_KUTTA ========
+./runge_kutta.sh
+./runge_kutta
 cd ../../utils
 echo ======== PARALLEL_SORT ========
 ./parallel_sort.sh
