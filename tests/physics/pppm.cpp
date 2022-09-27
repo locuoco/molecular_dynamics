@@ -50,7 +50,7 @@ void test_force_accuracy(std::string scheme)
 {
 	physics::molecular_system<double, physics::pppm> sys;
 	physics::molecular_system<double, physics::ewald> sys_ref;
-	physics::leapfrog<physics::molecular_system<double, physics::pppm>> integ;
+	physics::leapfrog integ_sys(sys);
 
 	// Set parameters in order to increase accuracy
 	// Also, cutoff radius must be large enough so that LJ truncation error is negligible
@@ -67,8 +67,8 @@ void test_force_accuracy(std::string scheme)
 	double dist = std::cbrt(physics::water_mass<> / physics::water_density25<>);
 
 	sys.primitive_cubic_lattice(8, dist, physics::water_tip3p<>);
-	// simulate for 20 steps, to break the perfect-lattice structure
-	integ.simulate(sys, 1_fs, 20);
+	// simulate `sys` for 20 steps, to break the perfect-lattice structure
+	integ_sys.simulate(1_fs, 20);
 
 	sys_ref = sys; // copy content
 

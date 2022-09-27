@@ -55,18 +55,20 @@ The code makes use of C++ templates and concepts (thus it requires C++20) and is
   * `dft.hpp`: contains the `dft` class which implements a simple radix-2 FFT algorithm for both real and complex inputs, and also multidimensional variants.
   * `helper.hpp`: some math helper functions.
 * `physics`: directory containing the part of code relevant to the resolution of the physical/numerical problem.
+  * `direct.hpp`: direct summation algorithm. It can be used for non-periodic system.
+  * `energy_minimizer.hpp`: energy minimization algorithm. It includes FIRE algorithm.
+  * `ewald.hpp`: Ewald summation algorithm (for periodic systems).
   * `integrator`: directory containing classes and concepts for integration of (hamiltonian and not) dynamical systems.
     * `composition_scheme.hpp`: composition scheme integrators.
     * `integrator.hpp`: leapfrog and other integrators.
     * `integrator_base.hpp`: base class and some concepts for integrators.
     * `runge_kutta.hpp`: explicit Runge-Kutta methods.
-  * `ewald.hpp`: direct summation (for non-periodic systems) and Ewald summation (for periodic systems).
-  * `molecule.hpp`: classes, methods and other utilites for managing molecular systems (for now, you have only water molecules, also the dihedral potential part must be added).
+  * `molecule.hpp`: classes, methods and other utilites for managing molecular systems (dihedral potential part should be added for molecules with more than three atoms).
   * `physical_system.hpp`: base abstract class and some concepts for a physical system to simulate.
-  * `physics.hpp`: mainly a header file that includes everything from the `physics` directory.
+  * `physics.hpp`: a header file that includes everything from the `physics` directory.
   * `pppm.hpp`: PPPM (particle-particle, particle-mesh) method for fast calculation of long-range forces for periodic systems.
   * `tensor.hpp`: classes, aliases and data structures for vectors, matrices and tensors with some helper function.
-* `tests`: directory containing tests for some functions, methods and classes.
+* `tests`: directory containing tests for functions, methods and classes. The internal structure of this directory mirrors the one of the header files.
 * `utils`: directory containing some utilities used in this project.
   * `parallel_sort.hpp`: multi-threaded parallel sorting algorithm based on `std::sort`, `std::inplace_merge` and `utils::thread_pool`.
   * `thread_pool.hpp`: a simple multi-queue thread pool based on `std::jthread`. It reuses threads for many tasks instead of creating and destroying them continuously and thus avoids some overhead.
@@ -88,11 +90,11 @@ To install all dependencies at once on Ubuntu, you can run the shell script `dep
 
 ### Compilation
 
-To compile the program, simply do (with MinGW):
+To compile the program, simply do (on MinGW):
 
     g++ <ins> -o <out> -std=c++20 -I <includes> -L <libs> -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast
 
-On Linux, the library names could be different:
+On Linux GCC:
 
     g++ <ins> -o <out> -std=c++20 -I <includes> -L <libs> -lGL -lGLU -lGLEW -lglfw -lfreetype -Wall -Wextra -pedantic -Ofast
 
@@ -130,11 +132,11 @@ To set the coordinates of the molecule:
     my_system.add_molecule(physics::water_tip3p<>, {1, 2, 3});
 ```
 where the coordinates are given in angstrom.
-To advance the system by one step, do:
+To advance the system by one step of 1 femtosecond, do:
 ```c++
-    my_system.step();
+    my_system.step(1_fs);
 ```
-It is possible to set the algorithm used for the summation of long-range forces:
+The literal suffix `_fs` is needed to convert the value into AKMA units, which are used internally in the `physics::molecular_system` class. It is possible to set the algorithm used for the summation of long-range forces and the floating point type used for internal calculations by specifying the template arguments of the `physics::molecular_system` class:
 ```c++
     physics::molecular_system<long double, physics::ewald> my_system;
 ```
@@ -146,34 +148,30 @@ By default, the floating point type is `double` (64-bit floating point) and the 
 To integrate the equations of motion it is needed to declare a numerical integrator object, and then call the `simulate` method:
 ```c++
     using namespace physics::literals; // for _fs
-    physics::leapfrog<physics::molecular_system<>> my_integ;
+    physics::leapfrog my_integ(my_system);
 
-    my_integ.simulate(my_system, 1_fs, 10000);
+    my_integ.simulate(1_fs, 10000);
 ```
-which simulates the system for 10000 steps with a time step of 1 femtosecond. The literal suffix `_fs` is needed to convert the value into AKMA units, which are used inside the `molecular_system` class. Some currently available numerical integrators are:
+which simulates the system for 10000 steps with a time step of 1 femtosecond. Note that `my_system` object is taken by reference, so it shall not be destroyed before calling `simulate`. Some currently available numerical integrators are:
 
-* `physics::symplectic_euler`: Symplectic Euler method (1st order, 1 stage)
 * `physics::leapfrog`: Leapfrog method (2nd order, 1 stage)
 * `physics::multi_timestep_leapfrog`: Multi-timestep leapfrog method (2nd order, 1 stage for long-range forces)
 * `physics::stochastic_leapfrog`: Stochastic "leapfrog" method (1 stage): integrates Langevin equation
 * `physics::isokinetic_leapfrog`: Isokinetic "leapfrog" method (2nd order, 1 stage)
 * `physics::nose_hoover`: Nosé-Hoover thermostats chain integrator (2nd order, 1 stage): it approximates a canonical (NVT) ensemble
 * `physics::martyna_tobias_klein`: Martyna-Tobias-Klein equations integrator (2nd order, 1 stage): it approximates an isothermal-isobaric (NPT) ensemble
-* `physics::pefrl`: Position-extended Forest-Ruth-like method (4th order, 4 stages)
 * `physics::vefrl`: Velocity-extended Forest-Ruth-like method (4th order, 4 stages)
 * Composition schemes (they are structure-preserving, and can be used to construct higher-order, also symplectic, methods starting from 2nd order ones):
   * `physics::forest_ruth`: Forest-Ruth method (4th order, 3 stages)
-  * `physics::suzuki4`: Suzuki method (4th order, 5 stages)
   * `physics::yoshida6`: Yoshida method (6th order, 8 stages)
   * `physics::suzuki8`: Suzuki method (8th order, 15 stages)
   * `physics::kahan_li10a`: Kahan-Li method (10th order, 31 stages)
 * Explicit Runge-Kutta schemes:
-  * `physics::ralston2`: Ralston method (2th order, 2 stages)
   * `physics::ralston4`: Ralston method (4th order, 4 stages)
   * `physics::butcher6`: Butcher method (6th order, 7 stages)
   * `physics::verner8`: Verner method (8th order, 11 stages)
 
-The biggest value for the time step so that leapfrog integration is stable is `2_fs`. This value corresponds more or less the same order of magnitude of the vibration period of O–H bonds.
+The suggested value for the time step is `1_fs`. This value is more or less the same order of magnitude of the vibration period of O–H bonds. Greater time steps could be used with `physics::multi_timestep_leapfrog` integrator or for systems with smaller frequencies.
 
 To create a window, simply do:
 ```c++
@@ -191,11 +189,31 @@ If we want to simulate the system and draw the configuration at each step until 
 ```c++
     while (!my_window.should_close())
     {
-        my_integ.step(my_system, 1_fs);
+        my_integ.step(1_fs);
         my_window.draw(my_system);
     }
 ```
-For some examples, see the `examples` directory in this repository.
+To calculate thermodynamical quantities as averages of the respective instantaneous quantities, we need a `physics::thermodynamical_statistics` object, which wraps any integrator object. We can then draw custom text on screen using string streams:
+```c++
+#include <sstream> // for std::stringstream
+// ...
+
+int main()
+{
+    // ...
+    physics::leapfrog integ(my_system);
+    physics::thermodynamical_statistics my_stat_integ(my_integ);
+
+    while (!my_window.should_close())
+    {
+        my_integ.step(1_fs);
+        std::stringstream my_text;
+        my_text << "pressure mean: " << my_stat_integ.pressure_mean();
+        my_window.draw(my_system, my_text);
+    }
+}
+```
+For some complete examples, see the `examples` directory in this repository.
 <!--- __________________________________________________________ --->
 
 ### Ewald summation

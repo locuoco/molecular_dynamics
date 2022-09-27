@@ -33,12 +33,12 @@ void test_fire()
 // less than 100 iterations with force less than 1e-3 (absolute value)
 {
 	periodic_harmonic_oscillator sys;
-	physics::fire<periodic_harmonic_oscillator> minim(1e-2);
+	physics::fire minim(sys, 1e-2);
 
 	// initial condition
 	sys.x = 1;
 
-	assert(minim.minimize(sys, 1e-3, 100));
+	assert(minim.minimize(1e-3, 100));
 	assert(std::abs(sys.elastic_k*sys.x) < 1.001e-3);
 }
 

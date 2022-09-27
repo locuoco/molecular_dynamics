@@ -35,10 +35,8 @@ int main()
 
 	unsigned n_side = 12; // 12x12x12 = 1728 unit cubic cells = 3456 ions
 
-	using my_molecular_system = physics::molecular_system<double, physics::pppm>;
-
-	my_molecular_system molsys;
-	physics::nose_hoover<my_molecular_system> integ;
+	physics::molecular_system molsys;
+	physics::nose_hoover integ(molsys);
 
 	molsys.lrsum.cell_multiplier(1);
 
@@ -46,7 +44,7 @@ int main()
 
 	while (!window.should_close())
 	{
-		integ.step(molsys, 4_fs);
+		integ.step(4_fs);
 		std::stringstream custom_text;
 		custom_text << "Ewald parameter = " << molsys.lrsum.ewald_par();
 		custom_text << " A^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;

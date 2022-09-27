@@ -176,6 +176,7 @@ namespace physics
 	struct pppm
 	// Particle-particle, particle-mesh method (also known as PPPM or P^3M or P3M method)
 	// Based on Ewald summation, it has O(N log N) asymptotic complexity thanks to FFT.
+	// See Deserno et al., 1998.
 	{
 		void cutoff_radius(T cutoff)
 		// Set the cutoff radius (both for PPPM and Lennard-Jones potential truncation).

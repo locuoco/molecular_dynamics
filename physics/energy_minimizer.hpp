@@ -29,20 +29,26 @@ namespace physics
 	// the class of the system whose energy is to be minimized.
 	// All energy minimizers derive from `energy_minimizer_base`.
 	{
+		using system_type = System;
+
+		System& sys;
+
+		energy_minimizer_base(System& s) : sys(s) {}
+		// constructor:
+		// `s` is the system for which the energy is minimized.
+
 		virtual ~energy_minimizer_base() = default;
 
-		virtual void step(System& s) = 0;
-		// `s` is the system whose energy is to be minimized.
+		virtual void step() = 0;
 		// All energy minimizers must override this method.
 
-		void minimize(System& s, std::size_t n_steps)
+		void minimize(std::size_t n_steps)
 		// Minimize for `n_steps` steps.
-		// `s` is the system for which the energy is minimized.
 		// Same as:
-		//	for (std::size_t i = 0; i < n_steps; ++i) step(s);
+		//	for (std::size_t i = 0; i < n_steps; ++i) step();
 		{
 			for (std::size_t i = 0; i < n_steps; ++i)
-				step(s);
+				step();
 		}
 
 		template <typename S = System>
@@ -50,9 +56,8 @@ namespace physics
 			{
 				t = rms(s.force(false));
 			}
-		bool minimize(System& s, scalar_type_of<System> f_rms, std::size_t max_steps)
+		bool minimize(scalar_type_of<System> f_rms, std::size_t max_steps)
 		// Minimize until convergence (RMS of forces smaller than `f_rms`).
-		// `s` is the system for which the energy is minimized.
 		// `max_steps` is the maximum number of steps. If it is 0, do nothing.
 		// return whether the minimization converged (return false if `max_steps`
 		// is 0).
@@ -65,18 +70,17 @@ namespace physics
 
 			do
 			{
-				step(s);
+				step();
 				++i;
-			} while (!(converged = rms(s.force(false)) <= f_rms) && i < max_steps);
+			} while (!(converged = rms(sys.force(false)) <= f_rms) && i < max_steps);
 
 			return converged;
 		}
 	};
 
-	// concepts associated to these template classes (can be used as constraints in template
-	// type arguments)
-	template <typename Minimizer, typename System>
-	concept energy_minimizer = std::is_base_of_v<energy_minimizer_base<System>, Minimizer>;
+	// concept associated to `energy_minimizer_base` (all classes derived from it form the `energy_minimizer` concept).
+	template <typename Minimizer>
+	concept energy_minimizer = std::is_base_of_v<energy_minimizer_base<typename Minimizer::system_type>, Minimizer>;
 
 	template <having_coordinates System, template <typename> typename IntegT = leapfrog>
 	requires requires(System& s, scalar_type_of<System> t)
@@ -92,24 +96,25 @@ namespace physics
 		private:
 
 			using scalar_type = scalar_type_of<System>;
+			using base = energy_minimizer_base<System>;
 
 		public:
 
-		fire(scalar_type init_dt, const IntegT<System>& integ = IntegT<System>())
+		fire(System& s, scalar_type init_dt)
 		// constructor:
+		// `s` is the system for which the energy is minimized.
 		// `init_dt` is the initial time-step.
-		// `integ` is the integrator to be used.
-			: integ(integ), dt_start(init_dt)
+			: base(s), integ(s), dt_start(init_dt)
 		{
 			reset();
 		}
 
-		void step(System& s) override
+		void step() override
 		{
-			integ.step(s, dt);
+			integ.step(dt);
 
-			scalar_type P = dot(s.force(false), s.p);
-			s.p = (1 - alpha) * s.p + alpha*norm(s.p)/norm(s.force(false)) * s.force(false);
+			scalar_type P = dot(base::sys.force(false), base::sys.p);
+			base::sys.p = (1 - alpha) * base::sys.p + alpha * norm(base::sys.p) / norm(base::sys.force(false)) * base::sys.force(false);
 			if (P > 0)
 			{
 				++n_positive;
@@ -123,7 +128,7 @@ namespace physics
 			{
 				n_positive = 0;
 				dt *= f_dec;
-				s.p = 0;
+				base::sys.p = 0;
 				alpha = alpha_start;
 			}
 		}

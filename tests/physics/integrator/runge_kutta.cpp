@@ -38,7 +38,8 @@ void test_explicit_runge_kutta()
 {
 	using erk = ERK<periodic_harmonic_oscillator>;
 
-	erk integ;
+	periodic_harmonic_oscillator sys;
+	erk integ(sys);
 	typename erk::scalar_type sumpars;
 
 	for (std::size_t i = 0; i < erk::num_stages-1; ++i)

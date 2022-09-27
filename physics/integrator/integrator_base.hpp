@@ -19,7 +19,7 @@
 
 #include <cmath> // sqrt
 
-#include "../physical_system.hpp" // physical_system, thermodynamical_system
+#include "../physical_system.hpp" // physical_system, thermodynamical_system, type_traits (add_lvalue_reference_t, is_same_v)
 
 namespace physics
 {
@@ -37,20 +37,18 @@ namespace physics
 
 		virtual ~integrator_base() = default;
 
-		virtual void step(System& s, scalar_type dt) = 0;
-		// `s` is the system to integrate.
+		virtual void step(scalar_type dt) = 0;
 		// `dt` is the integration step.
 		// All integrators deriving from `integrator_base` must override this method.
 
-		void simulate(System& s, scalar_type dt, std::size_t n_steps)
+		void simulate(scalar_type dt, std::size_t n_steps)
 		// Integrate for `n_steps` steps. Do not reset at the end.
-		// `s` is the system to integrate.
 		// `dt` is the integration step.
 		// Same as:
-		//	for (std::size_t i = 0; i < n_steps; ++i) step(s, dt);
+		//	for (std::size_t i = 0; i < n_steps; ++i) step(dt);
 		{
 			for (std::size_t i = 0; i < n_steps; ++i)
-				step(s, dt);
+				step(dt);
 		}
 
 		void reset()
@@ -81,13 +79,16 @@ namespace physics
 	// concepts associated to these template classes (can be used as constraints in template
 	// type arguments)
 	template <typename Integ>
-	concept integrator = std::is_base_of_v<integrator_base<typename Integ::system_type>, Integ>;
+	concept having_system = std::is_same_v<decltype(Integ::s), std::add_lvalue_reference_t<typename Integ::system_type>>;
 
 	template <typename Integ>
-	concept symplectic_integrator = std::is_base_of_v<symplectic_integrator_base<typename Integ::system_type>, Integ>;
+	concept integrator = having_system<Integ> && std::is_base_of_v<integrator_base<typename Integ::system_type>, Integ>;
 
 	template <typename Integ>
-	concept stochastic_integrator = std::is_base_of_v<stochastic_integrator_base<typename Integ::system_type>, Integ>;
+	concept symplectic_integrator = having_system<Integ> && std::is_base_of_v<symplectic_integrator_base<typename Integ::system_type>, Integ>;
+
+	template <typename Integ>
+	concept stochastic_integrator = having_system<Integ> && std::is_base_of_v<stochastic_integrator_base<typename Integ::system_type>, Integ>;
 
 	template <integrator Integ>
 	requires thermodynamical_system<typename Integ::system_type>
@@ -105,46 +106,44 @@ namespace physics
 		scalar_type density_sum = 0, density_sumsq = 0;
 		std::size_t n_steps = 0;
 
-		thermodynamical_statistics(Integ integ = Integ()) : integ(integ) {}
+		thermodynamical_statistics(const Integ& integ) : integ(integ) {}
 		// constructor:
 		//	`integ` is the integrator to use for the simulation
 
-		void step(typename Integ::system_type& s, scalar_type dt)
-		// `s` is the system to integrate and from which we want to calculate the statistics.
+		void step(scalar_type dt)
 		// `dt` is the integration step.
 		{
-			integ.step(s, dt);
+			integ.step(dt);
 
 			scalar_type quantity;
 
-			quantity = s.pressure();
+			quantity = integ.s.pressure();
 			pressure_sum += quantity;
 			pressure_sumsq += quantity*quantity;
 
-			quantity = s.temperature();
+			quantity = integ.s.temperature();
 			temperature_sum += quantity;
 			temperature_sumsq += quantity*quantity;
 
-			quantity = s.volume();
+			quantity = integ.s.volume();
 			volume_sum += quantity;
 			volume_sumsq += quantity*quantity;
 
-			quantity = s.density();
+			quantity = integ.s.density();
 			density_sum += quantity;
 			density_sumsq += quantity*quantity;
 
 			++n_steps;
 		}
 
-		void simulate(typename Integ::system_type& s, scalar_type dt, std::size_t n_steps)
+		void simulate(scalar_type dt, std::size_t n_steps)
 		// Integrate for `n_steps` steps. Do not reset at the end.
-		// `s` is the system to integrate and from which we want to calculate the statistics.
 		// `dt` is the integration step.
 		// Same as:
-		//	for (std::size_t i = 0; i < n_steps; ++i) step(s, dt);
+		//	for (std::size_t i = 0; i < n_steps; ++i) step(dt);
 		{
 			for (std::size_t i = 0; i < n_steps; ++i)
-				step(s, dt);
+				step(dt);
 		}
 
 		scalar_type pressure_mean()

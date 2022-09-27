@@ -37,10 +37,8 @@ int main()
 
 	unsigned n_side = 4; // 4x4x4 = 64 water molecules
 
-	using my_molecular_system = physics::molecular_system<double, physics::pppm>;
-
-	my_molecular_system molsys;
-	physics::isokinetic_leapfrog<my_molecular_system> integ;
+	physics::molecular_system molsys;
+	physics::isokinetic_leapfrog integ(molsys);
 
 	molsys.temperature_ref = 273.15+50;
 	molsys.lrsum.cell_multiplier(1);
@@ -54,7 +52,7 @@ int main()
 	{
 		std::stringstream custom_text;
 
-		integ.simulate(molsys, 1_fs, 10);
+		integ.simulate(1_fs, 10);
 
 		custom_text << "Ewald parameter = " << molsys.lrsum.ewald_par();
 		custom_text << " A^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;

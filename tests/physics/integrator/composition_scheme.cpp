@@ -36,7 +36,9 @@ void test_composition_scheme()
 {
 	using cs = CSInteg<periodic_harmonic_oscillator>;
 
-	cs integ;
+	periodic_harmonic_oscillator sys;
+	cs integ(sys);
+
 	typename cs::scalar_type sumpars = 0;
 	for (std::size_t i = 0; i < cs::num_stages; ++i)
 		sumpars += integ.pars[std::min(i, cs::num_stages-i-1)];

@@ -38,17 +38,22 @@ namespace physics
 	// all explicit Runge-Kutta methods inherit from this class
 	// `Stages` is the number of stages of the method (number of force evaluations).
 	{
+		using runge_kutta_base<System>::first_step;
+
 		static constexpr std::size_t num_stages = Stages;
+
+		System& s;
 
 		template <typename ... Ts>
 		requires (sizeof...(Ts) == Stages*Stages)
-		explicit_runge_kutta_base(Ts ... pars) : pars{scalar_type_of<System>(pars)...} {}
-		// constructor: `pars...` is a variadic argument which contains
-		// the parameters for the explicit Runge-Kutta method
+		explicit_runge_kutta_base(System& s, Ts ... pars) : s(s), pars{scalar_type_of<System>(pars)...} {}
+		// constructor:
+		// 	`s` is the system to integrate.
+		//	`pars...` is a variadic argument which contains the parameters for the explicit Runge-Kutta method.
 
 		virtual ~explicit_runge_kutta_base() = default;
 
-		void step(System& s, scalar_type_of<System> dt) override
+		void step(scalar_type_of<System> dt) override
 		{
 			using std::size_t;
 
@@ -57,7 +62,7 @@ namespace physics
 			prev_t = s.t;
 
 			kx[0] = s.vel();
-			kp[0] = s.force(runge_kutta_base<System>::first_step);
+			kp[0] = s.force(first_step);
 			for (size_t i = 1; i < Stages; ++i)
 			{
 				s.x = 0;
@@ -89,7 +94,7 @@ namespace physics
 			s.p += prev_p;
 			s.t = prev_t + dt;
 			s.force();
-			runge_kutta_base<System>::first_step = false;
+			first_step = false;
 		}
 
 		// parameters of the Runge-Kutta method
@@ -108,8 +113,8 @@ namespace physics
 	struct euler : explicit_runge_kutta_base<System, 1>
 	// Euler method (1st order, 1 stage)
 	{
-		euler()
-			: explicit_runge_kutta_base<System, 1>{1}
+		euler(System& s)
+			: explicit_runge_kutta_base<System, 1>{s, 1}
 		{}
 	};
 
@@ -119,10 +124,11 @@ namespace physics
 	// All second-order explicit Runge-Kutta methods can be written
 	// as setting the parameter of this method properly
 	{
-		rk2(long double a)
+		rk2(System& s, long double a)
 		// constructor: `a` is the parameter of the parametrized Runge-Kutta 2 method
 			: explicit_runge_kutta_base<System, 2>
 			{
+				s,
 				a, a,
 				1 - 1/(2*a), 1/(2*a)
 			}
@@ -133,7 +139,7 @@ namespace physics
 	struct midpoint : rk2<System>
 	// Midpoint method (2nd order, 2 stages)
 	{
-		midpoint() : rk2<System>(.5L)
+		midpoint(System& s) : rk2<System>(s, .5L)
 		{}
 	};
 
@@ -141,7 +147,7 @@ namespace physics
 	struct heun2 : rk2<System>
 	// Heun method (2nd order, 2 stages)
 	{
-		heun2() : rk2<System>(1)
+		heun2(System& s) : rk2<System>(s, 1)
 		{}
 	};
 
@@ -149,7 +155,7 @@ namespace physics
 	struct ralston2 : rk2<System>
 	// Ralston method (2nd order, 2 stages)
 	{
-		ralston2() : rk2<System>(2/3.L)
+		ralston2(System& s) : rk2<System>(s, 2/3.L)
 		{}
 	};
 
@@ -157,9 +163,10 @@ namespace physics
 	struct rk4 : explicit_runge_kutta_base<System, 4>
 	// Classical Runge-Kutta 4 method (4th order, 4 stages)
 	{
-		rk4()
+		rk4(System& s)
 			: explicit_runge_kutta_base<System, 4>
 			{
+				s,
 				.5L, .5L, 0, 0,
 				.5L, 0, .5L, 0,
 				1, 0, 0, 1,
@@ -172,9 +179,10 @@ namespace physics
 	struct rk4_3_8 : explicit_runge_kutta_base<System, 4>
 	// 3/8-rule Runge-Kutta 4 method (4th order, 4 stages)
 	{
-		rk4_3_8()
+		rk4_3_8(System& s)
 			: explicit_runge_kutta_base<System, 4>
 			{
+				s,
 				1/3.L, 1/3.L, 0, 0,
 				2/3.L, -1/3.L, 1, 0,
 				1, 1, -1, 1,
@@ -187,9 +195,10 @@ namespace physics
 	struct ralston4 : explicit_runge_kutta_base<System, 4>
 	// Ralston method (4th order, 4 stages)
 	{
-		ralston4()
+		ralston4(System& s)
 			: explicit_runge_kutta_base<System, 4>
 			{
+				s,
 				.4L, .4L, 0, 0,
 				.45573725L, .29697761L, .15875964L, 0,
 				1, .2181004L, -3.05096516L, 3.83286476L,
@@ -202,9 +211,10 @@ namespace physics
 	struct butcher6 : explicit_runge_kutta_base<System, 7>
 	// Butcher method (6th order, 7 stages)
 	{
-		butcher6()
+		butcher6(System& s)
 			: explicit_runge_kutta_base<System, 7>
 			{
+				s,
 				1/3.L, 1/3.L, 0, 0, 0, 0, 0,
 				2/3.L, 0, 2/3.L, 0, 0, 0, 0,
 				1/3.L, 1/12.L, 1/3.L, -1/12.L, 0, 0, 0,
@@ -221,9 +231,10 @@ namespace physics
 	// Verner method (8th order, 11 stages)
 	// S. Hippolyte, A. K. Richard, "A New Eighth Order Runge-Kutta Family Method", Journal of Mathematics Research, 2019
 	{
-		verner8()
+		verner8(System& s)
 			: explicit_runge_kutta_base<System, 11>
 			{
+				s,
 				.5L, .5L, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 				.5L, .25L, .25L, 0, 0, 0, 0, 0, 0, 0, 0,
 				(7+s21)/14, 1/7.L, (-7-3*s21)/98, (21+5*s21)/49, 0, 0, 0, 0, 0, 0, 0,
@@ -249,21 +260,26 @@ namespace physics
 	// only quadratic kinetic energy!
 
 	template <having_coordinates System, std::size_t Stages>
-	struct runge_kutta_nystrom_base : runge_kutta_base<System>, symplectic_integrator_base<System>
+	struct runge_kutta_nystrom_base : virtual runge_kutta_base<System>, virtual symplectic_integrator_base<System>
 	// all Runge-Kutta-Nystrom methods inherit from this class
 	// `Stages` is the number of stages of the method (number of force evaluations).
 	{
+		using runge_kutta_base<System>::first_step;
+
 		static constexpr std::size_t num_stages = Stages;
+
+		System& s;
 
 		template <typename ... Ts>
 		requires (sizeof...(Ts) == (Stages+1)*Stages)
-		runge_kutta_nystrom_base(Ts ... pars) : pars{scalar_type_of<System>(pars)...} {}
-		// constructor: `pars...` is a variadic argument which contains
-		// the parameters for the Runge-Kutta-Nystrom method
+		runge_kutta_nystrom_base(System& s, Ts ... pars) : s(s), pars{scalar_type_of<System>(pars)...} {}
+		// constructor:
+		// 	`s` is the system to integrate.
+		//	`pars...` is a variadic argument which contains the parameters for the Runge-Kutta-Nystrom method.
 
 		virtual ~runge_kutta_nystrom_base() = default;
 
-		void step(System& s, scalar_type_of<System> dt) override
+		void step(scalar_type_of<System> dt) override
 		{
 			using std::size_t;
 
@@ -271,7 +287,7 @@ namespace physics
 			prev_v = s.vel();
 			prev_p = s.p;
 
-			k[0] = s.force(runge_kutta_base<System>::first_step);
+			k[0] = s.force(first_step);
 			for (size_t i = 1; i < Stages; ++i)
 			{
 				s.x = 0;
@@ -296,7 +312,7 @@ namespace physics
 			s.p += prev_p;
 			s.t += dt;
 			s.force();
-			runge_kutta_base<System>::first_step = false;
+			first_step = false;
 		}
 
 		// parameters of the Runge-Kutta-Nystrom method

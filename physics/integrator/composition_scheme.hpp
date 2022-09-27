@@ -42,28 +42,26 @@ P. 156-158
 namespace physics
 {
 	template <having_coordinates System, template <typename> typename IntegT, std::size_t Stages>
-	struct composition_scheme_base : virtual IntegT<System>
+	struct composition_scheme_base : IntegT<System>
 	// all composition schemes inherit from this class.
 	// `IntegT` is the 2nd order integrator which is going to be composed.
 	// `Stages` is the number of stages of the method (number of force evaluations).
 	{
-		template <typename S>
-		using base_integrator_template_type = IntegT<S>;
-
 		static constexpr std::size_t num_stages = Stages;
 
 		template <typename ... Ts>
 		requires (sizeof...(Ts) == (Stages+1)/2)
-		composition_scheme_base(Ts ... pars) : pars{scalar_type_of<System>(pars)...} {}
-		// constructor: `pars...` is a variadic argument which contains
-		// the parameters for the composition scheme
+		composition_scheme_base(System& s, Ts ... pars) : IntegT<System>(s), pars{scalar_type_of<System>(pars)...} {}
+		// constructor:
+		// 	`s` is the system to integrate.
+		//	`pars...` is a variadic argument which contains the parameters for the composition scheme.
 
 		virtual ~composition_scheme_base() = default;
 
-		void step(System& s, scalar_type_of<System> dt) override
+		void step(scalar_type_of<System> dt) override
 		{
 			for (size_t i = 0; i < Stages; ++i)
-				IntegT<System>::step(s, pars[std::min(i, Stages-i-1)] * dt);
+				IntegT<System>::step(pars[std::min(i, Stages-i-1)] * dt);
 		}
 
 		// parameters of the composition scheme
@@ -78,9 +76,10 @@ namespace physics
 	// Forest-Ruth method (4th order, 3 stages)
 	// independently obtained by Yoshida
 	{
-		forest_ruth()
+		forest_ruth(System& s)
 			: composition_scheme_base<System, IntegT, 3>
 			{
+				s,
 				1.3512071919596576340476878089715L, // 1 / (2 - cbrt(2))
 				-1.7024143839193152680953756179429L // -cbrt(2) / (2 - cbrt(2))
 			}
@@ -91,9 +90,10 @@ namespace physics
 	struct suzuki4 : composition_scheme_base<System, IntegT, 5>
 	// Suzuki method (4th order, 5 stages)
 	{
-		suzuki4()
+		suzuki4(System& s)
 			: composition_scheme_base<System, IntegT, 5>
 			{
+				s,
 				0.41449077179437573714235406286076L, // 1 / (4 - cbrt(4))
 				0.41449077179437573714235406286076L, // 1 / (4 - cbrt(4))
 				-0.65796308717750294856941625144305L // -cbrt(4) / (4 - cbrt(4))
@@ -105,9 +105,10 @@ namespace physics
 	struct kahan_li4a : composition_scheme_base<System, IntegT, 5>
 	// Kahan-Li method (4th order, 5 stages)
 	{
-		kahan_li4a()
+		kahan_li4a(System& s)
 			: composition_scheme_base<System, IntegT, 5>
 			{
+				s,
 				0.78867513459481288225457439025098L, // (3 + sqrt(3)) / 6
 				0.21132486540518711774542560974902L, // (3 - sqrt(3)) / 6
 				-1
@@ -119,9 +120,10 @@ namespace physics
 	struct kahan_li4b : composition_scheme_base<System, IntegT, 5>
 	// Kahan-Li method (4th order, 5 stages)
 	{
-		kahan_li4b()
+		kahan_li4b(System& s)
 			: composition_scheme_base<System, IntegT, 5>
 			{
+				s,
 				0.21132486540518711774542560974902L, // (3 - sqrt(3)) / 6
 				0.78867513459481288225457439025098L, // (3 + sqrt(3)) / 6
 				-1
@@ -133,9 +135,10 @@ namespace physics
 	struct yoshida6 : composition_scheme_base<System, IntegT, 7>
 	// Yoshida method (6th order, 7 stages)
 	{
-		yoshida6()
+		yoshida6(System& s)
 			: composition_scheme_base<System, IntegT, 7>
 			{
+				s,
 				0.78451361047755726382L,
 				0.23557321335935813368L,
 				-1.1776799841788710069L,
@@ -148,9 +151,10 @@ namespace physics
 	struct kahan_li6a : composition_scheme_base<System, IntegT, 9>
 	// Kahan-Li method (6th order, 9 stages)
 	{
-		kahan_li6a()
+		kahan_li6a(System& s)
 			: composition_scheme_base<System, IntegT, 9>
 			{
+				s,
 				0.39216144400731413928L,
 				0.33259913678935943860L,
 				-0.70624617255763935981L,
@@ -164,9 +168,10 @@ namespace physics
 	struct kahan_li6b : composition_scheme_base<System, IntegT, 9>
 	// Kahan-Li method (6th order, 9 stages)
 	{
-		kahan_li6b()
+		kahan_li6b(System& s)
 			: composition_scheme_base<System, IntegT, 9>
 			{
+				s,
 				0.39103020330868478817L,
 				0.33403728961113601749L,
 				-0.70622728118756134346L,
@@ -180,9 +185,10 @@ namespace physics
 	struct suzuki8 : composition_scheme_base<System, IntegT, 15>
 	// Suzuki method (8th order, 15 stages)
 	{
-		suzuki8()
+		suzuki8(System& s)
 			: composition_scheme_base<System, IntegT, 15>
 			{
+				s,
 				0.74167036435061295344822780L,
 				-0.40910082580003159399730010L,
 				0.19075471029623837995387626L,
@@ -199,9 +205,10 @@ namespace physics
 	struct kahan_li8a : composition_scheme_base<System, IntegT, 17>
 	// Kahan-Li method (8th order, 17 stages)
 	{
-		kahan_li8a()
+		kahan_li8a(System& s)
 			: composition_scheme_base<System, IntegT, 17>
 			{
+				s,
 				0.13020248308889008088L,
 				0.56116298177510838456L,
 				-0.38947496264484728641L,
@@ -219,9 +226,10 @@ namespace physics
 	struct kahan_li8b : composition_scheme_base<System, IntegT, 17>
 	// Kahan-Li method (8th order, 17 stages)
 	{
-		kahan_li8b()
+		kahan_li8b(System& s)
 			: composition_scheme_base<System, IntegT, 17>
 			{
+				s,
 				0.12713692773487857916L,
 				0.56170253798880269972L,
 				-0.38253471994883018888L,
@@ -239,9 +247,10 @@ namespace physics
 	struct kahan_li10a : composition_scheme_base<System, IntegT, 31>
 	// Kahan-Li method (10th order, 31 stages)
 	{
-		kahan_li10a()
+		kahan_li10a(System& s)
 			: composition_scheme_base<System, IntegT, 31>
 			{
+				s,
 				-0.48159895600253002870L,
 				0.0036303931544595926879L,
 				0.50180317558723140279L,
@@ -266,9 +275,10 @@ namespace physics
 	struct kahan_li10b : composition_scheme_base<System, IntegT, 31>
 	// Kahan-Li method (10th order, 31 stages)
 	{
-		kahan_li10b()
+		kahan_li10b(System& s)
 			: composition_scheme_base<System, IntegT, 31>
 			{
+				s,
 				0.27338476926228452782L,
 				0.44587846502560283997L,
 				0.83219642847136307126L,
@@ -293,9 +303,10 @@ namespace physics
 	struct kahan_li10c : composition_scheme_base<System, IntegT, 33>
 	// Kahan-Li method (10th order, 33 stages)
 	{
-		kahan_li10c()
+		kahan_li10c(System& s)
 			: composition_scheme_base<System, IntegT, 33>
 			{
+				s,
 				0.070428877682658066880L,
 				0.87415651735353949041L,
 				0.055414604963802442707L,
@@ -321,9 +332,10 @@ namespace physics
 	struct kahan_li10d : composition_scheme_base<System, IntegT, 33>
 	// Kahan-Li method (10th order, 33 stages)
 	{
-		kahan_li10d()
+		kahan_li10d(System& s)
 			: composition_scheme_base<System, IntegT, 33>
 			{
+				s,
 				0.12282427644721572094L,
 				0.77644680890696440342L,
 				0.14881514553734297479L,

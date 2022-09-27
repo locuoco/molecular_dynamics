@@ -36,10 +36,8 @@ int main()
 
 	unsigned n_side = 12; // 12x12x12 = 1728 water molecules
 
-	using my_molecular_system = physics::molecular_system<double, physics::pppm>;
-
-	my_molecular_system molsys;
-	physics::mtk<my_molecular_system> integ;
+	physics::molecular_system molsys;
+	physics::mtk integ(molsys);
 	physics::thermodynamical_statistics stat_integ(integ);
 
 	// set a simple cubic lattice as initial condition
@@ -56,12 +54,12 @@ int main()
 		std::wstringstream custom_text;
 		if (i <= 0)
 		{
-			integ.step(molsys, 1_fs);
+			integ.step(1_fs);
 			custom_text << "EQUILIBRATION (other " << -i << " steps to go)\n";
 		}
 		else
 		{
-			stat_integ.step(molsys, 1_fs);
+			stat_integ.step(1_fs);
 			custom_text << "SIMULATION (" << i << " steps)\n";
 		}
 

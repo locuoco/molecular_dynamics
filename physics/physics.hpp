@@ -18,6 +18,7 @@
 #define PHYSICS_PHYSICS_H
 
 #include "direct.hpp"
+#include "energy_minimizer.hpp"
 #include "ewald.hpp"
 #include "integrator/composition_scheme.hpp"
 #include "integrator/integrator.hpp"

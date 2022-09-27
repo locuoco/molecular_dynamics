@@ -34,7 +34,7 @@ void test_leapfrog_energy()
 // Test conservation of energy of leapfrog method on a harmonic oscillator.
 {
 	periodic_harmonic_oscillator sys;
-	physics::leapfrog<periodic_harmonic_oscillator> integ;
+	physics::leapfrog integ(sys);
 
 	// initial condition
 	sys.x = 1;
@@ -42,7 +42,7 @@ void test_leapfrog_energy()
 	sys.force(); // needed to update potential energy
 	double energy0 = sys.total_energy();
 
-	integ.simulate(sys, 1e-3, 10'000'000);
+	integ.simulate(1e-3, 10'000'000);
 
 	double energy1 = sys.total_energy();
 
@@ -54,8 +54,8 @@ void test_symplectic_euler_same()
 // the first and the last step.
 {
 	periodic_harmonic_oscillator sys1, sys2;
-	physics::symplectic_euler<periodic_harmonic_oscillator> integ1;
-	physics::leapfrog<periodic_harmonic_oscillator> integ2;
+	physics::symplectic_euler integ1(sys1);
+	physics::leapfrog integ2(sys2);
 
 	// initial conditions
 	sys1.x = sys2.x = 1;
@@ -65,11 +65,11 @@ void test_symplectic_euler_same()
 
 	// symplectic Euler + corrections
 	sys1.p -= sys1.force() * dt/2;
-	integ1.simulate(sys1, dt, n_steps);
+	integ1.simulate(dt, n_steps);
 	sys1.p += sys1.force() * dt/2;
 
 	// leapfrog
-	integ2.simulate(sys2, dt, n_steps);
+	integ2.simulate(dt, n_steps);
 
 	assert(std::abs(sys1.x - sys2.x) < 1e-12);
 	assert(std::abs(sys1.p - sys2.p) < 1e-13);
@@ -81,7 +81,7 @@ void test_pefrl_order()
 // of the numerically integrated harmonic oscillator is 16 times better.
 {
 	periodic_harmonic_oscillator sys;
-	physics::pefrl<periodic_harmonic_oscillator> integ;
+	physics::pefrl integ(sys);
 
 	double dt = 1e-2;
 	unsigned n_steps = 100'000;
@@ -91,7 +91,7 @@ void test_pefrl_order()
 	sys.x = x0;
 	sys.p = p0;
 
-	integ.simulate(sys, dt, n_steps);
+	integ.simulate(dt, n_steps);
 
 	double error1 = std::abs(sys.x - x_ref);
 
@@ -103,7 +103,7 @@ void test_pefrl_order()
 	sys.p = p0;
 
 	integ.reset();
-	integ.simulate(sys, dt, n_steps);
+	integ.simulate(dt, n_steps);
 
 	double error2 = std::abs(sys.x - x_ref);
 
@@ -116,7 +116,7 @@ void test_vefrl_order()
 // of the numerically integrated harmonic oscillator is 16 times better.
 {
 	periodic_harmonic_oscillator sys;
-	physics::vefrl<periodic_harmonic_oscillator> integ;
+	physics::vefrl integ(sys);
 
 	double dt = 1e-2;
 	unsigned n_steps = 100'000;
@@ -126,7 +126,7 @@ void test_vefrl_order()
 	sys.x = x0;
 	sys.p = p0;
 
-	integ.simulate(sys, dt, n_steps);
+	integ.simulate(dt, n_steps);
 
 	double error1 = std::abs(sys.x - x_ref);
 
@@ -138,7 +138,7 @@ void test_vefrl_order()
 	sys.p = p0;
 
 	integ.reset();
-	integ.simulate(sys, dt, n_steps);
+	integ.simulate(dt, n_steps);
 
 	double error2 = std::abs(sys.x - x_ref);
 
@@ -151,7 +151,7 @@ void test_isokinetic_temperature()
 // speed (effectively ignoring the potential). That the momentum is conserved is also checked.
 {
 	periodic_harmonic_oscillator sys;
-	physics::isokinetic_leapfrog<periodic_harmonic_oscillator> integ;
+	physics::isokinetic_leapfrog integ(sys);
 
 	double p0 = 1;
 	// initial condition
@@ -160,7 +160,7 @@ void test_isokinetic_temperature()
 
 	double temp0 = sys.kinetic_energy();
 
-	integ.simulate(sys, 1e-3, 10'000'000);
+	integ.simulate(1e-3, 10'000'000);
 
 	double temp1 = sys.kinetic_energy();
 	double p1 = sys.p;
@@ -178,7 +178,7 @@ void test_nose_hoover()
 // temperature (both within 3 standard deviations).
 {
 	periodic_harmonic_oscillator sys;
-	physics::nose_hoover<periodic_harmonic_oscillator> integ(10, .7);
+	physics::nose_hoover integ(sys, 10, .8);
 	physics::thermodynamical_statistics stat_integ(integ);
 
 	double a = sys.elastic_k * sys.side*sys.side / (8*sys.kT_ref());
@@ -187,7 +187,7 @@ void test_nose_hoover()
 	// initial condition
 	sys.x = 1;
 
-	stat_integ.simulate(sys, 1e-2, 1'000'000);
+	stat_integ.simulate(1e-2, 1'000'000);
 
 	assert(std::abs(stat_integ.pressure_mean() - pressure_analytical) < 3*stat_integ.pressure_sd());
 	assert(std::abs(stat_integ.temperature_mean() - sys.temperature_ref) < 3*stat_integ.temperature_sd());
@@ -203,7 +203,7 @@ void test_mtk()
 // * the average pressure corresponds to the reference pressure within 3 standard deviations.
 {
 	periodic_harmonic_oscillator sys;
-	physics::mtk<periodic_harmonic_oscillator> integ(5, .5, .2);
+	physics::mtk integ(sys, 7, .3, .1);
 	physics::thermodynamical_statistics stat_integ(integ);
 
 	double a = 2 * sys.pressure_ref*sys.pressure_ref / (sys.elastic_k * sys.kT_ref());
@@ -215,7 +215,7 @@ void test_mtk()
 	// initial condition
 	sys.x = 1;
 
-	stat_integ.simulate(sys, 1e-2, 1'000'000);
+	stat_integ.simulate(1e-2, 1'000'000);
 
 	assert(std::abs(stat_integ.volume_mean() - volume_analytical) < 3*stat_integ.volume_sd());
 	assert(std::abs(stat_integ.temperature_mean() - sys.temperature_ref) < 3*stat_integ.temperature_sd());
