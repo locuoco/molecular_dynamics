@@ -132,11 +132,8 @@ To set the coordinates of the molecule:
     my_system.add_molecule(physics::water_tip3p<>, {1, 2, 3});
 ```
 where the coordinates are given in angstrom.
-To advance the system by one step of 1 femtosecond, do:
-```c++
-    my_system.step(1_fs);
-```
-The literal suffix `_fs` is needed to convert the value into AKMA units, which are used internally in the `physics::molecular_system` class. It is possible to set the algorithm used for the summation of long-range forces and the floating point type used for internal calculations by specifying the template arguments of the `physics::molecular_system` class:
+
+It is possible to set the algorithm used for the summation of long-range forces and the floating point type used for internal calculations by specifying the template arguments of the `physics::molecular_system` class:
 ```c++
     physics::molecular_system<long double, physics::ewald> my_system;
 ```
@@ -145,14 +142,16 @@ By default, the floating point type is `double` (64-bit floating point) and the 
 * `physics::ewald`: Ewald summation, O(N^2) complexity, more accurate
 * `physics::pppm`: Particle-particle, particle-mesh method, O(N log N) complexity, faster, speed and accuracy depend on parameters
 
-To integrate the equations of motion it is needed to declare a numerical integrator object, and then call the `simulate` method:
+To integrate the equations of motion it is needed to declare a numerical integrator object, and then call `step` or `simulate` method:
 ```c++
     using namespace physics::literals; // for _fs
+
     physics::leapfrog my_integ(my_system);
 
-    my_integ.simulate(1_fs, 10000);
+    my_integ.step(1_fs); // advance simulation by one step
+    my_integ.simulate(1_fs, 10000); // advance simulation by 10000 steps
 ```
-which simulates the system for 10000 steps with a time step of 1 femtosecond. Note that `my_system` object is taken by reference, so it shall not be destroyed before calling `simulate`. Some currently available numerical integrators are:
+The literal suffix `_fs` is needed to convert the timestep given in femtoseconds into AKMA units, which are used internally in the `physics::molecular_system` class. Note that `my_system` object is taken by reference, so it shall not be destroyed before calling `simulate`. Some currently available numerical integrators are:
 
 * `physics::leapfrog`: Leapfrog method (2nd order, 1 stage)
 * `physics::multi_timestep_leapfrog`: Multi-timestep leapfrog method (2nd order, 1 stage for long-range forces)
