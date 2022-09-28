@@ -18,7 +18,7 @@
 
 /*
 
-Compilation:
+Compilation (MinGW):
 g++ water.cpp -o water -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\Users\aless\Desktop\myLib\lib -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1
 
 */
