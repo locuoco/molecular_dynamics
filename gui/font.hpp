@@ -364,8 +364,8 @@ class font
 			auto newline = [this, xi, scale, &x, &y]
 			// lambda function to create a newline
 				{
-					GLint t = characters.at('A').sz[1]; // `A` is the tallest character
-					t += characters.at('g').bearing[1]; // `g` is the character with greatest bearing
+					GLint t = characters.at('A').sz[1]; // 'A' is the tallest character
+					t += characters.at('g').bearing[1]; // 'g' is the character with greatest bearing
 					x = xi;
 					y -= t * scale;
 				};

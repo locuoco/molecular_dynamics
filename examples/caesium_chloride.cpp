@@ -38,8 +38,10 @@ int main()
 	physics::molecular_system molsys;
 	physics::nose_hoover integ(molsys);
 
+	// adding more cells to improve PPPM accuracy
 	molsys.lrsum.cell_multiplier(1);
 
+	// CsCl is a primitive cubic lattice with two elements
 	molsys.primitive_cubic_lattice(n_side, physics::cscl_lattice<>, physics::caesium_ion<>, physics::chloride_ion<>);
 
 	while (!window.should_close())
@@ -50,6 +52,7 @@ int main()
 		custom_text << " A^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;
 		custom_text << " kcal/(mol A)\nEstimated dispersion force RMSE = " << molsys.lrsum.estimated_error_lj;
 		custom_text << " kcal/(mol A)\nEstimated total force RMSE = " << molsys.lrsum.estimated_error;
+
 		// the primitive cubic structure is stable!
 		window.draw(molsys, custom_text.str());
 	}

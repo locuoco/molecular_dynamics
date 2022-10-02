@@ -40,12 +40,16 @@ int main()
 	physics::molecular_system molsys;
 	physics::isokinetic_leapfrog integ(molsys);
 
+	// setting reference temperature
 	molsys.temperature_ref = 273.15+50;
+
+	// adding more cells to improve PPPM accuracy
 	molsys.lrsum.cell_multiplier(1);
 
 	// set a simple cubic lattice as initial condition
 	molsys.primitive_cubic_lattice(n_side, dist, physics::water_fba_eps<>);
 
+	// enlarging the simulation box
 	molsys.side *= 3;
 
 	while (!window.should_close())

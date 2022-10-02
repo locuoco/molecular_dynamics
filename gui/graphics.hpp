@@ -76,7 +76,7 @@ class graphics
 	public:
 
 		graphics() : dt(0), frame(0), fps(0)
-		// constructor
+		// (default) constructor
 		// it throws `std::runtime_error` if GLFW could not be initialized, if the window could
 		// not be created or if init_resources() throws
 		{
@@ -138,7 +138,7 @@ class graphics
 			glDeleteProgram(prog_id);
 			glDeleteProgram(prog_fxaa_id);
 
-			// delete all buffers (free memory)
+			// delete all buffers (free GPU memory)
 			glDeleteFramebuffers(1, &fb);
 			glDeleteTextures(1, &tex_scene);
 			glDeleteTextures(1, &tex_blue_noise);
@@ -161,6 +161,7 @@ class graphics
 		template <typename MolSys, typename CharT = char>
 		void draw(MolSys& molsys, const std::basic_string<CharT>& custom_text = "")
 		// draw all the atoms contained in `molsys` system.
+		// `custom_text` is an (optional) text to print on screen.
 		// `Molsys` must be a `molecular_system` type.
 		// Throw a `std::runtime_error` if `CHECK_GL_ERROR` finds an error
 		{
@@ -221,11 +222,16 @@ class graphics
 		std::vector<float> atom_attribs;
 
 		static void DbgMessage(GLenum, GLenum, GLuint, GLenum, GLsizei, const GLchar *message, const void*)
+		// callback used for OpenGL debugging.
+		// `message` is the message received from OpenGL debugger.
+		// All other arguments are ignored.
 		{
 			std::clog << message << std::endl;
 		}
 
 		static void ErrorCallback(int, const char* description)
+		// callback used for GLFW errors.
+		// `description` is the message received from GLFW debugger.
 		{
 			std::cerr << description << std::endl;
 		}

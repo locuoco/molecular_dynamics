@@ -37,8 +37,10 @@ int main()
 	physics::molecular_system molsys;
 	physics::nose_hoover integ(molsys);
 
+	// adding more cells to improve PPPM accuracy
 	molsys.lrsum.cell_multiplier(1);
 
+	// NaCl is a fcc lattice with two elements
 	molsys.face_centered_cubic_lattice(n_side, physics::nacl_lattice<>, physics::sodium_ion<>, physics::chloride_ion<>);
 
 	while (!window.should_close())
@@ -49,6 +51,7 @@ int main()
 		custom_text << " A^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;
 		custom_text << " kcal/(mol A)\nEstimated dispersion force RMSE = " << molsys.lrsum.estimated_error_lj;
 		custom_text << " kcal/(mol A)\nEstimated total force RMSE = " << molsys.lrsum.estimated_error;
+
 		// the fcc structure is stable!
 		window.draw(molsys, custom_text.str());
 	}
