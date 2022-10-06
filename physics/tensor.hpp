@@ -135,7 +135,7 @@ namespace physics
 	template <typename T, std::size_t ... Ns>
 	requires ((Ns * ...) >= 1)
 	struct tensor : std::array<T, (Ns * ...)>
-	// a tensor inherits from `std::array` all his member functions (except constructors).
+	// a tensor inherits from `std::array` all his member functions.
 	// `T` is the underlying (scalar) type and `Ns...` is the tensor shape.
 	{
 		private:

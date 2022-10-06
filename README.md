@@ -1,4 +1,4 @@
-# Molecular dynamics 
+# 3D Molecular dynamics
 
 ![Screenshot of the program](screenshot.png)
 <!---
@@ -32,7 +32,7 @@ References:
   * [Dependencies](#dependencies)
   * [Compilation](#compilation)
   * [Basic usage](#basic-usage)
-* [Molecular dynamics](#molecular-dynamics)
+* [Molecular dynamics techniques](#molecular-dynamics-techniques)
   * [Ewald summation](#ewald-summation)
   * [PPPM method](#pppm-method)
   * [Nosé-Hoover thermostat](#nosé-hoover-thermostat)
@@ -131,7 +131,11 @@ To set the coordinates of the molecule:
 ```c++
     my_system.add_molecule(physics::water_tip3p<>, {1, 2, 3});
 ```
-where the coordinates are given in angstrom.
+where the coordinates are given in angstrom. It is also possible to create a primitive cubic lattice:
+```c++
+    my_system.primitive_cubic_lattice(5, 3, physics::water_tip3p<>);
+```
+where `5` is the number of molecules along one dimension, and `3` is the lattice constant. See documentation in file `physics/molecule.hpp` for more details.
 
 It is possible to set the algorithm used for the summation of long-range forces and the floating point type used for internal calculations by specifying the template arguments of the `physics::molecular_system` class:
 ```c++
@@ -214,6 +218,8 @@ int main()
 ```
 For some complete examples, see the `examples` directory in this repository.
 <!--- __________________________________________________________ --->
+
+## Molecular dynamics techniques
 
 ### Ewald summation
 

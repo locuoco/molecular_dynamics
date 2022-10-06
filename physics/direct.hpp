@@ -31,7 +31,7 @@ namespace physics
 	// A `coulomb_and_lj` system `s` is a `physical_system` so that the following
 	// instructions are well-formed (compilable).
 	// `n` is the number of atoms.
-	// `z[i]` is the rescaled charge for particle `i`.
+	// `z[i]` is the charge for particle `i`, rescaled by the square root of the Coulomb constant.
 	// `lj_sqrteps[i]` is the square root of the Lennard-Jones energy parameter for particle `i`.
 	// `lj_halfR[i]` is half the minimum LJ potential distance parameter for particle `i`.
 	// `f[i]` is the force for particle `i`.
@@ -184,6 +184,8 @@ namespace physics
 			partpot_lj.resize(num_threads);
 			partvir_lj.resize(num_threads);
 			auto eval_lambda = [this, num_threads, &s](size_t idx)
+				// lambda function calculating forces, potentials and virials
+				// for thread `idx`.
 				{
 					T uC = 0, uLJ = 0, vLJ = 0;
 					size_t block = (s.n-1)/num_threads + 1;
@@ -224,8 +226,7 @@ namespace physics
 	// slow to converge or not converge at all to the correct value.
 	{
 		static constexpr T cutoff_radius() noexcept
-		// Cutoff radius undefined, since summation is performed expanding from cubes
-		// (spherical expansion is divergent for energies).
+		// Cutoff radius undefined, since summation is performed expanding from cubes.
 		// Return 0.
 		{
 			return 0;

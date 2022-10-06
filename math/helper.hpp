@@ -72,7 +72,7 @@ namespace math
 	{
 		return (num & (num-1)) == 0 && num != 0;
 		// the preceding number of any number in binary has at least one common bit
-		// (the msb) unless it is 0 or a power of 2.
+		// unless it is 0 or a power of 2.
 	}
 
 	constexpr int powm1(int expo) noexcept
@@ -135,9 +135,9 @@ namespace math
 
 	template <std::floating_point T>
 	constexpr T fasterfc(T x) noexcept
-	// From Abramowitz and Stegun (1964)
-	// calculate the complementary error function
-	// max relative error should be around 10^-7
+	// From Abramowitz and Stegun (1964).
+	// Calculate the complementary error function of x.
+	// Max relative error should be around 10^-7.
 	{
 		if (x < 0)
 			return 2 - fasterfc(-x);
@@ -162,8 +162,8 @@ namespace math
 
 	template <std::floating_point T>
 	constexpr T fasterf(T x) noexcept
-	// calculate the error function
-	// max relative error should be around 10^-7
+	// Calculate the error function of x.
+	// Max relative error should be around 10^-7.
 	{
 		return 1 - fasterfc(x);
 	}
@@ -192,7 +192,7 @@ namespace math
 	{
 		using std::sin;
 		return x*x == 0 ? 1 : sin(x)/x;
-		// by multiplying x by itself, I force denormals to flush to zero
+		// by multiplying x by itself, I force denormals to flush to zero.
 		// In this case, 1 is the correct result
 		// (if x is a denormal (or zero) and -ffast-math is enabled, then this
 		// avoids division by 0)

@@ -31,8 +31,8 @@ inline void scroll_callback(GLFWwindow*, double, double);
 
 struct controls
 // class for handling mouse and key input and updating the camera
-// position and direction and other parameters (like gamma correction)
-// used in `graphics.hpp`
+// position and direction and other parameters (like gamma correction).
+// Used in `graphics.hpp`.
 {
 	physics::mat4d proj; // (perspective) projection matrix
 	physics::mat4d view; // view matrix
@@ -50,11 +50,12 @@ struct controls
 	bool cursor_disabled = false;
 
 	friend void scroll_callback(GLFWwindow*, double, double);
+	// see below definition for documentation
 
 	controls(GLFWwindow* window, int w, int h) : window(window), w(w), h(h)
 	// constructor:
-	// `window` is a pointer to GLFWwindow returned by `glfwCreateWindow`.
-	// `w` and `h` are the width and height of the window respectively.
+	//	`window` is a pointer to GLFWwindow returned by `glfwCreateWindow`.
+	//	`w` and `h` are the width and height of the window respectively.
 	{
 		glfwPollEvents();
 
@@ -98,7 +99,7 @@ struct controls
 			using std::cos;
 			using std::exp;
 
-			constexpr double angle_acc_coeff = 5.e-2; // coefficient applied to camera angular acceleration when the cursor moved
+			constexpr double angle_acc_coeff = 5.e-2; // scaling applied to camera angular acceleration when the cursor moved
 			constexpr double angleFriction = 17.; // friction coefficient applied to camera angular components
 
 			// angular acceleration of the camera
@@ -107,10 +108,10 @@ struct controls
 			physics::vec2d cursor_pos;
 			glfwGetCursorPos(window, &cursor_pos[0], &cursor_pos[1]);
 
-			bool mouseRightPressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+			bool mouse_right_pressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
 
 			// if right button is being pressed and cursor has not yet been disabled...
-			if (mouseRightPressed && !cursor_disabled)
+			if (mouse_right_pressed && !cursor_disabled)
 			{
 				// ...disable (hide) cursor
 				glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -118,11 +119,11 @@ struct controls
 				cursor_disabled = true;
 			}
 			// if right button is being pressed and cursor has already been disabled...
-			else if (mouseRightPressed && cursor_disabled)
+			else if (mouse_right_pressed && cursor_disabled)
 				// ...calculate the camera angular acceleration from the displacement of the cursor
 				ang_acc = angle_acc_coeff * (last_cursor_pos - cursor_pos) / dt;
 			// if right button is not being pressed and cursor is disabled...
-			else if (!mouseRightPressed && cursor_disabled)
+			else if (!mouse_right_pressed && cursor_disabled)
 			{
 				// ...enable (show) cursor and set its position to the center of the window
 				glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
@@ -144,18 +145,18 @@ struct controls
 			while (angles[0] < -std::numbers::pi)
 				angles[0] += math::two_pi<double>;
 
-			constexpr double maxVertAngle = math::half_pi<double> * (1.-std::numeric_limits<float>::epsilon());
+			constexpr double max_vert_angle = math::half_pi<double> * (1.-std::numeric_limits<float>::epsilon());
 
 			// clamping vertical (polar) angle between [-pi/2 + eps, pi/2 - eps], with eps = small number
 			// setting polar angular velocity to zero if the angle has been clamped
-			if (angles[1] < -maxVertAngle)
+			if (angles[1] < -max_vert_angle)
 			{
-				angles[1] = -maxVertAngle;
+				angles[1] = -max_vert_angle;
 				ang_vel[1] = 0;
 			}
-			if (angles[1] > maxVertAngle)
+			if (angles[1] > max_vert_angle)
 			{
-				angles[1] = maxVertAngle;
+				angles[1] = max_vert_angle;
 				ang_vel[1] = 0;
 			}
 
@@ -175,7 +176,7 @@ struct controls
 			using std::cos;
 			using std::exp;
 
-			constexpr double acc_coeff = 200; // coefficient applied to camera linear acceleration when a key is pressed
+			constexpr double acc_coeff = 200; // scaling applied to camera linear acceleration when a key is pressed
 			constexpr double friction = 6.; // friction coefficient applied to camera linear components
 			constexpr double gammaSpeed = 0.5; // rate of change of gamma value when 'G'+up/down are pressed
 
@@ -258,8 +259,9 @@ struct controls
 inline void scroll_callback(GLFWwindow* w, double, double yoff)
 // a function wrapper that calls the method `update_fov` of a `controls` object,
 // whose pointer was stored with `glfwSetWindowUserPointer`.
-// `glfwGetWindowUserPointer` retrieves the pointer to the object (as a `void*`).
+// `w` is a pointer to a valid GLFW window object.
 // `yoff` argument is simply forwarded to `update_fov`.
+// `glfwGetWindowUserPointer(w)` retrieves the pointer to the `controls` object (as a `void*`).
 {
 	static_cast<controls*>(glfwGetWindowUserPointer(w))->update_fov(yoff);
 }

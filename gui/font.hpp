@@ -65,10 +65,10 @@ class font
 
 		struct character
 		{
-			GLuint id;     // texture id
-			vec2i sz;      // size of character
-			vec2i bearing; // character bearing
-			GLint advance; // character advance width
+			GLuint id;      // texture id
+			vec2i  sz;      // size of character
+			vec2i  bearing; // character bearing
+			GLint  advance; // character advance width
 		};
 
 		std::map<wchar_t, character> characters;
@@ -83,7 +83,7 @@ class font
 		
 		void load_char(FT_Face ff, FT_ULong c)
 		// load a character texture
-		// `ff` is the face object from which we will choose the character
+		// `ff` is the FreeType face object from which we will choose the character
 		// `c` is the (wide) character to load
 		// The character metrics and texture id will be inserted inside the `characters` map
 		{
@@ -122,18 +122,6 @@ class font
 				(GLint)gs->advance.x
 			};
 			characters.insert(std::pair<wchar_t, character>(c, ch));
-		}
-
-		bool color_equal(float r, float g, float b, float a) const
-		// Check if the (r, g, b, a) color is exactly the same as the current one
-		{
-			return r == current_color[0] && g == current_color[1] && b == current_color[2] && a == current_color[3];
-		}
-
-		bool color_equal(const vec4f& c) const
-		// Check if the `c` color (as a vector of floats) is exactly the same as the current one
-		{
-			return c == current_color;
 		}
 
 	public:
@@ -286,38 +274,33 @@ class font
 			return init;
 		}
 
-		void color(float r, float g, float b, float a) const
-		// Set the current color to (r, g, b, a)
-		{
-			if (!color_equal(r, g, b, a))
-			{
-				glUniform4f(color_id, r, g, b, a);
-				current_color = vec4f(r, g, b, a);
-				FONT_DBG_GL("font::color(float, float, float, float)");
-			}
-		}
-
-		void color(float r, float g, float b) const
-		// Set the current color to (r, g, b, 1)
-		{
-			color(r,g,b,1.f);
-		}
-
-		void color(const vec3f& col) const
-		// Set the current color to (col, 1) (1 is the alpha channel)
-		{
-			color(col[0],col[1],col[2],1.f);
-		}
-
 		void color(const vec4f& col) const
 		// Set the current color to `col`
 		{
-			if (!color_equal(col))
+			if (col != current_color)
 			{
 				glUniform4fv(color_id, 1, &col[0]);
 				current_color = col;
 				FONT_DBG_GL("font::color(const vec4f&)");
 			}
+		}
+
+		void color(float r, float g, float b, float a) const
+		// Set the current color to (r, g, b, a)
+		{
+			color(vec4f(r, g, b, a));
+		}
+
+		void color(float r, float g, float b) const
+		// Set the current color to (r, g, b, 1)
+		{
+			color(vec4f(r, g, b, 1.f));
+		}
+
+		void color(const vec3f& col) const
+		// Set the current color to (col, 1) (1 is the alpha channel)
+		{
+			color(vec4f(col[0], col[1], col[2], 1.f));
 		}
 
 		void begin() const

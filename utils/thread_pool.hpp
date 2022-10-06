@@ -33,16 +33,21 @@ namespace utils
 	struct task_base
 	{
 		virtual void perform() = 0;
+		// perform a task
+
 		virtual operator bool() = 0;
+		// check if the task is well-formed
+
 		virtual ~task_base() = default;
+		// virtual trivial destructor
 	};
 
 	template <typename Func>
 	class task_wrapper : public task_base
-	// needed for type erasure, so that the `task` class is not a template class
-	// the advantage of this is that a std::vector of tasks may be created independently
+	// needed for type erasure, so that the `task` class is not a template class.
+	// The advantage of this is that a std::vector of tasks may be created independently
 	// of the number of parameters that need to be stored in each object.
-	// to achieve this, dynamical polymorphism is required
+	// To achieve this, dynamical polymorphism is required
 	{
 			template <typename T>
 			struct args_tuple {};
@@ -55,6 +60,7 @@ namespace utils
 
 			template <std::size_t ... Ns>
 			void call(std::index_sequence<Ns...>)
+			// call function `f` with arguments `args`
 			{
 				f(get<Ns>(args)...);
 			}
@@ -69,15 +75,20 @@ namespace utils
 
 			template <typename F, typename ... Args>
 			task_wrapper(F&& f, Args&& ... args)
+			// constructor:
+			//	`f` is the function object associated to the task.
+			//	`args...` are the arguments of the function object.
 				: f(std::forward<F>(f)), args{std::forward<Args>(args)...}
 			{}
 
 			void perform() override
+			// perform the tasks f(args...)
 			{
 				call(std::make_index_sequence<std::tuple_size_v<args_type>>{});
 			}
 
 			operator bool() override
+			// check if `f` is callable
 			{
 				return bool(f);
 			}
@@ -89,8 +100,8 @@ namespace utils
 
 		public:
 
-			task() : pt(nullptr)
-			{}
+			task() : pt(nullptr) {}
+			// default constructor
 
 			template <typename F, typename ... Args>
 			task(F&& f, Args&& ... args)
@@ -125,8 +136,9 @@ namespace utils
 		public:
 
 			bool pop(task& t, std::stop_token stok)
-			// extract a task to perform, and wait if there is none
-			// return false if a stop has been requested
+			// extract a task `t` to perform, and wait if there is none
+			// return false if a stop has been requested.
+			// `stok` is the stop token associated to a std::jthread.
 			{
 				std::unique_lock lock(mutex);
 				cond.wait(lock, stok, [this]{ return !tasks.empty(); });
@@ -140,7 +152,7 @@ namespace utils
 			}
 
 			bool try_pop(task& t)
-			// try to extract a task to perform without waiting
+			// try to extract a task `t` to perform without waiting
 			// return false if failing to extract a task (the mutex is already locked in another thread)
 			// or if there is no task left
 			{
@@ -228,16 +240,19 @@ namespace utils
 
 		std::atomic<std::size_t> index;
 		std::deque<worker> workers;
+		// using std::deque, which does not reallocate when adding new elements
 
 		void thread_loop(std::stop_token stok, std::size_t i)
+		// `stok` is the stop token associated to the current thread
+		// `i` is the index of the current thread
 		{
 			while (true)
 			{
 				task t;
 				std::size_t chosen_ind = i;
+				// simple task stealing algorithm
 				for (unsigned j = 0; j < size(); ++j)
 					if (workers[(i+j) % size()].queue.try_pop(t))
-					// simple task stealing algorithm
 					{
 						chosen_ind = (i+j) % size();
 						break;
@@ -282,9 +297,10 @@ namespace utils
 			// `args...` are the arguments (if any)
 			{
 				auto i = index++; // index is atomic so that enqueue can be called by any thread (it is thread-safe)
+				// simple scheduling mechanism
 				for (unsigned j = 0; j < size(); ++j)
 					if (workers[(i+j) % size()].queue.try_push(std::forward<F>(f), std::forward<Args>(args)...))
-						return; // simple scheduling mechanism
+						return;
 				workers[i % size()].queue.push(std::forward<F>(f), std::forward<Args>(args)...);
 			}
 

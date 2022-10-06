@@ -57,11 +57,15 @@ extern "C"
     EXPORT int AmdPowerXpressRequestHighPerformance = 1;
 }
 
-// check if there are any errors, throwing a `std::runtime_error`
-// with a message containing the file and the line where it occurred
 #define CHECK_GL_ERROR() checkGlError(__FILE__, __LINE__)
 
 inline void checkGlError(const char *file, int line)
+// check if there are any errors, throwing a `std::runtime_error`
+// with a message containing the file and the line where it occurred.
+// `file` is the path and filename where the check is done.
+// `line` is the line number where the check is done.
+// use the macro `CHECK_GL_ERROR()` to automatically generate the
+// `file` and `line` parameters.
 {
 	if (GLenum err = glGetError(); err != GL_NO_ERROR)
 	{
@@ -98,14 +102,14 @@ class graphics
 			// vidmode is used to know the bit-depth for each color channel of the monitor being used
 			vidmode = glfwGetVideoMode(glfwGetPrimaryMonitor());
 
-			// full-HD and better monitors have more pixels per inch squared,
+			// full-HD and better monitors may have more pixels per inch squared,
 			// so the window needs to be rescaled accordingly
 			glfwGetMonitorContentScale(glfwGetPrimaryMonitor(), &xscale, &yscale);
 			w = 1280*xscale, h = 720*yscale;
 
-			// create the window. `nullptr` for the 4th parameter for windowed mode,
-			// otherwise glfwGetPrimaryMonitor(), which returns the pointer to the window
-			// object associated to the monitor, will enable full-screen mode
+			// create the window. `nullptr` for the 4th parameter for windowed mode.
+			// Otherwise, glfwGetPrimaryMonitor(), which returns the pointer to the window
+			// object associated to the monitor, will enable full-screen mode.
 			window = glfwCreateWindow(w, h, "Molecular Dynamics", nullptr, nullptr);
 
 			if (!window)
@@ -136,7 +140,7 @@ class graphics
 			delete camera_controls;
 
 			glDeleteProgram(prog_id);
-			glDeleteProgram(prog_fxaa_id);
+			glDeleteProgram(prog_post_id);
 
 			// delete all buffers (free GPU memory)
 			glDeleteFramebuffers(1, &fb);
@@ -203,16 +207,15 @@ class graphics
 		const GLFWvidmode *vidmode = nullptr;
 		controls *camera_controls = nullptr;
 		font *text = nullptr;
-		GLuint prog_id, prog_fxaa_id; // programs
+		GLuint prog_id, prog_post_id; // programs (3D sphere rendering and post-processing)
 		GLuint mv_id, proj_id, normal_mat_id, light_pos_id, gamma_id; // uniforms of prog_id
-		GLuint rgb_max_id, frame_id, scene_id, blue_noise_id; // uniforms of prog_fxaa_id
+		GLuint rgb_max_id, frame_id, scene_id, blue_noise_id; // uniforms of prog_post_id
 		GLuint fb, rb; // framebuffers and render buffers
 		GLuint tex_scene, tex_blue_noise; // textures
 		GLuint va_atom, va_post; // vertex arrays
-		GLuint vb_atom, // atom buffers
-			   pb_inst, // (position) instancing buffer
-			   vb_post; // post-processing vertex buffer (square over the screen)
-				// vertex buffer objects
+		GLuint vb_atom, // atom buffer object
+			   pb_inst, // (position) instancing buffer bject
+			   vb_post; // post-processing vertex buffer object (square over the screen)
 		unsigned int mesh_size;
 		float xscale, yscale;
 		int w, h;
@@ -247,7 +250,7 @@ class graphics
 			if (GLuint st = glewInit(); st != GLEW_OK)
 				throw std::runtime_error(std::string("GLEW Error: ") + reinterpret_cast<const char*>(glewGetErrorString(st)));
 
-			// enable debug message callback
+			// enable OpenGL debug message callback
 			// requires OpenGL 4.3 to work properly
 			glEnable(GL_DEBUG_OUTPUT);
 			glDebugMessageCallback(DbgMessage, nullptr);
@@ -262,13 +265,13 @@ class graphics
 			init_framebuffer();
 			init_blue_noise();
 
-			// load vertex and fragment shaders for post-processing (FXAA+dithering) into the `prog_fxaa_id` program
-			prog_fxaa_id = load_shader("gui/shaders/vertexpost.vsh", "gui/shaders/fragmentfxaa.fsh");
+			// load vertex and fragment shaders for post-processing (FXAA+dithering) into the `prog_post_id` program
+			prog_post_id = load_shader("gui/shaders/vertexpost.vsh", "gui/shaders/fragmentpost.fsh");
 
 			// load vertex and fragment shaders for colored-illuminated spheres into the `prog_id` program
 			prog_id = load_shader("gui/shaders/vertex.vsh", "gui/shaders/fragment.fsh");
 
-			if (!prog_id || !prog_fxaa_id)
+			if (!prog_id || !prog_post_id)
 				throw std::runtime_error("Error in loading shader programs.");
 
 			text = new font("gui/LiberationSans-Regular.ttf", 24, w, h);
@@ -285,10 +288,10 @@ class graphics
 			light_pos_id = glGetUniformLocation(prog_id, "lightPos");
 			gamma_id = glGetUniformLocation(prog_id, "gamma");
 
-			rgb_max_id = glGetUniformLocation(prog_fxaa_id, "rgbMax");
-			frame_id = glGetUniformLocation(prog_fxaa_id, "frame");
-			scene_id = glGetUniformLocation(prog_fxaa_id, "screenTex");
-			blue_noise_id = glGetUniformLocation(prog_fxaa_id, "blueNoiseTex");
+			rgb_max_id = glGetUniformLocation(prog_post_id, "rgbMax");
+			frame_id = glGetUniformLocation(prog_post_id, "frame");
+			scene_id = glGetUniformLocation(prog_post_id, "screenTex");
+			blue_noise_id = glGetUniformLocation(prog_post_id, "blueNoiseTex");
 
 			CHECK_GL_ERROR();
 		}
@@ -597,7 +600,7 @@ class graphics
 			// disable depth test
 			glDisable(GL_DEPTH_TEST);
 			// use the shader program for post-processing (loaded in init method) 
-			glUseProgram(prog_fxaa_id);
+			glUseProgram(prog_post_id);
 
 			// set the texture index for the scene (tex_scene)
 			glUniform1i(scene_id, 0);

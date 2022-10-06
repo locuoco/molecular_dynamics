@@ -87,7 +87,7 @@ namespace physics
 		vLJ += lennard_jones;
 	}
 
-	template <bool Fast = false, coulomb_and_lj_periodic System>
+	template <bool Fast = true, coulomb_and_lj_periodic System>
 	void eval_ewald_r(
 		System&                 s,
 		scalar_type_of<System>& uC,
@@ -119,13 +119,10 @@ namespace physics
 		scalar_type_of<System>& uC,
 		scalar_type_of<System>  kappa,
 		scalar_type_of<System>  volume,
-		scalar_type_of<System>  dielectric = 1
+		scalar_type_of<System>  dielectric
 	)
 	// Calculate self-energy, charged system and dipole corrections.
-	// `s` is the physical system (`coulomb_and_lj` constraints required). Additional
-	// requirements are s.Z which is the total charge of the system and s.Z2 which is the sum
-	// square of the charges (after rescaling the charges by the square root of the Coulomb
-	// constant).
+	// `s` is the physical system (`coulomb_and_lj` constraints required).
 	// `uC` is a variable which accumulates the electrostatic potential energy.
 	// `kappa` is the Ewald parameter.
 	// `volume` is the volume of the system.
@@ -162,12 +159,12 @@ namespace physics
 		}
 
 		T dielectric() const noexcept
-		// Return the external relative dielectric constant (1 by default)
+		// Return the external relative dielectric constant (infinity by default)
 		{
 			return dielec;
 		}
 		void dielectric(T dielec) noexcept
-		// Set the external relative dielectric constant (1 by default)
+		// Set the external relative dielectric constant (infinity by default)
 		{
 			this->dielec = dielec;
 		}
@@ -206,7 +203,7 @@ namespace physics
 
 		void precise(bool flag) noexcept
 		// If `flag` is set to true, the calculations are carried on with the highest
-		// precision. By default is set to false, enabling faster calculations.
+		// precision. By default it is set to false, enabling faster calculations.
 		{
 			fast = !flag;
 		}
@@ -215,6 +212,7 @@ namespace physics
 		// set update flag to true (calculates optimal Ewald parameter again)
 		{
 			update = true;
+			manual = false;
 		}
 
 		template <coulomb_and_lj_periodic System>

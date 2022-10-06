@@ -50,14 +50,10 @@ namespace math
 	constexpr std::size_t bit_reverse(std::size_t num, std::size_t n_bits)
 	// return the bit-reverse of `num`, given the number of bits `n_bits`
 	// if `n_bits` is 3:
-	// 000 -> 000 (0 -> 0)
-	// 001 -> 100 (1 -> 4)
-	// 010 -> 010 (2 -> 2)
-	// 011 -> 110 (3 -> 6)
-	// 100 -> 001 (4 -> 1)
-	// 101 -> 101 (5 -> 5)
-	// 110 -> 011 (6 -> 3)
-	// 111 -> 111 (7 -> 7)
+	// 000 -> 000 (0 -> 0),  100 -> 001 (4 -> 1)
+	// 001 -> 100 (1 -> 4),  101 -> 101 (5 -> 5)
+	// 010 -> 010 (2 -> 2),  110 -> 011 (6 -> 3)
+	// 011 -> 110 (3 -> 6),  111 -> 111 (7 -> 7)
 	{
 		using std::size_t;
 		size_t res = 0;
@@ -159,8 +155,8 @@ namespace math
 
 		constexpr std::complex<T> twiddle_factor(std::size_t k, std::size_t n)
 		// Return exp(-2 pi i k/n), where i = imaginary unit.
-		// Subroutine `compute_twiddle_factors` will throw a `std::invalid_argument` if the
-		// number of elements in the range is not a power of 2.
+		// Subroutine `compute_twiddle_factors` will throw a `std::invalid_argument` if
+		// `n` is not a power of 2.
 		{
 			compute_twiddle_factors(n);
 			return twiddle_factors[num_bits(n-1)][k&(n-1)];
@@ -173,7 +169,7 @@ namespace math
 			}
 		constexpr void fft(It first, It last)
 		// compute a 1-dimensional fast Fourier transform of the range [first, last)
-		// using a radix-2 in-place algorithm.
+		// using a radix-2 *in-place* algorithm.
 		// `It` is required to be a random access iterator to a type which `std::complex<T>`
 		// is convertible to.
 		// Subroutine `compute_twiddle_factors` will throw a `std::invalid_argument` if the
@@ -191,7 +187,8 @@ namespace math
 					auto twiddle = twiddle_factors[m].begin();
 					for (size_t k = j; k < j+i; ++k)
 					{
-						std::complex<T> x0 = *(first + k), x1 = (*twiddle++)*(*(first + (i+k)));
+						std::complex<T> x0 = *(first + k);
+						std::complex<T> x1 = (*twiddle++) * (*(first + (i+k)));
 						*(first + k) = x0 + x1;
 						*(first + (i+k)) = x0 - x1;
 					}
@@ -201,7 +198,7 @@ namespace math
 		template <std::random_access_iterator It>
 		constexpr void ifft(It first, It last)
 		// compute the 1-dimensional inverse fast Fourier transform of the range [first, last).
-		// The algorithm is in place.
+		// The algorithm is *in place*.
 		// `It` is required to be a random access iterator to a type which `std::complex<T>`
 		// is convertible to.
 		// Subroutine `fft` will throw a `std::invalid_argument` if the number of elements
@@ -224,8 +221,8 @@ namespace math
 		// While the input is interpreted as real numbers, the output should be interpreted
 		// as complex numbers. Since for real input x the DFT has the (even-symmetric) property:
 		//	DFT(x)_k = conj(DFT(x)_(n-k))
-		// where conj is the complex conjugate and n is the number of real elements the input, then only
-		// n/2+1 numbers will need to be stored.
+		// where conj is the complex conjugate and n is the number of real elements of the input,
+		// then only n/2+1 numbers will need to be stored.
 		// Subroutine `fft` will throw a `std::invalid_argument` if the number of elements
 		// in the subrange [first, last-1) is not a power of 2.
 		{
@@ -297,7 +294,7 @@ namespace math
 		// It is a wrapper of `fft(It, It)`. Functions `begin` and `end` are required to
 		// be overloaded for type `Vec` and return a random access iterator to a type
 		// which `std::complex<T>` is convertible to.
-		// The algorithm is out of place (the input is not replaced).
+		// The algorithm is *out of place* (the input is not replaced).
 		// Subroutine `fft` will throw a `std::invalid_argument` if the number of elements
 		// is not a power of 2.
 		{
@@ -313,7 +310,7 @@ namespace math
 		// It is a wrapper of `ifft(It, It)`. Functions `begin` and `end` are required to
 		// be overloaded for type `Vec` and return a random access iterator to a type
 		// which `std::complex<T>` is convertible to.
-		// The algorithm is out of place (the input is not replaced).
+		// The algorithm is *out of place* (the input is not replaced).
 		// Subroutine `ifft` will throw a `std::invalid_argument` if the number of elements
 		// is not a power of 2.
 		{
@@ -329,7 +326,7 @@ namespace math
 		// It is a wrapper of `rfft(It, It)`. Functions `begin` and `end` are required to
 		// be overloaded for type `Vec` and return a random access iterator to a type
 		// which `std::complex<T>` is convertible to.
-		// The algorithm is out of place (the input is not replaced).
+		// The algorithm is *out of place* (the input is not replaced).
 		// Subroutine `rfft` will throw a `std::invalid_argument` if the number of complex elements
 		// is not a power of 2 + 1.
 		{
@@ -345,7 +342,7 @@ namespace math
 		// It is a wrapper of `irfft(It, It)`. Functions `begin` and `end` are required to
 		// be overloaded for type `Vec` and return a random access iterator to a type
 		// which `std::complex<T>` is convertible to.
-		// The algorithm is out of place (the input is not replaced).
+		// The algorithm is *out of place* (the input is not replaced).
 		// Subroutine `ifft` will throw a `std::invalid_argument` if the number of complex elements
 		// is not a power of 2 + 1.
 		{
@@ -374,7 +371,7 @@ namespace math
 		template <bool b_inverse, bool b_real, std::size_t N, typename Vec>
 		requires (N >= 2)
 		void bfftn(Vec& v, const std::array<std::size_t, N>& n, utils::thread_pool& tp)
-		// N-dimensional fast Fourier transform (performed in-place)
+		// N-dimensional fast Fourier transform (performed *in place*)
 		// 1-dim FFTs are performed for each direction, exploiting the separability property of N-dim DFT.
 		// The 1-dim FFTs are easily parallelized using a thread pool `tp`.
 		// `v` is a random-access container (like a std::valarray or std::deque) for which the FFT needs to be computed.
@@ -490,7 +487,7 @@ namespace math
 
 		template <std::size_t N, typename Vec>
 		constexpr void fftn(Vec& v, const std::array<std::size_t, N>& n, utils::thread_pool& tp)
-		// N-dimensional forward fast Fourier transform (performed in-place).
+		// N-dimensional forward fast Fourier transform (performed *in place*).
 		// Wrapper of `bfftn` with b_inverse=false and b_real=false (see also `fft`).
 		{
 			bfftn<false, false, N, Vec>(v, n, tp);
@@ -498,7 +495,7 @@ namespace math
 
 		template <std::size_t N, typename Vec>
 		constexpr void ifftn(Vec& v, const std::array<std::size_t, N>& n, utils::thread_pool& tp)
-		// N-dimensional inverse fast Fourier transform (performed in-place).
+		// N-dimensional inverse fast Fourier transform (performed *in place*).
 		// Wrapper of `bfftn` with b_inverse=true and b_real=false (see also `ifft`).
 		{
 			bfftn<true, false, N, Vec>(v, n, tp);
@@ -506,7 +503,7 @@ namespace math
 
 		template <std::size_t N, typename Vec>
 		constexpr void rfftn(Vec& v, const std::array<std::size_t, N>& n, utils::thread_pool& tp)
-		// N-dimensional forward fast Fourier transform (performed in-place).
+		// N-dimensional forward fast Fourier transform (performed *in place*).
 		// Wrapper of `bfftn` with b_inverse=false and b_real=true (see also `rfft`).
 		{
 			bfftn<false, true, N, Vec>(v, n, tp);
@@ -514,7 +511,7 @@ namespace math
 
 		template <std::size_t N, typename Vec>
 		constexpr void irfftn(Vec& v, const std::array<std::size_t, N>& n, utils::thread_pool& tp)
-		// N-dimensional inverse fast Fourier transform (performed in-place).
+		// N-dimensional inverse fast Fourier transform (performed *in place*).
 		// Wrapper of `bfftn` with b_inverse=true and b_real=true (see also `irfft`).
 		{
 			bfftn<true, true, N, Vec>(v, n, tp);
@@ -578,6 +575,11 @@ namespace math
 
 		private:
 
+			std::vector<std::vector<std::complex<T>>> tmp;
+			// a vector of std::complex<T> for each thread, to minimize chances of false sharing
+
+			std::vector<std::vector<std::complex<T>>> twiddle_factors;
+
 			template <std::random_access_iterator It>
 			constexpr void rfft_correct(It first, It last, std::ptrdiff_t sign)
 			// used in `rfft` and `irfft`:
@@ -611,11 +613,6 @@ namespace math
 				}
 				first->imag(-first->imag());
 			}
-
-			std::vector<std::vector<std::complex<T>>> tmp;
-			// a vector of std::complex<T> for each thread, to minimize chances of false sharing
-
-			std::vector<std::vector<std::complex<T>>> twiddle_factors;
 	};
 
 }

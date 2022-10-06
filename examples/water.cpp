@@ -32,6 +32,7 @@ int main()
 {
 	graphics window;
 
+	// setting `dist` as the average intermolecular distance
 	double dist = std::cbrt(physics::water_mass<> / physics::water_density25<>);
 
 	unsigned n_side = 12; // 12x12x12 = 1728 water molecules

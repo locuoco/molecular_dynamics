@@ -24,7 +24,7 @@
 
 #include <GL/glew.h>
 
-std::string load_code(const char* shader_path)
+std::string load_code(const std::string& shader_path)
 // Load shader code from file.
 // `shader_path` is the path of the file.
 // Return the shader code.
@@ -46,7 +46,7 @@ std::string load_code(const char* shader_path)
 	return shader_code;
 }
 
-void compile_code(GLuint shader, const std::string &code)
+void compile_code(GLuint shader, const std::string& code)
 // Compile shader code.
 // `shader` is the shader ID (returned by `glCreateShader`).
 // `code` is the shader code extracted with `load_code`.
@@ -93,7 +93,7 @@ void program_log(GLuint prog)
 		throw std::runtime_error("Error with linking program :(");
 }
 
-GLuint load_shader(const char* vs_path, const char* fs_path)
+GLuint load_shader(const std::string& vs_path, const std::string& fs_path)
 // Load vertex and fragment shaders.
 // `vs_path` is the path of the vertex shader.
 // `fs_path` is the path of the fragment shader.
@@ -121,7 +121,12 @@ GLuint load_shader(const char* vs_path, const char* fs_path)
 	return prog;
 }
 
-GLuint load_shader_tessellation(const char* vs_path, const char* tcs_path, const char* tes_path, const char* fs_path)
+GLuint load_shader_tessellation(
+	const std::string& vs_path,
+	const std::string& tcs_path,
+	const std::string& tes_path,
+	const std::string& fs_path
+)
 // Load vertex, tesselation and fragment shaders.
 // `vs_path` is the path of the vertex shader.
 // `tcs_path` is the path of the tesselation control shader.

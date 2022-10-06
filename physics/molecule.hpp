@@ -308,7 +308,7 @@ namespace physics
 	// see also W. L. Jorgensen, J. Chandrasekhar, J. D. Madura, R. W. Impey,
 	// M. L. Klein, "Comparison of simple potential functions for
 	// simulating liquid water", J. Chem. Phys. 79 926-935 (1983).
-	// This variant uses flexible bonds, which tend to increase the density
+	// This variant uses flexible bonds, which tend to overestimate the density.
 	// This is the model used in CHARMM.
 	{
 		.x     = { {-0.75695L, 0.58588L}, {0}, {0.75695L, 0.58588L} }, // oxygen at the origin
@@ -322,7 +322,7 @@ namespace physics
 	inline const molecule<T> water_tip3p_lr
 	// TIP3P water model optimized for long-range interactions
 	// see also D. J. Price, C. L. Brooks, "A modified TIP3P water potential for simulation with Ewald summation", 2004
-	// This variant uses flexible bonds, which tend to increase the density
+	// This variant uses flexible bonds, which tend to overestimate the density.
 	{
 		.x     = { {-0.75695L, 0.58588L}, {0}, {0.75695L, 0.58588L} }, // oxygen at the origin
 		.id    = {atom_type::HTL, atom_type::OTL, atom_type::HTL},
@@ -335,7 +335,7 @@ namespace physics
 	inline const molecule<T> water_fba_eps
 	// FBA/epsilon water model
 	// see R. Fuentes-Azcatl, M. Barbosa, "Flexible Bond and Angle, FBA/epsilon model of water", 2018
-	// This model gives an accurate estime of water density at 25 °C using Ewald summation.
+	// This model gives an accurate estimate of water density at 25 °C using Ewald summation.
 	// FBA/epsilon model is the most accurate flexible water model currently implemented in this library.
 	{
 		.x     = { {-0.75695L, 0.58588L}, {0}, {0.75695L, 0.58588L} }, // oxygen at the origin
@@ -416,11 +416,11 @@ namespace physics
 
 		molecular_system(T temp = 298.15, T p = 1*atm<T>, T side = 50, T D = DW25<T>, LRSum lrsum = LRSum())
 		// constructor:
-		// `side` is the side of the cubic box of the system to simulate (in angstrom)
-		// `temp` is the temperature to give to the initial configuration and reference temperature (in Kelvin)
-		// `p` is the reference pressure (in AKMA units)
-		// `D` is the diffusion coefficient used in stochastic integrators (in AKMA units)
-		// `lrsum` is the long-range summation algorithm to be used
+		//	`temp` is the temperature to give to the initial configuration and reference temperature (in Kelvin)
+		//	`p` is the reference pressure (in AKMA units)
+		//	`side` is the side of the cubic box of the system to simulate (in angstrom)
+		//	`D` is the diffusion coefficient used in stochastic integrators (in AKMA units)
+		//	`lrsum` is the long-range summation algorithm to be used
 			: lrsum(lrsum), side(side), temperature_ref(temp), pressure_ref(p), D(D)
 		{}
 
@@ -742,7 +742,7 @@ namespace physics
 		}
 
 		const state<T, 3>& vel(bool eval = true) override
-		// calculate velocities from momenta
+		// calculate velocities from momenta;
 		// if `eval` is false, reuse old values
 		{
 			fetch();
@@ -778,7 +778,8 @@ namespace physics
 		void fetch()
 		// during simulation, a std::valarray is used because its implementation supports efficient
 		// expression templates through operator overloading, making it a more useful choice
-		// with respect to std::vector.
+		// with respect to std::vector. During initialization, std::vector is preferred because it allows
+		// an efficient implementation of `resize`.
 		// Important: this function needs to be explicitly called if x,p,m need to be accessed
 		// right after `add_molecule` is called (i.e. before any of `step`, `force`, `force_short`
 		// `force_long`, `vel`, `rand`, `kinetic_energy`, `total_energy`, `temperature`, `kT`,
