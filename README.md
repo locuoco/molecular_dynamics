@@ -78,7 +78,7 @@ The code makes use of C++ templates and concepts (thus it requires C++20) and is
 The graphics part has some dependencies on public libraries that enable the usage of modern OpenGL (Open Graphics Library):
 * [GLFW 3](https://www.glfw.org/) (Graphics Library Framework 3): an open source, multi-platform API for creating windows, contexts and managing input and events.
 * [GLEW](http://glew.sourceforge.net/) (OpenGL Extension Wrangler): a cross-platform library that include core and extended OpenGL functionalities.
-* [FreeType](https://freetype.org/): an OpenGL library to render fonts (used in `Font.hpp`).
+* [FreeType](https://freetype.org/): an OpenGL library to render fonts (used in `font.hpp`).
 
 These dependencies are required only for these header files:
 * `gui/graphics.hpp`
@@ -120,12 +120,13 @@ To add a molecule to the system, use the method `add_molecule`:
 ```
 Currently available molecules are:
 
-* `physics::water_tip3p<>`: Water molecule, using a flexible TIP3P model with O–H and H–H Lennard-Jones parameters
-* `physics::water_tip3p_lr<>`: Water molecule, using a flexible TIP3P model optimized for long-range interactions
-* `physics::water_fba_eps<>`: Water molecule, using the FBA/&epsilon; model
-* `physics::sodium_ion<>`: Sodium ion
-* `physics::chloride_ion<>`: Chloride ion
-* `physics::caesium_ion<>`: Caesium ion
+* `physics::water_tip3p<T>`: Water molecule, using a flexible TIP3P model with O–H and H–H Lennard-Jones parameters
+* `physics::water_tip3p_lr<T>`: Water molecule, using a flexible TIP3P model optimized for long-range interactions
+* `physics::water_fba_eps<T>`: Water molecule, using the FBA/&epsilon; model
+* `physics::sodium_ion<T>`: Sodium ion
+* `physics::chloride_ion<T>`: Chloride ion
+* `physics::caesium_ion<T>`: Caesium ion
+where `T` is a scalar type. If not specified, `double` is assumed.
 
 To set the coordinates of the molecule:
 ```c++

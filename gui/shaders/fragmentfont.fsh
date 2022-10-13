@@ -26,5 +26,8 @@ out vec4 color;
 
 void main()
 {
+	// outputs the pixel color and transparency
+	// texture `tex` contains only the alpha channel of the character to print
+	// `col` is the color of the text
 	color = vec4(1, 1, 1, texture(tex, texcoord).r) * col;
 }

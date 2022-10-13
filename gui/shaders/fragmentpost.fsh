@@ -41,6 +41,8 @@ uniform float maxSpan = 8;
 out vec4 color;
 
 vec3 dither(vec3 col)
+// simple blue noise dithering algorithm
+// return the dithered, quantized color starting from a non-quantized one (`col`)
 {
 	const float goldenRatioReciproc = 0.61803398875;
 	vec3 blueNoise = texture(blueNoiseTex, gl_FragCoord.xy / textureSize(blueNoiseTex, 0)).rgb;

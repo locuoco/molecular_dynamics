@@ -47,27 +47,30 @@ layout(location = 0) out vec4 color;
 
 void main()
 {
+	// r2 is the square distance of sphere from the viewer
 	float r2 = dot(fragCenter, fragCenter);
+	// R2 is the square radius of the sphere to render
 	float R2 = fragSize * fragSize;
 	if (r2 < R2)
 		discard; // the surface is behind the near plane
+	// the ray direction is taken by normalizing the fragment position
+	// relative to the viewer
 	vec3 rayDir = normalize(fragPos);
+	// calculate the position of the sphere point
 	float B = dot(rayDir, fragCenter);
 	float C = r2 - R2;
 	float Discriminant = B*B - C;
 	if (Discriminant < 0)
 		discard; // the fragment of the square is outside the sphere
-	float t = B - sqrt(Discriminant); // points nearest to point of view
+	float t = B - sqrt(Discriminant); // point of the sphere nearest to the point of view
 	vec3 realPos = rayDir * t;
 	vec3 realNorm = realPos - fragCenter;
 
 	vec4 clipPos = Proj * vec4(realPos, 1);
 	gl_FragDepth = clipPos.z / clipPos.w; // explicitly set the depth buffer
 
+	// calculate directional light (ambient, diffuse, specular)
 	vec3 norm = normalize(realNorm);
-	/*vec3 diff = lightPos - realPos;
-	float dist = length(diff);
-	vec3 lightDir = (dist == 0) ? vec3(0) : diff/dist;*/
 	vec3 lightDir = normalize(lightPos);
 	float cosangle = dot(norm, lightDir);
 	float diffuse = max(cosangle, 0);
@@ -80,10 +83,7 @@ void main()
 	float specular = energyFactor * diffuse * pow(max(cosangle2, 0), shininess) * specularStrength;
 	float antispecular = energyFactor * diffuse * pow(-min(cosangle2, 0), shininess) * specularStrength;
 
-	//float attenuation = 40000/(100+dist*dist);
-	float attenuation = 1;
-
-	vec3 light = attenuation * (ambient + diffuse + specular + .1*antidiffuse + .1*antispecular) * vec3(1);
+	vec3 light = (ambient + diffuse + specular + .1*antidiffuse + .1*antispecular) * vec3(1);
 	
 	// tone mapping + gamma correction
 	color = vec4(pow(aces(fragCol * light), vec3(1/gamma)), 1);
