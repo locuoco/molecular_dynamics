@@ -658,8 +658,8 @@ class graphics
 			text->color(0, 1, 0, 1); // opaque green color
 			text->draw(
 				std::string("FPS: ") + std::to_string(fps) + '\n' + std::to_string(camera_controls->pos[0]) + ' '
-																  + std::to_string(camera_controls->pos[1]) + ' '
-																  + std::to_string(camera_controls->pos[2]),
+				                                                  + std::to_string(camera_controls->pos[1]) + ' '
+				                                                  + std::to_string(camera_controls->pos[2]),
 				12*xscale, 24*yscale, 0.5f*xscale
 			);
 			text->draw(

@@ -122,16 +122,12 @@ GLuint load_shader(const std::string& vs_path, const std::string& fs_path)
 }
 
 GLuint load_shader_tessellation(
-	const std::string& vs_path,
-	const std::string& tcs_path,
-	const std::string& tes_path,
-	const std::string& fs_path
+	const std::string& vs_path,  // path of the vertex shader.
+	const std::string& tcs_path, // path of the tesselation control shader.
+	const std::string& tes_path, // path of the tesselation evaluation shader.
+	const std::string& fs_path   // path of the fragment shader.
 )
 // Load vertex, tesselation and fragment shaders.
-// `vs_path` is the path of the vertex shader.
-// `tcs_path` is the path of the tesselation control shader.
-// `tes_path` is the path of the tesselation evaluation shader.
-// `fs_path` is the path of the fragment shader.
 // Return the program ID.
 {
 	GLuint vs = glCreateShader(GL_VERTEX_SHADER);

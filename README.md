@@ -11,7 +11,7 @@ Comma (,) = %2C
 --->
 This is an interactive program for molecular dynamics using classical force fields. A force field is defined from the following potential (using CHARMM convention):
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?\mathcal{V}=\sum_{i\sim%20j}K_{ij}^r\left(r_{ij}-r_{ij}^0\right)^2%2B\sum_{i\sim%20j\sim%20k}K_{ijk}^{\theta}%20\left(\theta_{ijk}-\theta_{ijk}^0\right)^2%2B\sum_{i\sim\cdot\sim%20k}K_{ik}^{UB}\left(r_{ik}-r_{ik}^0\right)^2\\"/>
+<img src="https://latex.codecogs.com/svg.image?\mathcal{V}=\sum_{i\sim%20j}K_{ij}^r\left(r_{ij}-r_{ij}^0\right)^2%2B\sum_{i\sim%20j\sim%20k}K_{ijk}^{\theta}%20\left(\theta_{ijk}-\theta_{ijk}^0\right)^2%2B\sum_{i\sim\cdot\sim%20k}K_{ik}^{UB}\left(r_{ik}-r_{ik}^{UB}\right)^2\\"/>
 </div>
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\qquad%2B\sum_{i\sim%20j\sim%20k\sim%20l%2Cn}K_{ijkl}^{\chi}%20\left(1%2B\cos\left(n\chi_{ijkl}-\delta_{ijkl}\right)\right)%2B\sum_{ijkl\%20\text{impropers}}K_{ijkl}^{\psi}\left(\psi_{ijkl}-\psi_{ijkl}^0\right)^2\\"/>
@@ -77,7 +77,7 @@ The code makes use of C++ templates and concepts (thus it requires C++20) and is
 
 The graphics part has some dependencies on public libraries that enable the usage of modern OpenGL (Open Graphics Library):
 * [GLFW 3](https://www.glfw.org/) (Graphics Library Framework 3): an open source, multi-platform API for creating windows, contexts and managing input and events.
-* [GLEW](http://glew.sourceforge.net/) (OpenGL Extension Wrangler): a cross-platform library that include core and extended OpenGL functionalities.
+* [GLEW](http://glew.sourceforge.net/) (OpenGL Extension Wrangler): a cross-platform library that includes core and extended OpenGL functionalities.
 * [FreeType](https://freetype.org/): an OpenGL library to render fonts (used in `font.hpp`).
 
 These dependencies are required only for these header files:
@@ -126,6 +126,7 @@ Currently available molecules are:
 * `physics::sodium_ion<T>`: Sodium ion
 * `physics::chloride_ion<T>`: Chloride ion
 * `physics::caesium_ion<T>`: Caesium ion
+
 where `T` is a scalar type. If not specified, `double` is assumed.
 
 To set the coordinates of the molecule:
@@ -163,7 +164,7 @@ The literal suffix `_fs` is needed to convert the timestep given in femtoseconds
 * `physics::stochastic_leapfrog`: Stochastic "leapfrog" method (1 stage): integrates Langevin equation
 * `physics::isokinetic_leapfrog`: Isokinetic "leapfrog" method (2nd order, 1 stage)
 * `physics::nose_hoover`: Nosé-Hoover thermostats chain integrator (2nd order, 1 stage): it approximates a canonical (NVT) ensemble
-* `physics::martyna_tobias_klein`: Martyna-Tobias-Klein equations integrator (2nd order, 1 stage): it approximates an isothermal-isobaric (NPT) ensemble
+* `physics::mtk`: Martyna-Tobias-Klein equations integrator (2nd order, 1 stage): it approximates an isothermal-isobaric (NPT) ensemble
 * `physics::vefrl`: Velocity-extended Forest-Ruth-like method (4th order, 4 stages)
 * Composition schemes (they are structure-preserving, and can be used to construct higher-order, also symplectic, methods starting from 2nd order ones):
   * `physics::forest_ruth`: Forest-Ruth method (4th order, 3 stages)
@@ -213,7 +214,7 @@ int main()
         my_integ.step(1_fs);
         std::stringstream my_text;
         my_text << "pressure mean: " << my_stat_integ.pressure_mean();
-        my_window.draw(my_system, my_text);
+        my_window.draw(my_system, my_text.str());
     }
 }
 ```
@@ -236,7 +237,7 @@ where the prime symbol means that the <img src="https://latex.codecogs.com/svg.i
 <img src="https://latex.codecogs.com/svg.image?\frac{1}{r}=\frac{f(r)}{r}%2B\frac{1-f(r)}{r}"/>
 </div>
 
-where <img src="https://latex.codecogs.com/svg.image?f(r)"/> is sometimes referred to as the splitting function. Choosing <img src="https://latex.codecogs.com/svg.image?f(r)"/> to be the complementary error function, one obtains the classical Ewald summation, whose terms are given by:
+where <img src="https://latex.codecogs.com/svg.image?f(r)"/> is sometimes referred to as the splitting function, which separates the near-range contribution from the long-range one. Choosing <img src="https://latex.codecogs.com/svg.image?f(r)"/> to be the complementary error function, one obtains the classical Ewald summation, whose terms are given by:
 
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?V_C=V^{(r)}%2BV^{(k)}%2BV^{(s)}%2BV^{(d)}"/>
@@ -260,14 +261,14 @@ where <img src="https://latex.codecogs.com/svg.image?V^{(r)}"/> is the contribut
 <img src="https://latex.codecogs.com/svg.image?\tilde{\rho}(\mathbf{k})=\int_V%20\rho(\mathbf{r})e^{-i\mathbf{k}\cdot\mathbf{r}}d^3r=\sum_{j=1}^Nz_je^{-i\mathbf{k}\cdot\mathbf{r}_j"/>
 </div>
 
-The <img src="https://latex.codecogs.com/svg.image?\mathbf{k_n}"/>-vectors are given by <img src="https://latex.codecogs.com/svg.image?\mathbf{k_n}=2\pi\mathbf{n}/L"/>, while <img src="https://latex.codecogs.com/svg.image?\epsilon_r"/> is the relative dielectric constant (equal to 1 in vacuum) and <img src="https://latex.codecogs.com/svg.image?\kappa"/> is a free parameter, known as the Ewald parameter.
+The <img src="https://latex.codecogs.com/svg.image?\mathbf{k_n}"/>-vectors are given by <img src="https://latex.codecogs.com/svg.image?\mathbf{k_n}=2\pi\mathbf{n}/L"/>, while <img src="https://latex.codecogs.com/svg.image?\epsilon_r"/> is the relative dielectric constant of the material surrounding the system (equal to 1 for vacuum) and <img src="https://latex.codecogs.com/svg.image?\kappa"/> is a free parameter, known as the Ewald parameter.
 
 References:
 * P. Ewald, *Die Berechnung optischer und elektrostatischer Gitterpotentiale*, Annalen der Physik, 369, pp. 253-287, 1921
 
 ### PPPM method
 
-The particle-particle, particle-mesh (PPPM, or P<sup>3</sup>M) method can be applied to speed up the calculation of the reciprocal space term of Ewald summation thanks to fast Fourier transform (FFT) algorithms. Since FFT is based on discrete Fourier transforms (DFT), it requires sample points to be equally spaced, so a necessary preparatory step is to interpolate the charges on a 3-dimensional lattice (called mesh) with spacing <img src="https://latex.codecogs.com/svg.image?h"/>. The charge of a single mesh point <img src="https://latex.codecogs.com/svg.image?\mathbf{r_p}"/> is given by:
+The particle-particle, particle-mesh (PPPM, or P<sup>3</sup>M) method can be applied to speed up the calculation of the reciprocal space term of Ewald summation thanks to fast Fourier transform (FFT) algorithms. Since FFT is based on discrete Fourier transforms (DFT), it requires sample points to be equally spaced, so a necessary preparatory step is to interpolate the charges onto a 3-dimensional lattice (called mesh) with spacing <img src="https://latex.codecogs.com/svg.image?h"/>. The charge of a single mesh point <img src="https://latex.codecogs.com/svg.image?\mathbf{r_p}"/> is given by:
 
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?z_M(\mathbf{r_p})=\int_VW(\mathbf{r_p}-\mathbf{r})\rho(\mathbf{r})d^3r=\sum_{i=1}^Nz_iW(\mathbf{r_p}-\mathbf{r}_i)"/>
@@ -285,7 +286,7 @@ The reciprical space term of the potential is then given by:
 <img src="https://latex.codecogs.com/svg.image?V^{(k)}=\frac{1}{2L^3}\sum_{\mathbf{n}\neq\mathbf{0}}\tilde{G}_{opt}(k_{\mathbf{n}})\left|\tilde{z}_M(\mathbf{k_n})\right|^2"/>
 </div>
 
-where <img src="https://latex.codecogs.com/svg.image?\tilde{G}_{opt}"/> is the optimal influence function:
+where <img src="https://latex.codecogs.com/svg.image?\tilde{G}_{opt}"/> is the optimal influence function, known also as the lattice Green's function:
 
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\tilde{G}_{opt}(\mathbf{k})=\frac{\tilde{\mathbf{D}}(\mathbf{k})\cdot\sum_{\mathbf{m}\in%20Z^3}\tilde{U}^2\left(\mathbf{k}%2B\frac{2\pi}{h}\mathbf{m}\right)\tilde{\mathbf{R}}\left(\mathbf{k}%2B\frac{2\pi}{h}\mathbf{m}\right)}{\left|\tilde{\mathbf{D}}(\mathbf{k})\right|^2\left[\sum_{\mathbf{m}\in%20Z^3}\tilde{U}^2\left(\mathbf{k}%2B\frac{2\pi}{h}\mathbf{m}\right)\right]^2}"/>
@@ -297,10 +298,9 @@ where <img src="https://latex.codecogs.com/svg.image?\tilde{U}(\mathbf{k})=\tild
 <img src="https://latex.codecogs.com/svg.image?\tilde{\mathbf{R}}(\mathbf{k})=-i\mathbf{k}\tilde{g}(k)\tilde{\gamma}(k)"/>
 </div>
 
-Note that the influence function does not depend on the particles positions and thus can be calculated just once at the beginning of the simulation, as long as the volume of the simulation box does not vary. The series are highly convergent and can usually be truncated at <img src="https://latex.codecogs.com/svg.image?|\mathbf{m}|=2"/>. Note also that the same steps can be performed for the calculation of the dispersion forces (i.e. the ones arising from
-<img src="https://latex.codecogs.com/svg.image?1/r^6"/> part of the Lennard-Jones potential or the Buckingham potential).
+Note that the influence function does not depend on the particles positions and thus can be calculated just once at the beginning of the simulation, as long as the volume of the simulation box does not vary. The series are highly convergent and can usually be truncated at <img src="https://latex.codecogs.com/svg.image?|\mathbf{m}|=2"/>. Note also that the same steps can be performed for the calculation of the attractive dispersion forces (i.e. the ones arising from the <img src="https://latex.codecogs.com/svg.image?1/r^6"/> part of the Lennard-Jones potential or the Buckingham potential).
 
-To obtain the forces, two schemes can be used depending on the application: in the *ik*-differentiation scheme the gradient is computed analytically in Fourier space, while in the *ad*-differentiation scheme the gradient is calculated in real space. The first method conserves the total momentum but not the energy and it is preferred in canonical ensembles because it is more accurate, while the second method conserves the energy but not the momentum, which is preferred in microcanonical ensembles (Ballenegger et al., 2012).
+To obtain the forces, two schemes can be used depending on the application: in the *ik*-differentiation scheme the gradient is calculated in Fourier space by simply multiplying by <img src="https://latex.codecogs.com/svg.image?i\mathbf{k}"/>, while in the *ad*-differentiation scheme the gradient is computed analytically in real space. The first method conserves the total momentum but not the energy and it is preferred in canonical ensembles because it is more accurate, while the second method conserves the energy but not the momentum, which is preferred in microcanonical ensembles (Ballenegger et al., 2012).
 
 References:
 * R. W. Hockney, J. W. Eastwood, *Computer Simulation Using Particles*, Bristol: Adam Hilger, 1988
@@ -336,7 +336,7 @@ where <img src="https://latex.codecogs.com/svg.image?g"/> is the number of degre
 <img src="https://latex.codecogs.com/svg.image?\mathcal{H}_{tot}=\mathcal{T}%2B\mathcal{V}%2B\frac{p_{\eta}^2}{2Q}%2Bgk_BT\eta"/>
 </div>
 
-For systems with few degrees of freedom, the system shows lack of ergodicity and the Nosé-Hoover thermostat shows problems in sampling the equilibrium distribution. It is possible, in this case, to use a thermostats chain:
+For systems with few degrees of freedom, the system shows lack of ergodicity and the Nosé-Hoover thermostat shows problems in sampling the correct equilibrium distribution. It is possible, in this case, to use a thermostats chain, which adds further degrees of freedom:
 
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\dot{\mathbf{r}}_i=\frac{\mathbf{p}_i}{m_i}%2C\qquad\dot{\mathbf{p}}_i=\mathbf{f}_i-\frac{p_{\eta_1}}{Q_1}\mathbf{p}_i"/>
@@ -408,8 +408,8 @@ Differential equations can be integrated using various integration schemes. In p
 Since the main sources of instability in a molecular dynamics simulation are the bonded terms of the potential (due to having much higher frequency than non-bonded terms), a way to accelerate simulations is to use different time-steps for bonded terms and non-bonded ones, since the computation of long-range forces require a considerable amount of time in the evaluation of the force field.
 
 References:
-* I. P. Omelyan, I. M. Mryglod, R. Folk, *Optimized Forest-Ruth- and Suzuki-like algorithms for integration of motion in many-body systems*, Computer Physics Communications, 2002
 * W. Kahan, R.-C. Li, *Composition constants for raising the orders of unconventional schemes for ordinary differential equations*, Mathematics of Computation 66(219), pp. 1089-1099, 1997
+* I. P. Omelyan, I. M. Mryglod, R. Folk, *Optimized Forest-Ruth- and Suzuki-like algorithms for integration of motion in many-body systems*, Computer Physics Communications, 2002
+* [Mathematics Source Library C & ASM, Runge-Kutta Methods](http://www.mymathlib.com/diffeq/runge-kutta/), 2004
 * E. Hairer, G. Wanner, C. Lubich, *Geometric Numerical Integration. Structure-Preserving Algorithms for Ordinary Differential Equations*, Springer Series in Computational Mathematics, 2006
-* [Mathematics Source Library C & ASM, Runge-Kutta Methods](http://www.mymathlib.com/diffeq/runge-kutta/)
 * S. G. Itoh, T. Morishita, H. Okumura, *Decomposition-order effects of time integrator on ensemble averages for the Nosé-Hoover thermostat*, The Journal of Chemical Physics, 139, 2013
