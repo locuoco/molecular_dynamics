@@ -19,7 +19,7 @@
 
 #include <cmath> // sqrt
 
-#include "../physical_system.hpp" // physical_system, thermodynamical_system, type_traits (add_lvalue_reference_t, is_same_v)
+#include "../physical_system.hpp" // physical_system, thermodynamic_system, type_traits (add_lvalue_reference_t, is_same_v)
 
 namespace physics
 {
@@ -91,22 +91,23 @@ namespace physics
 	concept stochastic_integrator = having_system<Integ> && std::is_base_of_v<stochastic_integrator_base<typename Integ::system_type>, Integ>;
 
 	template <integrator Integ>
-	requires thermodynamical_system<typename Integ::system_type>
-	struct thermodynamical_statistics
-	// thermodynamical statistics calculator
+	requires thermodynamic_system<typename Integ::system_type>
+	struct thermodynamic_statistics
+	// thermodynamic statistics calculator
 	// used to calculate pressure, temperature, volume and density mean values
 	// and standard deviations starting from instantaneous values
 	{
 		using scalar_type = scalar_type_of<typename Integ::system_type>;
 
 		Integ integ;
+		scalar_type energy_sum = 0, energy_sumsq = 0;
 		scalar_type pressure_sum = 0, pressure_sumsq = 0;
 		scalar_type temperature_sum = 0, temperature_sumsq = 0;
 		scalar_type volume_sum = 0, volume_sumsq = 0;
 		scalar_type density_sum = 0, density_sumsq = 0;
 		std::size_t n_steps = 0;
 
-		thermodynamical_statistics(const Integ& integ) : integ(integ) {}
+		thermodynamic_statistics(const Integ& integ) : integ(integ) {}
 		// constructor:
 		//	`integ` is the integrator to use for the simulation
 
@@ -116,6 +117,10 @@ namespace physics
 			integ.step(dt);
 
 			scalar_type quantity;
+
+			quantity = integ.s.internal_energy();
+			energy_sum += quantity;
+			energy_sumsq += quantity*quantity;
 
 			quantity = integ.s.pressure();
 			pressure_sum += quantity;
@@ -144,6 +149,19 @@ namespace physics
 		{
 			for (std::size_t i = 0; i < n_steps; ++i)
 				step(dt);
+		}
+
+		scalar_type energy_mean()
+		// return energy mean
+		{
+			return energy_sum / n_steps;
+		}
+		scalar_type energy_sd()
+		// return energy standard deviation
+		{
+			using std::sqrt;
+			scalar_type mean = energy_mean();
+			return sqrt((energy_sumsq/n_steps - mean*mean)/(n_steps-1));
 		}
 
 		scalar_type pressure_mean()
@@ -199,7 +217,7 @@ namespace physics
 		}
 
 		void reset()
-		// reset thermodynamical statistics and integrator (for a new simulation)
+		// reset thermodynamic statistics and integrator (for a new simulation)
 		{
 			pressure_sum = pressure_sumsq = 0;
 			temperature_sum = temperature_sumsq = 0;

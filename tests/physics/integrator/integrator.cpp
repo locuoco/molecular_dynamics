@@ -40,11 +40,11 @@ void test_leapfrog_energy()
 	sys.x = 1;
 
 	sys.force(); // needed to update potential energy
-	double energy0 = sys.total_energy();
+	double energy0 = sys.internal_energy();
 
 	integ.simulate(1e-3, 10'000'000);
 
-	double energy1 = sys.total_energy();
+	double energy1 = sys.internal_energy();
 
 	assert(std::abs(energy1 - energy0) < 1e-7);
 }
@@ -179,7 +179,7 @@ void test_nose_hoover()
 {
 	periodic_harmonic_oscillator sys;
 	physics::nose_hoover integ(sys, 10, .8);
-	physics::thermodynamical_statistics stat_integ(integ);
+	physics::thermodynamic_statistics stat_integ(integ);
 
 	double a = sys.elastic_k * sys.side*sys.side / (8*sys.kT_ref());
 	double pressure_analytical = std::sqrt(sys.elastic_k * sys.kT_ref() / math::two_pi<>) * std::exp(-a) / std::erf(std::sqrt(a));
@@ -204,7 +204,7 @@ void test_mtk()
 {
 	periodic_harmonic_oscillator sys;
 	physics::mtk integ(sys, 7, .3, .1);
-	physics::thermodynamical_statistics stat_integ(integ);
+	physics::thermodynamic_statistics stat_integ(integ);
 
 	double a = 2 * sys.pressure_ref*sys.pressure_ref / (sys.elastic_k * sys.kT_ref());
 	double volume_analytical

@@ -64,7 +64,7 @@ struct periodic_harmonic_oscillator : physics::physical_system_base<double, phys
 		return p*p / (2*m);
 	}
 
-	double total_energy() const noexcept
+	double internal_energy() const noexcept
 	// return the total energy
 	// potential energy is the one calculated in the `force` method
 	{

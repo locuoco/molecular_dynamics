@@ -79,9 +79,8 @@ void main()
 	vec3 viewDir = -rayDir;
 	vec3 halfwayDir = normalize(lightDir + viewDir);
 	float energyFactor = (8 + shininess) / (8 * pi);
-	float cosangle2 = dot(norm, lightDir);
-	float specular = energyFactor * diffuse * pow(max(cosangle2, 0), shininess) * specularStrength;
-	float antispecular = energyFactor * diffuse * pow(-min(cosangle2, 0), shininess) * specularStrength;
+	float specular = energyFactor * pow(diffuse, shininess) * specularStrength;
+	float antispecular = energyFactor * pow(antidiffuse, 0), shininess) * specularStrength;
 
 	vec3 light = (ambient + diffuse + specular + .1*antidiffuse + .1*antispecular) * vec3(1);
 	

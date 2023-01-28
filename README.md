@@ -198,7 +198,7 @@ If we want to simulate the system and draw the configuration at each step until 
         my_window.draw(my_system);
     }
 ```
-To calculate thermodynamical quantities as averages of the respective instantaneous quantities, we need a `physics::thermodynamical_statistics` object, which wraps any integrator object. We can then draw custom text on screen using string streams:
+To calculate thermodynamic quantities as averages of the respective instantaneous quantities, we need a `physics::thermodynamic_statistics` object, which wraps any integrator object. We can then draw custom text on screen using string streams:
 ```c++
 #include <sstream> // for std::stringstream
 // ...
@@ -207,7 +207,7 @@ int main()
 {
     // ...
     physics::leapfrog integ(my_system);
-    physics::thermodynamical_statistics my_stat_integ(my_integ);
+    physics::thermodynamic_statistics my_stat_integ(my_integ);
 
     while (!my_window.should_close())
     {
@@ -283,7 +283,7 @@ where <img src="https://latex.codecogs.com/svg.image?\mathbf{p}=h\mathbf{n}"/> a
 The reciprical space term of the potential is then given by:
 
 <div align="center">
-<img src="https://latex.codecogs.com/svg.image?V^{(k)}=\frac{1}{2L^3}\sum_{\mathbf{n}\neq\mathbf{0}}\tilde{G}_{opt}(k_{\mathbf{n}})\left|\tilde{z}_M(\mathbf{k_n})\right|^2"/>
+<img src="https://latex.codecogs.com/svg.image?V^{(k)}=\frac{1}{2L^3}\sum_{\mathbf{n}\neq\mathbf{0}}\tilde{G}_{opt}({\mathbf{k_n}})\left|\tilde{z}_M(\mathbf{k_n})\right|^2"/>
 </div>
 
 where <img src="https://latex.codecogs.com/svg.image?\tilde{G}_{opt}"/> is the optimal influence function, known also as the lattice Green's function:
@@ -360,7 +360,7 @@ and the conserved quantity is then:
 <img src="https://latex.codecogs.com/svg.image?\mathcal{H}_{tot}=\mathcal{T}%2B\mathcal{V}%2B\sum_{j=1}^M\frac{p_{\eta_j}^2}{2Q_j}%2Bgk_BT\eta_1%2B\sum_{j=2}^Mk_BT\eta_j"/>
 </div>
 
-while <img src="https://latex.codecogs.com/svg.image?M"/> is number of thermostats.
+while <img src="https://latex.codecogs.com/svg.image?M"/> is the number of thermostats.
 
 References:
 * S. Nosé, *A unified formulation of the constant temperature molecular-dynamics methods*, Journal of Chemical Physics, 81 (1): pp. 511-519, 1984
@@ -385,7 +385,7 @@ Most real experiments are performed at constant temperature and pressure. So it 
 <img src="https://latex.codecogs.com/svg.image?\dot{p}_{\epsilon}=(\mathcal{P}-P)Vd%2B\frac{d}{g}\sum_i\frac{\mathbf{p}_i^2}{m_i}-\left(\frac{p_{\eta_1^{%27}}}{Q_1^{%27}}\right)p_{\epsilon}"/>
 </div>
 
-where <img src="https://latex.codecogs.com/svg.image?P"/> is the reference pressure and <img src="https://latex.codecogs.com/svg.image?\mathcal{P}"/> is the istantaneous pressure of the system (calculated from the virial). <img src="https://latex.codecogs.com/svg.image?\alpha"/> is defined as:
+where <img src="https://latex.codecogs.com/svg.image?P"/> is the reference pressure and <img src="https://latex.codecogs.com/svg.image?\mathcal{P}"/> is the instantaneous pressure of the system (calculated from the virial). <img src="https://latex.codecogs.com/svg.image?\alpha"/> is defined as:
 
 <div align="center">
 <img src="https://latex.codecogs.com/svg.image?\alpha=1%2B\frac{d}{g}"/>

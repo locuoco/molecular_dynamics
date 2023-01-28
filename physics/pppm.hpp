@@ -509,7 +509,7 @@ namespace physics
 
 				T volume = side*side*side;
 				estimated_error_coulomb = s.Z2 * sqrt(errF / (s.n * volume));
-				estimated_error_lj = 2 * s.tracedisp6 / (3 * cutoff2 * cutoff2) * sqrt(std::numbers::pi_v<T> / (cutoff * s.n * volume));
+				estimated_error_lj = 12 / (cutoff2 * cutoff2 * cutoff) * sqrt(std::numbers::pi_v<T> * s.sumdisp62 / (11 * cutoff * s.n * volume));
 				estimated_error = sqrt(estimated_error_coulomb*estimated_error_coulomb + estimated_error_lj*estimated_error_lj);
 
 				if (verbose)

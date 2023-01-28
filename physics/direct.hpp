@@ -57,12 +57,12 @@ namespace physics
 	// A `coulomb_and_lj_periodic` system `s` is a `coulomb_and_lj` system so that the following
 	// instructions are well-formed (compilable).
 	// `side` must be the side of the simulation box.
-	// `tracedisp6` must be the sum square of all dispersion coefficients for each atom.
+	// `sumdisp62` must be the sum square of all dispersion coefficients for each atom.
 	// `Z` must be the sum of all charges (rescaled by the square root of kC).
 	// `Z2` must be the sum square of all charges.
 		{
 			s.f[i] += remainder(s.x[i] - s.x[i], s.side);
-			t *= s.tracedisp6;
+			t *= s.sumdisp62;
 			t += s.Z;
 			t += s.Z2;
 		};
@@ -230,6 +230,17 @@ namespace physics
 		// Return 0.
 		{
 			return 0;
+		}
+
+		std::size_t max_n_shell() noexcept
+		// return the maximum distance in terms of cubic shells considered
+		{
+			return maxn;
+		}
+		void max_n_shell(std::size_t maxn) noexcept
+		// set the maximum distance in terms of cubic shells considered
+		{
+			this->maxn = maxn;
 		}
 
 		template <coulomb_and_lj_periodic System>

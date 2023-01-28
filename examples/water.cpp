@@ -40,7 +40,7 @@ int main()
 
 	physics::molecular_system molsys;
 	physics::mtk integ(molsys);
-	physics::thermodynamical_statistics stat_integ(integ);
+	physics::thermodynamic_statistics stat_integ(integ);
 
 	// set a simple cubic lattice as initial condition
 	molsys.primitive_cubic_lattice(n_side, dist, physics::water_fba_eps<>);

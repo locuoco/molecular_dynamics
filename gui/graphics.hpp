@@ -670,7 +670,7 @@ class graphics
 				std::wstring(L"T = ") + std::to_wstring(molsys.temperature()) +
 				L" K\nP = " + std::to_wstring(molsys.pressure()/physics::atm<>) +
 				L" atm\nV = " + std::to_wstring(molsys.volume()/1'000) +
-				L" nm^3\nE = " + std::to_wstring(molsys.total_energy()) +
+				L" nm^3\nE = " + std::to_wstring(molsys.internal_energy()) +
 				L" kcal/mol\nN = " + std::to_wstring(molsys.n) +
 				L"\nρ = " + std::to_wstring(molsys.density()/physics::kg_per_m3<>) +
 				L" kg/m^3",

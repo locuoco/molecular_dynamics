@@ -17,7 +17,7 @@
 #version 330 core
 
 // Input vertex, same code will be called for each vertex
-layout(location = 0) in vec2 pos;
+layout(location = 0) in vec2 square_vert;
 
 layout(location = 10) in vec4 inst_pos;
 
@@ -96,26 +96,22 @@ void main()
 {
 	vec4 pos0 = MV * (vec4(inst_pos.xyz, 1));
 	fragCenter = pos0.xyz; // position of the center of the sphere (square) in view space
-	int atom_id = int(inst_pos.w);
-	if (atom_id < 56)
-	{
-		fragCol = atom_pars[atom_id].xyz;
-		fragSize = atom_pars[atom_id].w;
-	}
-	else
-	{
-		// use default color and size
-		fragCol = atom_pars[0].xyz;
-		fragSize = atom_pars[0].w;
-	}
+	uint atom_id = uint(inst_pos.w);
+	if (atom_id >= 56)
+		atom_id = 0;
+
+	fragCol = atom_pars[atom_id].xyz;
+	fragSize = atom_pars[atom_id].w;
+
 	fragCol = pow(fragCol, vec3(gamma)); // gamma correction
-	fragSize *= 0.75;
+	fragSize *= 0.75; // rescaling sphere radius by 75%
+
 	float boxScal = fragSize*max(1., 1 / (.1 + .1*length(fragCenter)));
 	vec3 zAxis = normalize(-fragCenter);
 	vec3 xAxis = normalize(cross(vec3(0, 1, 0), zAxis));
 	vec3 yAxis = cross(zAxis, xAxis);
 	mat3 lookAtCamera = mat3(xAxis, yAxis, zAxis);
-	pos0 += vec4(lookAtCamera*(vec3(pos*boxScal, 0)), 0);
+	pos0 += vec4(lookAtCamera * vec3(square_vert*boxScal, 0), 0);
 
 	fragPos = pos0.xyz; // position of the square impostor vertex in view space
 

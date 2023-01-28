@@ -62,9 +62,9 @@ namespace physics
 		};
 
 	template <typename System>
-	concept thermodynamical_system = physical_system<System>
+	concept thermodynamic_system = physical_system<System>
 		&& requires(System& s, scalar_type_of<System> t)
-	// A `thermodynamical_system` requires to be a physical system and has the following
+	// A `thermodynamic_system` requires to be a physical system and has the following
 	// methods defined, whose return values have to be convertible to the scalar type.
 		{
 			t += s.pressure();

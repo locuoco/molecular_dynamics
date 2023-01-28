@@ -403,8 +403,8 @@ namespace physics
 		std::vector<atom_type> id; // identity of the atom
 		std::vector<fixed_list<max_bonds>> bonds; // bonds as an adjacency list
 		std::vector<std::array<unsigned, 4>> impropers; // list of impropers in the whole system
-		T M = 0, Z = 0, Z2 = 0, tracedisp6 = 0, sumdisp6 = 0, tracedisp12 = 0, sumdisp12 = 0;
-			// total mass, total charge, sum of charges^2, trace of dispersion matrix, sum of all dispersion terms coefficients
+		T M = 0, Z = 0, Z2 = 0, tracedisp6 = 0, sumdisp6 = 0, sumdisp62 = 0, tracedisp12 = 0, sumdisp12 = 0;
+			// total mass, total charge, sum of charges^2, trace of dispersion matrix, sum (of squares) of all dispersion terms coefficients
 		unsigned n = 0, dof = 0; // total number of atoms, degrees of freedom
 		utils::thread_pool tp; // thread pool
 		LRSum lrsum; // long-range summation algorithm
@@ -503,6 +503,7 @@ namespace physics
 					C6 = 2 * eps * C6;
 					tracedisp6 += C6;
 					sumdisp6 += C6;
+					sumdisp62 += C6 * C6;
 					tracedisp12 += C12;
 					sumdisp12 += C12;
 				}
@@ -516,11 +517,12 @@ namespace physics
 						T C12 = epsij * C6 * C6;
 						C6 = 2 * epsij * C6;
 						sumdisp6 += 2*C6;
+						sumdisp62 += 2*C6*C6;
 						sumdisp12 += 2*C12;
 					}
 			}
 			else
-				tracedisp6 = sumdisp6 = tracedisp12 = sumdisp12 = 0;
+				tracedisp6 = sumdisp6 = sumdisp62 = tracedisp12 = sumdisp12 = 0;
 
 			n += mol.n;
 			dof = 3*n;
@@ -612,7 +614,7 @@ namespace physics
 			return kin/2;
 		}
 
-		T total_energy()
+		T internal_energy()
 		// total energy of the system in kcal/mol.
 		// `force` must be called before this method so that the potential is updated.
 		{
@@ -986,12 +988,10 @@ namespace physics
 			{
 				T cutoff3 = cutoff*cutoff*cutoff;
 				T cutoff9 = cutoff3*cutoff3*cutoff3;
-				T meandisp6 = sumdisp6 / (n * n);
-				T meandisp12 = sumdisp12 / (n * n);
 
-				T common_factor = 2 * std::numbers::pi_v<T> * n * number_density();
-				T term6 = common_factor * meandisp6 / (3*cutoff3);
-				T term12 = common_factor * meandisp12 / (9*cutoff9);
+				T common_factor = 2 * std::numbers::pi_v<T> / volume();
+				T term6 = common_factor * sumdisp6 / (3*cutoff3);
+				T term12 = common_factor * sumdisp12 / (9*cutoff9);
 				energy_lrc = term12 - term6;
 				potential += energy_lrc;
 				virial += 12*term12 - 6*term6;
@@ -1074,7 +1074,7 @@ namespace physics
 			: x(other.x), p(other.p), v(other.v), f(other.f), noise(other.noise), m(other.m), gamma(other.gamma),
 			x_tmp(other.x_tmp), p_tmp(other.p_tmp), v_tmp(other.v_tmp), f_tmp(other.f_tmp), m_tmp(other.m_tmp),
 			z(other.z), lj_sqrteps(other.lj_sqrteps), lj_halfR(other.lj_halfR), id(other.id), bonds(other.bonds), impropers(other.impropers),
-			M(other.M), Z(other.Z), Z2(other.Z2), tracedisp6(other.tracedisp6), sumdisp6(other.sumdisp6),
+			M(other.M), Z(other.Z), Z2(other.Z2), tracedisp6(other.tracedisp6), sumdisp6(other.sumdisp6), sumdisp62(other.sumdisp62),
 			tracedisp12(other.tracedisp12), sumdisp12(other.sumdisp12), n(other.n), dof(other.dof),
 			mersenne_twister(other.mersenne_twister), side(other.side), temperature_ref(other.temperature_ref),
 			energy_lrc(other.energy_lrc), energy_intra_coulomb(other.energy_intra_coulomb), energy_intra_lj(other.energy_intra_lj),
@@ -1088,7 +1088,7 @@ namespace physics
 			: x(other.x), p(other.p), v(other.v), f(other.f), noise(other.noise), m(other.m), gamma(other.gamma),
 			x_tmp(other.x_tmp), p_tmp(other.p_tmp), v_tmp(other.v_tmp), f_tmp(other.f_tmp), m_tmp(other.m_tmp),
 			z(other.z), lj_sqrteps(other.lj_sqrteps), lj_halfR(other.lj_halfR), id(other.id), bonds(other.bonds), impropers(other.impropers),
-			M(other.M), Z(other.Z), Z2(other.Z2), tracedisp6(other.tracedisp6), sumdisp6(other.sumdisp6),
+			M(other.M), Z(other.Z), Z2(other.Z2), tracedisp6(other.tracedisp6), sumdisp6(other.sumdisp6), sumdisp62(other.sumdisp62),
 			tracedisp12(other.tracedisp12), sumdisp12(other.sumdisp12), n(other.n), dof(other.dof),
 			mersenne_twister(other.mersenne_twister), side(other.side), temperature_ref(other.temperature_ref),
 			energy_lrc(other.energy_lrc), energy_intra_coulomb(other.energy_intra_coulomb), energy_intra_lj(other.energy_intra_lj),
@@ -1118,6 +1118,7 @@ namespace physics
 			Z2 = other.Z2;
 			tracedisp6 = other.tracedisp6;
 			sumdisp6 = other.sumdisp6;
+			sumdisp62 = other.sumdisp62;
 			tracedisp12 = other.tracedisp12;
 			sumdisp12 = other.sumdisp12;
 			n = other.n;
@@ -1160,6 +1161,7 @@ namespace physics
 			Z2 = other.Z2;
 			tracedisp6 = other.tracedisp6;
 			sumdisp6 = other.sumdisp6;
+			sumdisp62 = other.sumdisp62;
 			tracedisp12 = other.tracedisp12;
 			sumdisp12 = other.sumdisp12;
 			n = other.n;
