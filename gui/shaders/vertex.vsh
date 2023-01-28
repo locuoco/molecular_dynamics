@@ -97,8 +97,8 @@ void main()
 	vec4 pos0 = MV * (vec4(inst_pos.xyz, 1));
 	fragCenter = pos0.xyz; // position of the center of the sphere (square) in view space
 	uint atom_id = uint(inst_pos.w);
-	if (atom_id >= 56)
-		atom_id = 0;
+	if (atom_id >= 56u)
+		atom_id = 0u;
 
 	fragCol = atom_pars[atom_id].xyz;
 	fragSize = atom_pars[atom_id].w;

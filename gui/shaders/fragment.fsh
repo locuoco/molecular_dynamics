@@ -78,11 +78,14 @@ void main()
 
 	vec3 viewDir = -rayDir;
 	vec3 halfwayDir = normalize(lightDir + viewDir);
+	float cosangle2 = dot(norm, halfwayDir);
+	float spec = max(cosangle2, 0);
+	float antispec = -min(cosangle2, 0);
 	float energyFactor = (8 + shininess) / (8 * pi);
-	float specular = energyFactor * pow(diffuse, shininess) * specularStrength;
-	float antispecular = energyFactor * pow(antidiffuse, 0), shininess) * specularStrength;
+	float specular = energyFactor * pow(spec, shininess) * specularStrength;
+	float antispecular = energyFactor * pow(antispec, shininess) * specularStrength;
 
-	vec3 light = (ambient + diffuse + specular + .1*antidiffuse + .1*antispecular) * vec3(1);
+	float light = ambient + diffuse + specular + .1*antidiffuse + .1*antispecular;
 	
 	// tone mapping + gamma correction
 	color = vec4(pow(aces(fragCol * light), vec3(1/gamma)), 1);
