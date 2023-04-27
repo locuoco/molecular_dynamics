@@ -1,4 +1,4 @@
-//  Molecular dynamics example: caesium chloride lattice
+//  Molecular dynamics example: water molecules
 //  Copyright (C) 2022 Alessandro Lo Cuoco (alessandro.locuoco@gmail.com)
 
 //  This program is free software: you can redistribute it and/or modify
@@ -14,13 +14,13 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#include <cmath>
 #include <sstream>
-#include <limits> // infinity
 
 /*
 
 Compilation (MinGW):
-g++ caesium_chloride.cpp -o caesium_chloride -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\Users\aless\Desktop\myLib\lib -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1
+g++ minimization.cpp -o minimization -std=c++20 -I C:\Users\aless\Desktop\myLib\include -L C:\Users\aless\Desktop\myLib\lib -lopengl32 -lglu32 -lglew32.dll -lglfw3dll -lfreetype -Wall -Wextra -pedantic -Ofast -pthread -fmax-errors=1
 
 */
 
@@ -33,27 +33,34 @@ int main()
 {
 	graphics window;
 
-	unsigned n_side = 12; // 12x12x12 = 1728 unit cubic cells = 3456 ions
+	// setting `dist` as the average intermolecular distance
+	double dist = std::cbrt(physics::water_mass<> / physics::ice_density<>);
+
+	unsigned n_side = 2; // 2x2x2 = 8 water molecules
 
 	physics::molecular_system molsys;
-	physics::nose_hoover integ(molsys);
+	physics::fire integ(molsys, 0.1_fs);
+	physics::thermodynamic_statistics stat_integ(integ);
 
-	// adding more cells to improve PPPM accuracy
-	molsys.lrsum.cell_multiplier(1);
+	// set a simple cubic lattice as initial condition
+	molsys.primitive_cubic_lattice(n_side, dist, physics::water_fba_eps<>);
 
-	// CsCl is a primitive cubic lattice with two elements
-	molsys.primitive_cubic_lattice(n_side, physics::cscl_lattice<>, physics::caesium_ion<>, physics::chloride_ion<>);
+	molsys.side *= 3;
 
-	while (!window.should_close())
+	for (int i = 1; !window.should_close(); ++i)
 	{
-		integ.step(4_fs);
+		stat_integ.step(0);
+
 		std::wstringstream custom_text;
+
+		custom_text << "SIMULATION (" << i << " steps)\n";
+
 		custom_text << "Ewald parameter = " << molsys.lrsum.ewald_par();
 		custom_text << L" Å^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;
 		custom_text << L" kcal/(mol Å)\nEstimated dispersion force RMSE = " << molsys.lrsum.estimated_error_lj;
 		custom_text << L" kcal/(mol Å)\nEstimated total force RMSE = " << molsys.lrsum.estimated_error;
 
-		// the primitive cubic structure is stable!
+		// draw all steps in real time
 		window.draw(molsys, custom_text.str());
 	}
 

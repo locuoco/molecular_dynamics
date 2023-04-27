@@ -46,11 +46,11 @@ int main()
 	while (!window.should_close())
 	{
 		integ.step(4_fs);
-		std::stringstream custom_text;
+		std::wstringstream custom_text;
 		custom_text << "Ewald parameter = " << molsys.lrsum.ewald_par();
-		custom_text << " A^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;
-		custom_text << " kcal/(mol A)\nEstimated dispersion force RMSE = " << molsys.lrsum.estimated_error_lj;
-		custom_text << " kcal/(mol A)\nEstimated total force RMSE = " << molsys.lrsum.estimated_error;
+		custom_text << L" Å^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;
+		custom_text << L" kcal/(mol Å)\nEstimated dispersion force RMSE = " << molsys.lrsum.estimated_error_lj;
+		custom_text << L" kcal/(mol Å)\nEstimated total force RMSE = " << molsys.lrsum.estimated_error;
 
 		// the fcc structure is stable!
 		window.draw(molsys, custom_text.str());

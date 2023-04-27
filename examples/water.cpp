@@ -66,10 +66,10 @@ int main()
 		}
 
 		custom_text << "Ewald parameter = " << molsys.lrsum.ewald_par();
-		custom_text << " A^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;
-		custom_text << " kcal/(mol A)\nEstimated dispersion force RMSE = " << molsys.lrsum.estimated_error_lj;
-		custom_text << " kcal/(mol A)\nEstimated total force RMSE = " << molsys.lrsum.estimated_error;
-		custom_text << " kcal/(mol A)\n<P> = " << stat_integ.pressure_mean()/physics::atm<>
+		custom_text << L" Å^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;
+		custom_text << L" kcal/(mol Å)\nEstimated dispersion force RMSE = " << molsys.lrsum.estimated_error_lj;
+		custom_text << L" kcal/(mol Å)\nEstimated total force RMSE = " << molsys.lrsum.estimated_error;
+		custom_text << L" kcal/(mol Å)\n<P> = " << stat_integ.pressure_mean()/physics::atm<>
 		            << " +/- " << stat_integ.pressure_sd()/physics::atm<>;
 		// average pressure should be 1 atm, although, due to the very large oscillations, the convergence
 		// is very slow. These oscillations are due to water incompressibility (very small changes in configuration

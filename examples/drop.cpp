@@ -55,14 +55,14 @@ int main()
 
 	while (!window.should_close())
 	{
-		std::stringstream custom_text;
+		std::wstringstream custom_text;
 
 		integ.simulate(1_fs, 10);
 
 		custom_text << "Ewald parameter = " << molsys.lrsum.ewald_par();
-		custom_text << " A^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;
-		custom_text << " kcal/(mol A)\nEstimated dispersion force RMSE = " << molsys.lrsum.estimated_error_lj;
-		custom_text << " kcal/(mol A)\nEstimated total force RMSE = " << molsys.lrsum.estimated_error;
+		custom_text << L" Å^-1\nEstimated electrostatic force RMSE = " << molsys.lrsum.estimated_error_coulomb;
+		custom_text << L" kcal/(mol Å)\nEstimated dispersion force RMSE = " << molsys.lrsum.estimated_error_lj;
+		custom_text << L" kcal/(mol Å)\nEstimated total force RMSE = " << molsys.lrsum.estimated_error;
 
 		// draw all steps in real time
 		window.draw(molsys, custom_text.str());

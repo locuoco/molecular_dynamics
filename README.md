@@ -48,14 +48,14 @@ The code makes use of C++ templates and concepts (thus it requires C++20) and is
   * `shaders`: directory which contains shaders for the rendering of impostors (for fast rendering of spheres), post-processing filters (fast approximate anti-aliasing, blue noise dithering) and text.
   * `controls.hpp`: includes a function to manage keyboard and mouse controls.
   * `font.hpp`: class for drawing text on the window.
-  * `graphics.hpp`: class that manages the graphics used in this specific program.
+  * `graphics.hpp`: class that manages the graphics.
   * `shader.hpp`: some functions to load shaders from file.
   * `stb_image.h`: a single-header file, public domain library for loading images (taken from [here](https://github.com/nothings/stb/blob/master/stb_image.h)).
 * `math`: directory which contains helper functions and FFT implementation.
   * `dft.hpp`: contains the `dft` class which implements a simple radix-2 FFT algorithm for both real and complex inputs, and also multidimensional variants.
   * `helper.hpp`: some math helper functions.
 * `physics`: directory containing the part of code relevant to the resolution of the physical/numerical problem.
-  * `direct.hpp`: direct summation algorithm. It can be used for non-periodic system.
+  * `direct.hpp`: direct summation algorithm. It can be used for non-periodic systems.
   * `energy_minimizer.hpp`: energy minimization algorithm. It includes FIRE algorithm.
   * `ewald.hpp`: Ewald summation algorithm (for periodic systems).
   * `integrator`: directory containing classes and concepts for integration of (hamiltonian and not) dynamical systems.
@@ -67,7 +67,7 @@ The code makes use of C++ templates and concepts (thus it requires C++20) and is
   * `physical_system.hpp`: base abstract class and some concepts for a physical system to simulate.
   * `physics.hpp`: a header file that includes everything from the `physics` directory.
   * `pppm.hpp`: PPPM (particle-particle, particle-mesh) method for fast calculation of long-range forces for periodic systems.
-  * `tensor.hpp`: classes, aliases and data structures for vectors, matrices and tensors with some helper function.
+  * `tensor.hpp`: classes, aliases and data structures for vectors, matrices and tensors with some helper functions.
 * `tests`: directory containing tests for functions, methods and classes. The internal structure of this directory mirrors the one of the header files.
 * `utils`: directory containing some utilities used in this project.
   * `parallel_sort.hpp`: multi-threaded parallel sorting algorithm based on `std::sort`, `std::inplace_merge` and `utils::thread_pool`.

@@ -15,6 +15,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <iostream> // cout, endl
+#include <iomanip> // setprecision
 #include <cassert>
 #include <cmath> // abs
 
@@ -53,16 +54,17 @@ void test_force_accuracy(std::string scheme)
 	physics::leapfrog integ_sys(sys);
 
 	// Set parameters in order to increase accuracy
-	// Also, cutoff radius must be large enough so that LJ truncation error is negligible
 	sys.lrsum.cutoff_radius(20);
 	sys.lrsum.charge_assignment_order(7);
 	sys.lrsum.cell_multiplier(2);
 	sys.lrsum.precise(true);
+	sys.lrsum.verbose(true);
 	// Set differentiation scheme
 	sys.lrsum.set_diff_scheme(scheme);
 
 	sys_ref.lrsum.max_n(12);
 	sys_ref.lrsum.precise(true);
+	sys_ref.lrsum.verbose(true);
 
 	double dist = std::cbrt(physics::water_mass<> / physics::water_density25<>);
 
@@ -75,9 +77,11 @@ void test_force_accuracy(std::string scheme)
 	sys.force();
 	sys_ref.force();
 
-	double error = std::sqrt(sys.lrsum.estimated_error * sys.lrsum.estimated_error
-	                       + sys_ref.lrsum.estimated_error * sys_ref.lrsum.estimated_error);
-	assert(rms(sys.f - sys_ref.f) < 3*error); // should be around 1e-7
+	double est_error = std::sqrt(sys.lrsum.estimated_error_coulomb * sys.lrsum.estimated_error_coulomb
+	                           + sys_ref.lrsum.estimated_error_coulomb * sys_ref.lrsum.estimated_error_coulomb);
+	double error = rms(sys.f - sys_ref.f);
+	std::clog << "PPPM against Ewald summation force RMS error = " << error << '\n';
+	assert(error < 3*est_error); // should be around 1e-7
 }
 
 void test_energy_same()
@@ -105,8 +109,8 @@ void test_energy_same()
 
 void test_madelung_nacl()
 // Test that the calculated electrostatic energy for a sodium chloride lattice is related to the
-// Madelung constant M = -1.747565 with this formula:
-// E = k_C e^2 N M / a
+// Madelung constant M = 1.747565 with this formula:
+// E = -k_C e^2 N M / a
 // where `k_C` is the Coulomb constant, `e` is the elementary charge, `a` is the NaCl
 // lattice constant and `N` is the number of atoms. Note that in AKMA units e = 1.
 {
@@ -116,19 +120,25 @@ void test_madelung_nacl()
 	sys.lrsum.charge_assignment_order(7);
 	sys.lrsum.cutoff_radius(20);
 	sys.lrsum.cell_multiplier(2);
+	sys.lrsum.verbose(true);
 
 	sys.face_centered_cubic_lattice(2, physics::nacl_lattice<>, physics::sodium_ion<>, physics::chloride_ion<>);
 
 	sys.force();
 
-	double calculated_madelung = sys.lrsum.energy_coulomb*physics::nacl_lattice<>/(physics::kC<>*sys.n);
+	double calculated_madelung = -sys.lrsum.energy_coulomb*physics::nacl_lattice<>/(physics::kC<>*sys.n);
+
+	std::cout << std::setprecision(13);
+	std::cout << calculated_madelung << '\n';
+	std::cout << physics::nacl_madelung<> << '\n';
+
 	assert(std::abs(calculated_madelung - physics::nacl_madelung<>) < 1e-5);
 }
 
 void test_madelung_cscl()
 // Test that the calculated electrostatic energy for a caesium chloride lattice is related to the
-// Madelung constant M = -1.762675 with this formula:
-// E = k_C e^2 N M / (4 sqrt(3) a)
+// Madelung constant M = 1.762675 with this formula:
+// E = -k_C e^2 N M / (sqrt(3) a)
 // where `k_C` is the Coulomb constant, `e` is the elementary charge, `a` is the CsCl
 // lattice constant and `N` is the number of atoms. Note that in AKMA units e = 1.
 {
@@ -138,12 +148,18 @@ void test_madelung_cscl()
 	sys.lrsum.charge_assignment_order(7);
 	sys.lrsum.cutoff_radius(20);
 	sys.lrsum.cell_multiplier(1);
+	sys.lrsum.verbose(true);
 
 	sys.primitive_cubic_lattice(8, physics::cscl_lattice<>, physics::caesium_ion<>, physics::chloride_ion<>);
 
 	sys.force();
 
-	double calculated_madelung = sys.lrsum.energy_coulomb*physics::cscl_lattice<>*std::numbers::sqrt3/(physics::kC<>*sys.n);
+	double calculated_madelung = -sys.lrsum.energy_coulomb*physics::cscl_lattice<>*std::numbers::sqrt3/(physics::kC<>*sys.n);
+
+	std::cout << std::setprecision(13);
+	std::cout << calculated_madelung << '\n';
+	std::cout << physics::cscl_madelung<> << '\n';
+
 	assert(std::abs(calculated_madelung - physics::cscl_madelung<>) < 1e-4);
 }
 

@@ -213,6 +213,8 @@ class font
 			for (wchar_t c = 0x0391; c < 0x03CA; ++c) // Greek characters
 				load_char(ff, c);
 
+			load_char(ff, L'Å'); // Angstrom character
+
 			FT_Done_Face(ff);
 			FT_Done_FreeType(ft);
 

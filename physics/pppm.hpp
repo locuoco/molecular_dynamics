@@ -290,6 +290,12 @@ namespace physics
 			fast = !flag;
 		}
 
+		void verbose(bool flag) noexcept
+		// Set verbose mode. If `flag` is true, enable verbose mode (default is disabled).
+		{
+			verbose_ = flag;
+		}
+
 		void update_ewald() noexcept
 		// set update flag to true (calculates optimal Ewald parameter again)
 		{
@@ -329,8 +335,9 @@ namespace physics
 			// calculate real-space contribution to force/energy
 			for (size_t i = 0; i < num_threads; ++i)
 				tp.enqueue([this, i, &s] { eval_r(s, i); });
-			// calculate mesh charges at the same time
-			mesh_charges(s);
+			if (s.Z2 > 0)
+				// calculate mesh charges at the same time
+				mesh_charges(s);
 			tp.wait(); // wait for enqueued tasks to finish
 			for (size_t i = 0; i < num_threads; ++i)
 			{
@@ -338,22 +345,25 @@ namespace physics
 				energy_lj += partpot_lj[i];
 				s.virial += partvir_lj[i];
 			}
-			// update influence function if some parameters/conditions have changed
-			if (update)
+			if (s.Z2 > 0)
 			{
+				// update influence function if some parameters/conditions have changed
+				if (update)
+				{
+					for (size_t i = 0; i < num_threads; ++i)
+						tp.enqueue([this, i] { eval_G(i); });
+					tp.wait();
+				}
+				// calculate reciprocal-space contribution to energy
+				forward_transform(tp);
+				// calculate reciprocal-space contribution to forces
+				backward_transform(tp);
 				for (size_t i = 0; i < num_threads; ++i)
-					tp.enqueue([this, i] { eval_G(i); });
+					tp.enqueue([this, i, &s] { eval_f_k(s, i); });
 				tp.wait();
+				// corrections
+				eval_ewald_scd(s, energy_scd, kappa, side*side*side, dielec);
 			}
-			// calculate reciprocal-space contribution to energy
-			forward_transform(tp);
-			// calculate reciprocal-space contribution to forces
-			backward_transform(tp);
-			for (size_t i = 0; i < num_threads; ++i)
-				tp.enqueue([this, i, &s] { eval_f_k(s, i); });
-			tp.wait();
-			// corrections
-			eval_ewald_scd(s, energy_scd, kappa, side*side*side, dielec);
 			energy_coulomb = energy_r + energy_k + energy_scd;
 			s.potential += energy_coulomb + energy_lj;
 			s.virial += energy_coulomb;
@@ -378,7 +388,7 @@ namespace physics
 			std::size_t order = 5, num_cells, m, m_real, num_threads;
 			std::ptrdiff_t ch_num_cells = 0, maxn_ = 2; // maxn_ is the max n for the influence function summations
 			unsigned update_counter, update_max_count = 100;
-			bool update = true, use_ik = true, manual = false, fast = true, verbose = false;
+			bool update = true, use_ik = true, manual = false, fast = true, verbose_ = false;
 
 			void init_members(std::size_t n, std::size_t num_threads, T side)
 			// initialize member variables
@@ -512,12 +522,12 @@ namespace physics
 				estimated_error_lj = 12 / (cutoff2 * cutoff2 * cutoff) * sqrt(std::numbers::pi_v<T> * s.sumdisp62 / (11 * cutoff * s.n * volume));
 				estimated_error = sqrt(estimated_error_coulomb*estimated_error_coulomb + estimated_error_lj*estimated_error_lj);
 
-				if (verbose)
+				if (verbose_)
 				{
 					std::clog << "===== PPPM METHOD LOG =====\n";
 					std::clog << "Ewald parameter (A^-1): " << kappa << '\n';
 					std::clog << "Estimated electrostatic force RMS error (kcal/(mol A)): " << estimated_error_coulomb << '\n';
-					std::clog << "estimated total force RMS error (kcal/(mol A)): " << estimated_error << '\n';
+					std::clog << "Estimated total force RMS error (kcal/(mol A)): " << estimated_error << '\n';
 					std::clog << "N_M: " << num_cells << '\n';
 					std::clog << "P: " << order << '\n';
 					std::clog << "differentiation scheme: " << (use_ik ? "ik" : "ad") << '\n';

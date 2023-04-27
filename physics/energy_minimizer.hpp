@@ -24,23 +24,28 @@
 namespace physics
 {
 	template <typename System>
-	struct energy_minimizer_base
+	struct energy_minimizer_base : integrator_base<System>
 	// `System` is the template argument of the integrator class, corresponding to
 	// the class of the system whose energy is to be minimized.
 	// All energy minimizers derive from `energy_minimizer_base`.
 	{
-		using system_type = System;
+		System& s;
 
-		System& sys;
-
-		energy_minimizer_base(System& s) : sys(s) {}
+		energy_minimizer_base(System& s) : s(s) {}
 		// constructor:
 		// `s` is the system for which the energy is minimized.
 
 		virtual ~energy_minimizer_base() = default;
 
 		virtual void step() = 0;
-		// All energy minimizers must override this method.
+
+		void step(scalar_type_of<System>) override
+		// note: the argument is needed to respect the signature of integrators `step` method,
+		// but it is completely ignored!
+		// same as step()
+		{
+			step();
+		}
 
 		void minimize(std::size_t n_steps)
 		// Minimize for `n_steps` steps.
@@ -72,7 +77,7 @@ namespace physics
 			{
 				step();
 				++i;
-			} while (!(converged = rms(sys.force(false)) <= f_rms) && i < max_steps);
+			} while (!(converged = rms(s.force(false)) <= f_rms) && i < max_steps);
 
 			return converged;
 		}
@@ -100,6 +105,8 @@ namespace physics
 
 		public:
 
+		using base::step;
+
 		fire(System& s, scalar_type init_dt)
 		// constructor:
 		// `s` is the system for which the energy is minimized.
@@ -113,8 +120,8 @@ namespace physics
 		{
 			integ.step(dt);
 
-			scalar_type P = dot(base::sys.force(false), base::sys.p);
-			base::sys.p = (1 - alpha) * base::sys.p + alpha * norm(base::sys.p) / norm(base::sys.force(false)) * base::sys.force(false);
+			scalar_type P = dot(base::s.force(false), base::s.p);
+			base::s.p = (1 - alpha) * base::s.p + alpha * norm(base::s.p) / norm(base::s.force(false)) * base::s.force(false);
 			if (P > 0)
 			{
 				++n_positive;
@@ -128,7 +135,7 @@ namespace physics
 			{
 				n_positive = 0;
 				dt *= f_dec;
-				base::sys.p = 0;
+				base::s.p = 0;
 				alpha = alpha_start;
 			}
 		}

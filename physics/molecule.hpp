@@ -80,7 +80,7 @@ namespace physics
 	template <std::floating_point T = double>
 	inline constexpr T DW25 = 0.01123940014569822972L;
 
-	// density of ice in AKMA units (u.m.a. / A^3)
+	// density of ice in AKMA units (a.m.u. / A^3)
 	template <std::floating_point T = double>
 	inline constexpr T ice_density = 917*kg_per_m3<long double>;
 
@@ -102,15 +102,15 @@ namespace physics
 
 	// NaCl Madelung constant
 	template <std::floating_point T = double>
-	inline constexpr T nacl_madelung = -1.74756459463318L;
+	inline constexpr T nacl_madelung = 1.74756459463318L;
 
 	// CsCl Madelung constant
 	template <std::floating_point T = double>
-	inline constexpr T cscl_madelung = -1.76267477307098L;
+	inline constexpr T cscl_madelung = 1.76267477307098L;
 
 	// ZnS Madelung constant
 	template <std::floating_point T = double>
-	inline constexpr T zns_madelung = -1.6380550533L;
+	inline constexpr T zns_madelung = 1.6380550533L;
 
 	// NaCl lattice constant
 	template <std::floating_point T = double>
@@ -167,6 +167,7 @@ namespace physics
 		OSE, // SPC/E water oxygen atom
 		SOD, // sodium (Na+) cation
 		CLA, // chloride (Cl-) anion
+		AR,  // argon (Ar) atom
 		CES, // caesium (Cs+) cation
 		N    // number of atom types
 	};
@@ -181,10 +182,10 @@ namespace physics
 	// maximum number of atoms
 	inline constexpr std::size_t max_atoms = 2'000'000;
 
-	inline constexpr unsigned char atom_number[num_atom_types] {1, 1, 1, 1, 8, 8, 8, 8, 11, 17, 55};
+	inline constexpr unsigned char atom_number[num_atom_types] {1, 1, 1, 1, 8, 8, 8, 8, 11, 17, 18, 55};
 
 	// atom masses in atomic units
-	// note that for ions, the electron mass is not added/subtracted, as it is not always significant
+	// note that for ions, the electron mass is not added/subtracted, as it is not usually significant
 	template <std::floating_point T>
 	inline constexpr T atom_mass[num_atom_types]
 	{
@@ -198,6 +199,7 @@ namespace physics
 		 15.9994L,  // OSE
 		 22.98977L, // SOD
 		 35.45L,    // CLA
+		 39.948L,   // AR
 		132.90545L, // CES
 	};
 
@@ -257,6 +259,7 @@ namespace physics
 		{0.15539426812L, 1.7766093L}, // OSE
 		{0.0469L,        1.41075L  }, // SOD
 		{0.150L,         2.27L     }, // CLA
+		{0.22165623256L, 2.03334L  }, // AR
 		{0.190L,         2.100L    }, // CES
 	};
 
@@ -379,6 +382,13 @@ namespace physics
 	{
 		.id = {atom_type::CES},
 		.q  = {1},
+	};
+
+	template <std::floating_point T = double>
+	inline const molecule<T> argon
+	// Argon atom
+	{
+		.id = {atom_type::AR},
 	};
 
 	template <

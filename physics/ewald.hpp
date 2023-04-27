@@ -208,6 +208,12 @@ namespace physics
 			fast = !flag;
 		}
 
+		void verbose(bool flag) noexcept
+		// Set verbose mode. If `flag` is true, enable verbose mode (default is disabled).
+		{
+			verbose_ = flag;
+		}
+
 		void update_ewald() noexcept
 		// set update flag to true (calculates optimal Ewald parameter again)
 		{
@@ -286,7 +292,7 @@ namespace physics
 			T cutoff = 0, kappa = 0, dielec = std::numeric_limits<T>::infinity(), prev_side;
 			std::size_t maxn = 6, num_threads, maxn1, maxn3;
 			unsigned update_counter, update_max_count = 1000;
-			bool update = true, manual = false, fast = true, verbose = false;
+			bool update = true, manual = false, fast = true, verbose_ = false;
 
 			template <typename System>
 			void optimize_ewald_par(System& s)
@@ -334,12 +340,12 @@ namespace physics
 				estimated_error_lj = 12 / (cutoff2 * cutoff2 * cutoff) * sqrt(std::numbers::pi_v<T> * s.sumdisp62 / (11 * cutoff * s.n * volume));
 				estimated_error = sqrt(estimated_error_coulomb*estimated_error_coulomb + estimated_error_lj*estimated_error_lj);
 
-				if (verbose)
+				if (verbose_)
 				{
 					std::clog << "===== EWALD SUMMATION LOG =====\n";
 					std::clog << "Ewald parameter (A^-1): " << kappa << '\n';
-					std::clog << "estimated electrostatic force RMS error (kcal/(mol A)): " << estimated_error_coulomb << '\n';
-					std::clog << "estimated total force RMS error (kcal/(mol A)): " << estimated_error << '\n';
+					std::clog << "Estimated electrostatic force RMS error (kcal/(mol A)): " << estimated_error_coulomb << '\n';
+					std::clog << "Estimated total force RMS error (kcal/(mol A)): " << estimated_error << '\n';
 					std::clog << "r_max (A): " << cutoff << "\n\n";
 				}
 				if (counter == max_counter)

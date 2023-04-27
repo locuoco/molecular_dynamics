@@ -27,8 +27,8 @@ flat in float fragSize;
 uniform mat4 Proj;
 uniform vec3 lightPos;
 uniform float ambient = 0.01; //0.001
-uniform float specularStrength = 0.5;
-uniform float shininess = 32;
+uniform float specularStrength = 1;
+uniform float shininess = 16;
 uniform float gamma = 2.2 + 1./30;
 
 const float pi = 3.14159265;
@@ -38,8 +38,65 @@ const float sphRadius = 1;
 
 vec3 aces(vec3 x)
 {
+	mat3 m1 = mat3(
+		0.59719, 0.07600, 0.02840,
+		0.35458, 0.90834, 0.13383,
+		0.04823, 0.01566, 0.83777
+	);
+	mat3 m2 = mat3(
+		 1.60475, -0.10208, -0.00327,
+		-0.53108,  1.10813, -0.07276,
+		-0.07367, -0.00605,  1.07602
+	);
+	vec3 v = m1 * x;
+	vec3 a = v * (v + 0.0245786) - 0.000090537;
+	vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081;
+	return clamp(m2 * (a / b), 0., 1.);
+}
+
+vec3 aces_approx(vec3 x)
+{
 	const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
 	return clamp((x * (a*x + b)) / (x * (c*x + d) + e), 0., 1.);
+}
+
+// PBR
+
+float NormalDistributionFunction(vec3 n, vec3 h, float a)
+// n: surface normal
+// h: halfway vector
+// a: roughness
+{
+	float a2 = a*a;
+	float ndoth = max(dot(n, h), 0);
+	float div = ndoth*ndoth * (a2 - 1) + 1;
+	return a2 / (pi * div*div);
+}
+
+float GeometrySchlickBeckmann(float ndotv, float k)
+// ndotv: dot product between normal vector and another direction
+// k: roughness parameter (related to a)
+{
+	return ndotv / (ndotv*(1-k) + k);
+}
+
+float GeometryFunction(float ndotv, float ndotl, float a)
+// ndotv: dot product between normal vector and view direction
+// ndotl: dot product between normal vector and light direction
+// a: roughness
+{
+	float a1 = a + 1;
+	float k = a1*a1 / 8;
+	return GeometrySchlickBeckmann(ndotv, k) * GeometrySchlickBeckmann(ndotl, k);
+}
+
+vec3 FresnelEquation(inout vec3 h, inout vec3 v, inout vec3 F0)
+// h: halfway vector
+// v: view direction vector
+// F0: base reflectivity
+{
+	float hdotv = max(dot(h, v), 0);
+	return F0 + (1 - F0) * pow(1 - hdotv, 5);
 }
 
 // Output (screen)
@@ -69,26 +126,47 @@ void main()
 	vec4 clipPos = Proj * vec4(realPos, 1);
 	gl_FragDepth = clipPos.z / clipPos.w; // explicitly set the depth buffer
 
-	// calculate directional light (ambient, diffuse, specular)
-	vec3 norm = normalize(realNorm);
-	vec3 lightDir = normalize(lightPos);
-	float cosangle = dot(norm, lightDir);
-	float diffuse = max(cosangle, 0);
-	float antidiffuse = -min(cosangle, 0);
+	vec3 n = normalize(realNorm);
+	vec3 v = -rayDir;
 
-	vec3 viewDir = -rayDir;
-	vec3 halfwayDir = normalize(lightDir + viewDir);
-	float cosangle2 = dot(norm, halfwayDir);
-	float spec = max(cosangle2, 0);
-	float antispec = -min(cosangle2, 0);
-	float energyFactor = (8 + shininess) / (8 * pi);
-	float specular = energyFactor * pow(spec, shininess) * specularStrength;
-	float antispecular = energyFactor * pow(antispec, shininess) * specularStrength;
+	vec3 lightx[2], lightcol[2];
+	lightx[0] = lightPos;
+	lightx[1] = -lightPos;
+	lightcol[0] = 5*vec3(1, 1, 1);
+	lightcol[1] = 5*vec3(.1, .1, .1);
 
-	float light = ambient + diffuse + specular + .1*antidiffuse + .1*antispecular;
+	float metallic = .1;
+	float roughness = .35;
+
+	vec3 lo = vec3(0);
+	vec3 albedo = fragCol;
+
+	for (int i = 0; i < 2; ++i)
+	{
+		vec3 l = normalize(lightx[i]);
+		vec3 h = normalize(v + l);
+		vec3 radiance = lightcol[i];
+
+		float ndotv = max(dot(n, v), 0);
+		float ndotl = max(dot(n, l), 0);
+
+		vec3 F0 = vec3(0.04);
+		F0 = mix(F0, albedo, metallic);
+		vec3 F = FresnelEquation(h, v, F0);
+
+		float D = NormalDistributionFunction(n, h, roughness);
+		float G = GeometryFunction(ndotv, ndotl, roughness);
+
+		vec3 specular = D * F * G / (4 * ndotv * ndotl + 0.0001);
+
+		vec3 kD = vec3(1) - F;
+		kD *= 1 - metallic;
+
+		lo += (kD * albedo / pi + specular) * radiance * ndotl;
+	}
 	
 	// tone mapping + gamma correction
-	color = vec4(pow(aces(fragCol * light), vec3(1/gamma)), 1);
+	color = vec4(pow(aces(lo), vec3(1/gamma)), 1);
 }
 
 
