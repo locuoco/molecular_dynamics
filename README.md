@@ -126,6 +126,7 @@ Currently available molecules are:
 * `physics::sodium_ion<T>`: Sodium ion
 * `physics::chloride_ion<T>`: Chloride ion
 * `physics::caesium_ion<T>`: Caesium ion
+* `physics::argon<T>`: Argon atom
 
 where `T` is a scalar type. If not specified, `double` is assumed.
 
