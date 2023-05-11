@@ -35,7 +35,10 @@ void load_nist_sample(System& sys)
 	double dummy;
 	char dummy_char;
 
-	input >> sys.side;
+	input >> sys.side[0];
+	sys.side[1] = sys.side[0];
+	sys.side[2] = sys.side[0];
+
 	input >> dummy;
 	input >> dummy;
 	input >> dummy;

@@ -413,22 +413,23 @@ namespace physics
 		std::vector<atom_type> id; // identity of the atom
 		std::vector<fixed_list<max_bonds>> bonds; // bonds as an adjacency list
 		std::vector<std::array<unsigned, 4>> impropers; // list of impropers in the whole system
-		T M = 0, Z = 0, Z2 = 0, tracedisp6 = 0, sumdisp6 = 0, sumdisp62 = 0, tracedisp12 = 0, sumdisp12 = 0;
-			// total mass, total charge, sum of charges^2, trace of dispersion matrix, sum (of squares) of all dispersion terms coefficients
-		unsigned n = 0, dof = 0; // total number of atoms, degrees of freedom
 		utils::thread_pool tp; // thread pool
 		LRSum lrsum; // long-range summation algorithm
 		std::mt19937_64 mersenne_twister = std::mt19937_64(0);
-		T side, temperature_ref, pressure_ref; // box side, reference temperature (for constant-T), reference pressure (for constant-P)
+		vec3<T> side; // box sides
+		T M = 0, Z = 0, Z2 = 0, tracedisp6 = 0, sumdisp6 = 0, sumdisp62 = 0, tracedisp12 = 0, sumdisp12 = 0;
+			// total mass, total charge, sum of charges^2, trace of dispersion matrix, sum (of squares) of all dispersion terms coefficients
+		unsigned n = 0, dof = 0; // total number of atoms, degrees of freedom
+		T temperature_ref, pressure_ref; // reference temperature (for constant-T and initialization), reference pressure (for constant-P)
 		T energy_lrc, energy_intra_coulomb, energy_intra_lj; // LJ long-range correction, intra-molecular energy corrections
 		T t = 0, potential, virial, D; // time, potential energy, virial, diffusion coefficient
 		bool rescale_temperature = false, first_step = true, dispersion_correction = true;
 
-		molecular_system(T temp = 298.15, T p = 1*atm<T>, T side = 50, T D = DW25<T>, LRSum lrsum = LRSum())
+		molecular_system(T temp = 298.15, T p = 1*atm<T>, vec3<T> side = 50, T D = DW25<T>, LRSum lrsum = LRSum())
 		// constructor:
 		//	`temp` is the temperature to give to the initial configuration and reference temperature (in Kelvin)
 		//	`p` is the reference pressure (in AKMA units)
-		//	`side` is the side of the cubic box of the system to simulate (in angstrom)
+		//	`side` is the array of sides that characterize the dimensions of the box of the system to simulate (in angstrom)
 		//	`D` is the diffusion coefficient used in stochastic integrators (in AKMA units)
 		//	`lrsum` is the long-range summation algorithm to be used
 			: lrsum(lrsum), side(side), temperature_ref(temp), pressure_ref(p), D(D)
@@ -540,7 +541,7 @@ namespace physics
 		}
 
 		void primitive_cubic_lattice(
-			int                n_side,
+			const vec3i&       n_side,
 			T                  lattice_const,
 			const molecule<T>& species1,
 			const molecule<T>& species2 = empty_molecule<T>
@@ -549,8 +550,8 @@ namespace physics
 		// species are given, create an interpenetrating (caesium-chloride-like) structure.
 		// Examples: Caesium chloride (CsCl), caesium bromide (CsBr), caesium iodide (CsI), many
 		// binary metallic alloys.
-		// `n_side` is the number of cubic unit cells along one dimension. The total number of lattice
-		// points for species 1 (or 2) is thus n_side^3.
+		// `n_side` is the number of cubic unit cells along each dimension. The total number of lattice
+		// points for species 1 (or 2) is thus n_side[0] * n_side[1] * n_side[2].
 		// `lattice_const` is the distance between nearest cubic unit cells (i.e. the linear size
 		// of a cubic unit cell).
 		// `species1` is the first chemical species to insert in the lattice.
@@ -561,22 +562,22 @@ namespace physics
 		// After this method is called, calling `fetch` is not needed.
 		{
 			clear();
-			side = n_side*lattice_const;
-			T hside = T(n_side)/2;
-			for (int i = 0; i < n_side; ++i)
-				for (int j = 0; j < n_side; ++j)
-					for (int k = 0; k < n_side; ++k)
-						add_molecule(species1, {(i-hside)*lattice_const, (j-hside)*lattice_const, (k-hside)*lattice_const});
+			side = vec3<T>(n_side)*lattice_const;
+			vec3<T> hside = vec3<T>(n_side)/2 - T(0.25);
+			for (int i = 0; i < n_side[0]; ++i)
+				for (int j = 0; j < n_side[1]; ++j)
+					for (int k = 0; k < n_side[2]; ++k)
+						add_molecule(species1, {(i-hside[0])*lattice_const, (j-hside[1])*lattice_const, (k-hside[2])*lattice_const});
 			hside -= T(0.5);
-			for (int i = 0; i < n_side; ++i)
-				for (int j = 0; j < n_side; ++j)
-					for (int k = 0; k < n_side; ++k)
-						add_molecule(species2, {(i-hside)*lattice_const, (j-hside)*lattice_const, (k-hside)*lattice_const});
+			for (int i = 0; i < n_side[0]; ++i)
+				for (int j = 0; j < n_side[1]; ++j)
+					for (int k = 0; k < n_side[2]; ++k)
+						add_molecule(species2, {(i-hside[0])*lattice_const, (j-hside[1])*lattice_const, (k-hside[2])*lattice_const});
 			fetch();
 		}
 
 		void face_centered_cubic_lattice(
-			int                n_side,
+			const vec3i&       n_side,
 			T                  lattice_const,
 			const molecule<T>& species1,
 			const molecule<T>& species2 = empty_molecule<T>
@@ -585,8 +586,8 @@ namespace physics
 		// species are given, create a rock-salt-like structure.
 		// Examples: Rock salt (NaCl), lithium chloride (LiCl), lithium floride (LiF), many
 		// salts composed with other alkali metals (expect caesium, and probably francium).
-		// `n_side` is the number of cubic unit cells along one dimension. The total number of lattice
-		// points for species 1 (or 2) is thus 4 * n_side^3.
+		// `n_side` is the number of cubic unit cells along each dimension. The total number of lattice
+		// points for species 1 (or 2) is thus 4 * n_side[0] * n_side[1] * n_side[2].
 		// `lattice_const` is the distance between nearest cubic unit cells (i.e. the linear size
 		// of a cubic unit cell).
 		// `species1` is the first chemical species to insert in the lattice.
@@ -597,14 +598,14 @@ namespace physics
 		// After this method is called, calling `fetch` is not needed.
 		{
 			clear();
-			int dside = n_side*2;
-			side = n_side*lattice_const;
+			vec3i dside = n_side*2;
+			side = vec3<T>(n_side)*lattice_const;
 			T dist = lattice_const/2;
-			for (int i = 0; i < dside; ++i)
-				for (int j = 0; j < dside; ++j)
-					for (int k = 0; k < dside; ++k)
+			for (int i = 0; i < dside[0]; ++i)
+				for (int j = 0; j < dside[1]; ++j)
+					for (int k = 0; k < dside[2]; ++k)
 					{
-						physics::vec3d p = {(i-n_side)*dist, (j-n_side)*dist, (k-n_side)*dist};
+						physics::vec3d p = {(i-n_side[0] + T(0.25))*dist, (j-n_side[1] + T(0.25))*dist, (k-n_side[2] + T(0.25))*dist};
 						if (math::is_even(i+j+k))
 							add_molecule(species1, p);
 						else
@@ -652,7 +653,7 @@ namespace physics
 		T volume() const noexcept
 		// return the volume of the simulation box
 		{
-			return side*side*side; // in angstrom^3 = 10^-30 m^3
+			return side[0]*side[1]*side[2]; // in angstrom^3 = 10^-30 m^3
 		}
 
 		T density() const noexcept
@@ -782,6 +783,8 @@ namespace physics
 		{
 			using std::sqrt;
 
+			fetch();
+
 			T temp = temperature();
 			if (temp > 0)
 				p *= sqrt(temperature_ref / temp);
@@ -798,6 +801,7 @@ namespace physics
 		// `pressure`, `external_pressure`, `primitive_cubic_lattice`, `face_centered_cubic_lattice`
 		// is called).
 		{
+			// if valarray have already the correct size, just return
 			if (x.size() == n)
 				return;
 			x.resize(n); p.resize(n);
@@ -809,8 +813,28 @@ namespace physics
 			copy(begin(v_tmp), end(v_tmp), begin(v));
 			copy(begin(f_tmp), end(f_tmp), begin(f));
 			copy(begin(m_tmp), end(m_tmp), begin(m));
-			// set total momentum to zero
+
+			zero_total_momentum();
+			rescale_temp();
+		}
+
+		void zero_total_momentum()
+		// set total momentum to zero
+		{
+			fetch();
 			p -= p.sum()/n;
+		}
+
+		void random_momenta()
+		// randomize atoms momenta based on Maxwell-Boltzmann distribution
+		{
+			fetch();
+
+			for (size_t i = 0; i < n; ++i)
+				p[i] = gen_gaussian() * sqrt(m[i] * kT_ref());
+
+			zero_total_momentum();
+			rescale_temp();
 		}
 
 		private:
@@ -1014,39 +1038,22 @@ namespace physics
 		// `steepness` is the steepness of the potential outside the cube, which is equal
 		// to the force applied
 		{
-			T hside = side / 2;
+			vec3<T> hside = side / 2;
 			for (std::size_t i = 0; i < n; ++i)
 			{
-				if (x[i][0] > hside)
+				for (std::size_t j = 0; j < 3; ++j)
 				{
-					f[i][0] -= steepness;
-					potential += (x[i][0] - hside)*steepness;
-				}
-				if (x[i][1] > hside)
-				{
-					f[i][1] -= steepness;
-					potential += (x[i][1] - hside)*steepness;
-				}
-				if (x[i][2] > hside)
-				{
-					f[i][2] -= steepness;
-					potential += (x[i][2] - hside)*steepness;
-				}
+					if (x[i][j] > hside[j])
+					{
+						f[i][j] -= steepness;
+						potential += (x[i][j] - hside[j])*steepness;
+					}
 
-				if (x[i][0] < -hside)
-				{
-					f[i][0] += steepness;
-					potential += (-hside - x[i][0])*steepness;
-				}
-				if (x[i][1] < -hside)
-				{
-					f[i][1] += steepness;
-					potential += (-hside - x[i][1])*steepness;
-				}
-				if (x[i][2] < -hside)
-				{
-					f[i][2] += steepness;
-					potential += (-hside - x[i][2])*steepness;
+					if (x[i][j] < -hside[j])
+					{
+						f[i][j] += steepness;
+						potential += (-hside[j] - x[i][j])*steepness;
+					}
 				}
 			}
 		}
@@ -1084,9 +1091,10 @@ namespace physics
 			: x(other.x), p(other.p), v(other.v), f(other.f), noise(other.noise), m(other.m), gamma(other.gamma),
 			x_tmp(other.x_tmp), p_tmp(other.p_tmp), v_tmp(other.v_tmp), f_tmp(other.f_tmp), m_tmp(other.m_tmp),
 			z(other.z), lj_sqrteps(other.lj_sqrteps), lj_halfR(other.lj_halfR), id(other.id), bonds(other.bonds), impropers(other.impropers),
-			M(other.M), Z(other.Z), Z2(other.Z2), tracedisp6(other.tracedisp6), sumdisp6(other.sumdisp6), sumdisp62(other.sumdisp62),
-			tracedisp12(other.tracedisp12), sumdisp12(other.sumdisp12), n(other.n), dof(other.dof),
-			mersenne_twister(other.mersenne_twister), side(other.side), temperature_ref(other.temperature_ref),
+			mersenne_twister(other.mersenne_twister),
+			side(other.side), M(other.M), Z(other.Z), Z2(other.Z2), tracedisp6(other.tracedisp6), sumdisp6(other.sumdisp6),
+			sumdisp62(other.sumdisp62), tracedisp12(other.tracedisp12), sumdisp12(other.sumdisp12), n(other.n), dof(other.dof),
+			temperature_ref(other.temperature_ref),
 			energy_lrc(other.energy_lrc), energy_intra_coulomb(other.energy_intra_coulomb), energy_intra_lj(other.energy_intra_lj),
 			t(other.t), potential(other.potential), virial(other.virial), D(other.D),
 			first_step(other.first_step), dispersion_correction(other.dispersion_correction)
@@ -1098,9 +1106,10 @@ namespace physics
 			: x(other.x), p(other.p), v(other.v), f(other.f), noise(other.noise), m(other.m), gamma(other.gamma),
 			x_tmp(other.x_tmp), p_tmp(other.p_tmp), v_tmp(other.v_tmp), f_tmp(other.f_tmp), m_tmp(other.m_tmp),
 			z(other.z), lj_sqrteps(other.lj_sqrteps), lj_halfR(other.lj_halfR), id(other.id), bonds(other.bonds), impropers(other.impropers),
-			M(other.M), Z(other.Z), Z2(other.Z2), tracedisp6(other.tracedisp6), sumdisp6(other.sumdisp6), sumdisp62(other.sumdisp62),
-			tracedisp12(other.tracedisp12), sumdisp12(other.sumdisp12), n(other.n), dof(other.dof),
-			mersenne_twister(other.mersenne_twister), side(other.side), temperature_ref(other.temperature_ref),
+			mersenne_twister(other.mersenne_twister),
+			side(other.side), M(other.M), Z(other.Z), Z2(other.Z2), tracedisp6(other.tracedisp6), sumdisp6(other.sumdisp6),
+			sumdisp62(other.sumdisp62), tracedisp12(other.tracedisp12), sumdisp12(other.sumdisp12), n(other.n), dof(other.dof),
+			temperature_ref(other.temperature_ref),
 			energy_lrc(other.energy_lrc), energy_intra_coulomb(other.energy_intra_coulomb), energy_intra_lj(other.energy_intra_lj),
 			t(other.t), potential(other.potential), virial(other.virial), D(other.D),
 			first_step(other.first_step), dispersion_correction(other.dispersion_correction)
@@ -1123,6 +1132,8 @@ namespace physics
 			id = other.id;
 			bonds = other.bonds;
 			impropers = other.impropers;
+			mersenne_twister = other.mersenne_twister;
+			side = other.side;
 			M = other.M;
 			Z = other.Z;
 			Z2 = other.Z2;
@@ -1133,8 +1144,6 @@ namespace physics
 			sumdisp12 = other.sumdisp12;
 			n = other.n;
 			dof = other.dof;
-			mersenne_twister = other.mersenne_twister;
-			side = other.side;
 			temperature_ref = other.temperature_ref;
 			energy_lrc = other.energy_lrc;
 			energy_intra_coulomb = other.energy_intra_coulomb;
@@ -1166,6 +1175,8 @@ namespace physics
 			id = other.id;
 			bonds = other.bonds;
 			impropers = other.impropers;
+			mersenne_twister = other.mersenne_twister;
+			side = other.side;
 			M = other.M;
 			Z = other.Z;
 			Z2 = other.Z2;
@@ -1176,8 +1187,6 @@ namespace physics
 			sumdisp12 = other.sumdisp12;
 			n = other.n;
 			dof = other.dof;
-			mersenne_twister = other.mersenne_twister;
-			side = other.side;
 			temperature_ref = other.temperature_ref;
 			energy_lrc = other.energy_lrc;
 			energy_intra_coulomb = other.energy_intra_coulomb;

@@ -23,6 +23,7 @@
 #include <numbers> // numbers::inv_sqrtpi_v, numbers::pi_v
 #include <complex>
 #include <limits> // infinity
+#include <algorithm> // min
 
 #include "tensor.hpp" // remainder
 #include "physical_system.hpp"
@@ -51,7 +52,7 @@ namespace physics
 	// `vLJ` is a variable which accumulates the Lennard-Jones virial.
 	// `kappa` is the Ewald parameter.
 	// `r` is the displacement vector between the two particles, given by:
-	//	r = remainder(s.x[i] - s.x[j]).
+	//	r = remainder(s.x[i] - s.x[j], s.side).
 	// `r2` is the squared distance between the two particles.
 	// If the template argument `Fast` is set to false, the standard functions
 	// `std::exp` and `std::erfc` are used instead of `math::fastexp` and
@@ -231,8 +232,9 @@ namespace physics
 
 			maxn1 = 2*maxn+1;
 			maxn3 = maxn1*maxn1*maxn1;
-			T volume = s.side * s.side * s.side;
-			cutoff = s.side/2;
+			T volume = s.side[0] * s.side[1] * s.side[2];
+			T min_side = std::min({s.side[0], s.side[1], s.side[2]});
+			cutoff = min_side/2;
 			// update Ewald paremeter every once in a while for constant-P simulations
 			if (update_counter % update_max_count == (update_max_count-1))
 			{
@@ -244,7 +246,7 @@ namespace physics
 			else if (prev_side != s.side)
 			{
 				// rescale Ewald parameter
-				kappa *= prev_side / s.side;
+				kappa *= prev_side[0] / s.side[0];
 				++update_counter;
 			}
 			num_threads = tp.size();
@@ -289,7 +291,8 @@ namespace physics
 			std::vector<std::complex<T>> structure; // structure factor
 			std::vector<T> partpot_r, partpot_k, partpot_lj, partvir_lj;
 			std::vector<T> factor;
-			T cutoff = 0, kappa = 0, dielec = std::numeric_limits<T>::infinity(), prev_side;
+			vec3<T> prev_side;
+			T cutoff = 0, kappa = 0, dielec = std::numeric_limits<T>::infinity();
 			std::size_t maxn = 6, num_threads, maxn1, maxn3;
 			unsigned update_counter, update_max_count = 1000;
 			bool update = true, manual = false, fast = true, verbose_ = false;
@@ -302,8 +305,10 @@ namespace physics
 			{
 				using std::abs;
 				using std::sqrt;
+
+				T max_side = std::max({s.side[0], s.side[1], s.side[2]});
 				if (!manual)
-					kappa = 7/s.side;
+					kappa = 7/max_side;
 				T cutoff2 = cutoff*cutoff;
 				T next_kappa = kappa, errF;
 				T corr = T(1)/1000; // empirical correcting for overestimation
@@ -318,9 +323,9 @@ namespace physics
 					T errFr2 = 4*cutoff2*errFr*(4*k2*cutoff2 - 1); // 2nd derivative
 					// reciprocal-space force error
 					// note that this estimation assumes spherical cutoff, which is likely to
-					// overestimate the error of a cubic cutoff, so we multiply by `corr`
-					T factor = (k2*s.side)/(2*std::numbers::pi_v<T>*std::numbers::pi_v<T>*maxn);
-					T expo = maxn/(s.side*factor);
+					// overestimate the error of a cubic cutoff, so we multiply by a factor `corr`
+					T factor = (k2*max_side)/(2*std::numbers::pi_v<T>*std::numbers::pi_v<T>*maxn);
+					T expo = maxn/(max_side*factor);
 					T errFk = math::fastexp(-expo) * factor * corr;
 					T factor2 = 2*(1 + expo) / kappa;
 					T errFk1 = errFk * factor2; // 1st derivative
@@ -335,7 +340,7 @@ namespace physics
 				}
 				while (abs((next_kappa-kappa) / kappa) > 1e-3 && counter < max_counter && !manual);
 
-				T volume = s.side*s.side*s.side;
+				T volume = s.side[0]*s.side[1]*s.side[2];
 				estimated_error_coulomb = 2 * s.Z2 * sqrt(errF / (s.n * volume));
 				estimated_error_lj = 12 / (cutoff2 * cutoff2 * cutoff) * sqrt(std::numbers::pi_v<T> * s.sumdisp62 / (11 * cutoff * s.n * volume));
 				estimated_error = sqrt(estimated_error_coulomb*estimated_error_coulomb + estimated_error_lj*estimated_error_lj);
@@ -366,7 +371,7 @@ namespace physics
 				using std::size_t;
 				using std::sin;
 				using std::cos;
-				T volume = s.side*s.side*s.side;
+				T volume = s.side[0]*s.side[1]*s.side[2];
 				T cutoff2 = cutoff*cutoff;
 				T uC = 0, uLJ = 0, vLJ = 0;
 				// calculate real-space forces, energy and virial

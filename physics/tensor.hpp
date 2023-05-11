@@ -411,6 +411,15 @@ namespace physics
 			e = e - round(e/modulo)*modulo;
 		return t;
 	}
+	template <std::floating_point T, std::size_t ... Ns>
+	constexpr tensor<T, Ns...> remainder(tensor<T, Ns...> t, const tensor<T, Ns...>& modulo)
+	// remainder function applied to tensor `t` element-wise
+	{
+		using std::round;
+		for (std::size_t i = 0; i < (Ns * ...); ++i)
+			t[i] = t[i] - round(t[i]/modulo[i])*modulo[i];
+		return t;
+	}
 	template <typename T, std::size_t ... Ns>
 	constexpr tensor<T, Ns...> mod(tensor<T, Ns...> t, typename tensor<T, Ns...>::value_type modulo)
 	// mod function applied to tensor `t` element-wise
@@ -420,6 +429,15 @@ namespace physics
 			e = mod(e, modulo);
 		return t;
 	}
+	template <typename T, std::size_t ... Ns>
+	constexpr tensor<T, Ns...> mod(tensor<T, Ns...> t, const tensor<T, Ns...>& modulo)
+	// mod function applied to tensor `t` element-wise
+	{
+		using math::mod;
+		for (std::size_t i = 0; i < (Ns * ...); ++i)
+			t[i] = mod(t[i], modulo[i]);
+		return t;
+	}
 	template <std::floating_point T, std::size_t ... Ns>
 	constexpr tensor<T, Ns...> floor(tensor<T, Ns...> t)
 	// floor function applied to tensor `t` element-wise
@@ -427,6 +445,15 @@ namespace physics
 		using std::floor;
 		for (auto& e : t)
 			e = floor(e);
+		return t;
+	}
+	template <std::floating_point T, std::size_t ... Ns>
+	constexpr tensor<T, Ns...> ceil(tensor<T, Ns...> t)
+	// ceiling function applied to tensor `t` element-wise
+	{
+		using std::ceil;
+		for (auto& e : t)
+			e = ceil(e);
 		return t;
 	}
 	template <std::floating_point T, std::size_t ... Ns>
@@ -668,7 +695,21 @@ namespace physics
 		return st;
 	}
 	template <std::floating_point T, std::size_t Dim>
+	constexpr state<T, Dim> remainder(state<T, Dim> st, const vec<T, Dim>& modulo)
+	{
+		for (auto& v : st)
+			v = remainder(v, modulo);
+		return st;
+	}
+	template <std::floating_point T, std::size_t Dim>
 	constexpr state<T, Dim> mod(state<T, Dim> st, T modulo)
+	{
+		for (auto& v : st)
+			v = mod(v, modulo);
+		return st;
+	}
+	template <std::floating_point T, std::size_t Dim>
+	constexpr state<T, Dim> mod(state<T, Dim> st, const vec<T, Dim>& modulo)
 	{
 		for (auto& v : st)
 			v = mod(v, modulo);
@@ -679,6 +720,13 @@ namespace physics
 	{
 		for (auto& v : st)
 			v = floor(v);
+		return st;
+	}
+	template <std::floating_point T, std::size_t Dim>
+	constexpr state<T, Dim> ceil(state<T, Dim> st)
+	{
+		for (auto& v : st)
+			v = ceil(v);
 		return st;
 	}
 	template <std::floating_point T, std::size_t Dim>

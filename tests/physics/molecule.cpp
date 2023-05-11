@@ -60,7 +60,9 @@ void test_pc_lattice()
 
 	sys.primitive_cubic_lattice(n_side, lattice_constant, physics::water_tip3p<>);
 
-	assert(std::abs(sys.side - n_side * lattice_constant) < error_threshold);
+	assert(std::abs(sys.side[0] - n_side * lattice_constant) < error_threshold);
+	assert(std::abs(sys.side[1] - n_side * lattice_constant) < error_threshold);
+	assert(std::abs(sys.side[2] - n_side * lattice_constant) < error_threshold);
 }
 
 void test_fcc_lattice()
@@ -73,7 +75,9 @@ void test_fcc_lattice()
 
 	sys.face_centered_cubic_lattice(n_side, lattice_constant, physics::water_tip3p<>);
 
-	assert(std::abs(sys.side - n_side * lattice_constant) < error_threshold);
+	assert(std::abs(sys.side[0] - n_side * lattice_constant) < error_threshold);
+	assert(std::abs(sys.side[1] - n_side * lattice_constant) < error_threshold);
+	assert(std::abs(sys.side[2] - n_side * lattice_constant) < error_threshold);
 }
 
 void test_cubic_lattice()

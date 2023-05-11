@@ -175,10 +175,10 @@ class graphics
 			for (unsigned i = 0; i < molsys.n; ++i)
 			{
 				// the first three components are the position of the atom
-				// in [-side/2, side/2]^3 where `side` is the side of the cubic simulation box
-				atom_attribs[i*4+0] = remainder(molsys.x[i][0], molsys.side);
-				atom_attribs[i*4+1] = remainder(molsys.x[i][1], molsys.side);
-				atom_attribs[i*4+2] = remainder(molsys.x[i][2], molsys.side);
+				// x_i in [-side_i/2, side_i/2]^3 where `side_i` is one side of the simulation box
+				atom_attribs[i*4+0] = remainder(molsys.x[i][0], molsys.side[0]);
+				atom_attribs[i*4+1] = remainder(molsys.x[i][1], molsys.side[1]);
+				atom_attribs[i*4+2] = remainder(molsys.x[i][2], molsys.side[2]);
 				// the fourth component is the identity of the atom (needed
 				// to choose color and size of the sphere)
 				atom_attribs[i*4+3] = physics::atom_number[int(molsys.id[i])];

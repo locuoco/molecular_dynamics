@@ -1,4 +1,4 @@
-//  Molecular dynamics example: water molecules
+//  Molecular dynamics example: minimization
 //  Copyright (C) 2022 Alessandro Lo Cuoco (alessandro.locuoco@gmail.com)
 
 //  This program is free software: you can redistribute it and/or modify

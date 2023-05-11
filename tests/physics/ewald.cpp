@@ -46,7 +46,7 @@ void test_accuracy_nist()
 
 	sys.force();
 
-	assert(sys.side == 20);
+	assert(sys.side[0] == 20 && sys.side[1] == 20 && sys.side[2] == 20);
 	assert(sys.n == 300); // there are 100 water molecules in the sample (i.e. 300 atoms)
 
 	// total energy
