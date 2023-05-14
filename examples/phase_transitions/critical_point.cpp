@@ -25,14 +25,16 @@ g++ critical_point.cpp -o critical_point -std=c++20 -I C:\Users\aless\Desktop\my
 
 */
 
-#include "../physics/physics.hpp"
-#include "../gui/graphics.hpp"
+#include "../../physics/physics.hpp"
+#include "../../gui/graphics.hpp"
 
 using namespace physics::literals;
 
 int main()
 {
 	graphics window;
+
+	window.camera_controls->pos = physics::vec3d(0, 0, 50);
 
 	physics::molecular_system molsys;
 	physics::leapfrog integ(molsys);
@@ -123,7 +125,7 @@ int main()
 		++sim_i;
 	}
 
-	std::ofstream file("phase_transitions/critical_point.txt");
+	std::ofstream file("examples/phase_transitions/critical_point.txt");
 
 	file << "T0 T dT P dP E dE\n";
 	for (std::size_t i = 0; i < init_temps.size(); ++i)

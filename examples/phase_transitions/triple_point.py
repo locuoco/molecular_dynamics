@@ -9,5 +9,6 @@ def plot_graph(x, y):
 	df[25:].plot(kind='scatter', x=x, y=y, c='black', ax=ax1)
 
 plot_graph('T0', 'T')
+#plot_graph('P', 'T')
 
 plt.show()

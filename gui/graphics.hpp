@@ -201,11 +201,12 @@ class graphics
 			estimate_fps();
 		}
 
+	controls *camera_controls = nullptr;
+
 	private:
 
 		GLFWwindow* window = nullptr;
 		const GLFWvidmode *vidmode = nullptr;
-		controls *camera_controls = nullptr;
 		font *text = nullptr;
 		GLuint prog_id, prog_post_id; // programs (3D sphere rendering and post-processing)
 		GLuint mv_id, proj_id, normal_mat_id, light_pos_id, gamma_id; // uniforms of prog_id
