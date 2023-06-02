@@ -513,7 +513,7 @@ class graphics
 			physics::mat4f fview = camera_controls->view;
 			physics::mat4f fproj = camera_controls->proj;
 
-			// a light is rotating with time (`last_time` is a measure of real time, not the simulation time)
+			// a light coordinates
 			physics::vec4d lightPosWorld(
 				0,
 				0,
