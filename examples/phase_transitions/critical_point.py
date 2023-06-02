@@ -23,17 +23,22 @@ df = pd.read_csv('critical_point.txt', delimiter='\s+')
 
 df['P'] /= 1.458397257425908222e-5
 
-print('T =', df['T'][20])
-print('P =', df['P'][20])
+print('calculated T_c =', df['T'][20])
+print('calculated P_c =', df['P'][20])
 
-df.plot(kind='scatter', x='T0', y='T', c='blue')
-df.plot(kind='scatter', x='T0', y='P', c='blue')
+prop_cst = eps / boltzmann
+print('Schultz T_c =', 1.321 * prop_cst, '+/-', 0.007 * prop_cst)
 
-#p = np.arange(120, 150.8, 1)
+prop_cst = eps / sigma**3 / 101325
+print('Schultz P_c =', 0.129 * prop_cst, '+/-', 0.005 * prop_cst)
 
-fig, ax1 = plt.subplots(1)
-#ax1.plot(p, lofti_vaporliquid(p), c='black')
-df.plot(kind='scatter', x='T', y='P', c='blue', ax=ax1)
+def plot_graph(x, y):
+	ax1 = df[:20].plot(kind='scatter', x=x, y=y, c='black')
+	df[20:].plot(kind='scatter', x=x, y=y, c='red', ax=ax1)
+
+plot_graph('T0', 'T')
+plot_graph('T0', 'P')
+plot_graph('T', 'P')
 
 plt.show()
 

@@ -515,9 +515,9 @@ class graphics
 
 			// a light is rotating with time (`last_time` is a measure of real time, not the simulation time)
 			physics::vec4d lightPosWorld(
-				400*std::sin(2*last_time/100),
-				400*std::sin(std::numbers::sqrt2*last_time/100),
-				400*std::cos(2*last_time/100),
+				0,
+				0,
+				400,
 				1
 			);
 			// moving into view coordinates
