@@ -701,14 +701,14 @@ namespace physics
 			v = remainder(v, modulo);
 		return st;
 	}
-	template <std::floating_point T, std::size_t Dim>
+	template <typename T, std::size_t Dim>
 	constexpr state<T, Dim> mod(state<T, Dim> st, T modulo)
 	{
 		for (auto& v : st)
 			v = mod(v, modulo);
 		return st;
 	}
-	template <std::floating_point T, std::size_t Dim>
+	template <typename T, std::size_t Dim>
 	constexpr state<T, Dim> mod(state<T, Dim> st, const vec<T, Dim>& modulo)
 	{
 		for (auto& v : st)
