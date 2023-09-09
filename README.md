@@ -43,7 +43,7 @@ References:
 
 ## The code
 The code makes use of C++ templates and concepts (thus it requires C++20) and is organised in many header files, that can be included from one or more compilation units. The repository is structured in the following way:
-* `examples`: directory containing example code using the library.
+* `experiments`: directory containing example code using the library and experiments for University projects.
 * `gui`: directory containing the management of the GUI (Graphical User Interface).
   * `shaders`: directory which contains shaders for the rendering of impostors (for fast rendering of spheres), post-processing filters (fast approximate anti-aliasing, blue noise dithering) and text.
   * `controls.hpp`: includes a function to manage keyboard and mouse controls.
