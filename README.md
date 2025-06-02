@@ -1,4 +1,4 @@
-# 3D Molecular dynamics
+# Mol3D: 3D Molecular dynamics
 
 ![Screenshot of the program](screenshot.png)
 <!---
